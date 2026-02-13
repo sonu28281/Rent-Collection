@@ -213,11 +213,39 @@ PHASE 1: Bootstrap
 TEST: Login works
 COMMIT: "Phase 1 complete – Auth scaffold"
 
-PHASE 2: Seed Rooms
-- Create scripts/seed_rooms.js
-- Insert 12 rooms
-TEST: Rooms visible
-COMMIT: "Phase 2 complete – Rooms seeded"
+PHASE 2 — SEED ROOMS, SIDEBAR & CORE SCHEMA (DEV: 1–2 hours)
+1. scripts/seed_rooms.js: creates 12 room docs 101..106,201..206 with defaultRent null for now.
+2. Implement Rooms page with list & create/update.
+3. Implement a global Left Sidebar (mobile-first, collapsible) with the following items:
+   - Dashboard ("/")
+   - Tenants ("/tenants")
+   - Rooms ("/rooms")
+   - Record Electricity ("/electricity")
+   - Payments ("/payments")
+   - Maintenance ("/maintenance")
+   - Import CSV ("/import")
+   - Bank Accounts ("/bank-accounts")
+   - Settings ("/settings")
+   - Logout (action)
+   Requirements for the Sidebar:
+     - Desktop: fixed left column, width ~ 240px, visually distinct.
+     - Mobile: collapsed into a top-left hamburger which toggles a slide-over menu.
+     - Active route highlighting.
+     - Each menu item supports an optional badge (e.g., pending payments count).
+     - Persist collapsed/expanded state in localStorage (key: autoxweb_sidebar_collapsed).
+     - Accessible (aria attributes) and keyboard navigable.
+4. Integrate Sidebar into App layout:
+   - Create Layout component that renders <Sidebar/> + outlet for routes.
+   - Protect admin routes via ProtectedRoute wrapper.
+5. Update App routing to include all pages and ensure Sidebar appears on all admin pages.
+6. Tests:
+   - Run seed script -> verify 12 docs in rooms collection.
+   - UI: Sidebar visible on desktop; hamburger appears on small view.
+   - Navigation: clicking each menu item routes to correct page.
+   - Badge: Create one pending payment item and verify Payments badge shows count.
+   - Collapsed state persists across refresh.
+7. Commit message: "Phase 2 complete – Rooms seeded & Sidebar + routing"
+
 
 PHASE 3: Tenants CRUD
 - Create tenant form
