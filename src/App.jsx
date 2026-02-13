@@ -15,6 +15,7 @@ import ImportCSV from './components/ImportCSV';
 import BankAccounts from './components/BankAccounts';
 import BackupExport from './components/BackupExport';
 import RentIncrease from './components/RentIncrease';
+import HistoryManager from './components/HistoryManager';
 
 function App() {
   return (
@@ -103,6 +104,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><BackupExport /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/history" 
+            element={
+              <ProtectedRoute>
+                <Layout><HistoryManager /></Layout>
               </ProtectedRoute>
             } 
           />

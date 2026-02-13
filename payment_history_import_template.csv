@@ -1,0 +1,5 @@
+docId,roomNumber,tenantNameSnapshot,year,month,rent,electricity,totalAmount,paidAmount,status,paymentDate,assignedFrom2022
+101_2025_1,101,John Doe,2025,1,5000,450,5450,5450,paid,2025-01-05,false
+102_2025_1,102,Jane Smith,2025,1,6000,500,6500,6500,paid,2025-01-10,false
+103_2025_2,103,Bob Wilson,2025,2,5500,480,5980,3000,partial,2025-02-08,false
+104_2025_3,104,Unknown Tenant XYZ,2025,3,7000,600,7600,0,unpaid,,true

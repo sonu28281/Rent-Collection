@@ -17,8 +17,7 @@ const Sidebar = () => {
     { icon: '�', label: 'Rent Increase', path: '/rent-increase' },
     { icon: '�💳', label: 'Payments', path: '/payments' },
     { icon: '🔧', label: 'Maintenance', path: '/maintenance' },
-    { icon: '📥', label: 'Import CSV', path: '/import' },
-    { icon: '🏦', label: 'Bank Accounts', path: '/bank-accounts' },
+    { icon: '📥', label: 'Import CSV', path: '/import' },    { icon: '📚', label: 'History Manager', path: '/history' },    { icon: '🏦', label: 'Bank Accounts', path: '/bank-accounts' },
     { icon: '💾', label: 'Backup', path: '/backup' },
     { icon: '⚙️', label: 'Settings', path: '/settings' },
   ];
