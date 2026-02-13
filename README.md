@@ -43,7 +43,7 @@ SETUP REQUIREMENTS
 2. ✅ Connect repo to Netlify.
 3. ✅ Add environment variables in Netlify Dashboard:
    
-   Required Environment Variables:
+   Required Environment Variables (get from Firebase Console):
    • VITE_FIREBASE_API_KEY
    • VITE_FIREBASE_AUTH_DOMAIN
    • VITE_FIREBASE_PROJECT_ID
@@ -53,10 +53,18 @@ SETUP REQUIREMENTS
    • VITE_FIREBASE_MEASUREMENT_ID
    • DEFAULT_UPI_ID
 
-   Get Firebase values from: Firebase Console > Project Settings > General
+   📍 To get Firebase values:
+   - Go to Firebase Console (console.firebase.google.com)
+   - Select project: rent-collection-5e1d2
+   - Go to Project Settings > General tab
+   - Copy values from "Your apps" section
    
 4. ✅ Never commit secrets to repo - use environment variables only.
 5. ✅ Admin user (sonu28281@gmail.com) already created in Firebase Auth.
+
+FOR LOCAL DEVELOPMENT:
+Create a .env file in root with your Firebase credentials (never commit this!)
+See .env.example for required variable names.
 
 REPO STRUCTURE
 --------------
