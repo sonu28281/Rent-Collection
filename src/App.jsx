@@ -14,6 +14,7 @@ import Maintenance from './components/Maintenance';
 import ImportCSV from './components/ImportCSV';
 import BankAccounts from './components/BankAccounts';
 import BackupExport from './components/BackupExport';
+import RentIncrease from './components/RentIncrease';
 
 function App() {
   return (
@@ -54,6 +55,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><Electricity /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/rent-increase" 
+            element={
+              <ProtectedRoute>
+                <Layout><RentIncrease /></Layout>
               </ProtectedRoute>
             } 
           />
