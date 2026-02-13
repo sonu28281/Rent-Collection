@@ -102,6 +102,16 @@ const Tenants = () => {
     }
   };
 
+  const handleCopyPortalLink = (token) => {
+    const portalUrl = `${window.location.origin}/t/${token}`;
+    navigator.clipboard.writeText(portalUrl).then(() => {
+      alert('✅ Portal link copied to clipboard!\n\nShare this link with the tenant.');
+    }).catch((err) => {
+      console.error('Failed to copy:', err);
+      prompt('Copy this link:', portalUrl);
+    });
+  };
+
   const filteredTenants = tenants.filter(tenant => {
     if (filter === 'all') return true;
     if (filter === 'active') return tenant.isActive;
@@ -249,6 +259,7 @@ const Tenants = () => {
               tenant={tenant}
               onEdit={() => handleEditTenant(tenant)}
               onDelete={() => handleDeleteTenant(tenant.id, tenant.roomNumber)}
+              onCopyPortalLink={() => handleCopyPortalLink(tenant.uniqueToken)}
             />
           ))}
         </div>
@@ -268,7 +279,7 @@ const Tenants = () => {
   );
 };
 
-const TenantCard = ({ tenant, onEdit, onDelete }) => {
+const TenantCard = ({ tenant, onEdit, onDelete, onCopyPortalLink }) => {
   const isActive = tenant.isActive;
   
   return (
@@ -343,6 +354,9 @@ const TenantCard = ({ tenant, onEdit, onDelete }) => {
       </div>
 
       <div className="flex gap-2">
+        <button onClick={onCopyPortalLink} className="btn-secondary flex-1 text-sm" title="Copy tenant portal link">
+          🔗 Link
+        </button>
         <button onClick={onEdit} className="btn-primary flex-1 text-sm">
           ✏️ Edit
         </button>

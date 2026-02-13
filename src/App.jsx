@@ -6,6 +6,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Rooms from './components/Rooms';
 import Tenants from './components/Tenants';
+import TenantPortal from './components/TenantPortal';
 
 // Placeholder components for future phases
 const ComingSoon = ({ title, phase }) => (
@@ -28,6 +29,10 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
+          
+          {/* Public Tenant Portal Route */}
+          <Route path="/t/:token" element={<TenantPortal />} />
+          
           <Route path="/login" element={<Login />} />
           <Route 
             path="/dashboard" 
