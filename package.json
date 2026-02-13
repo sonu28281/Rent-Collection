@@ -14,7 +14,8 @@
     "check:tokens": "node scripts/check_tenant_token.js",
     "verify:db": "node scripts/verify_database_structure.js",
     "create:payment": "node scripts/create_sample_payment.js",
-    "init:collections": "node scripts/initialize_all_collections.js"
+    "init:collections": "node scripts/initialize_all_collections.js",
+    "mark-paid:all": "node scripts/mark_all_historical_paid.js"
   },
   "dependencies": {
     "date-fns": "^3.0.6",
