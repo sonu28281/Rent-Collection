@@ -84,7 +84,7 @@ const ImportCSV = () => {
             try {
               const row = data[i];
               
-              // Find tenant ID
+              // Find tenant ID and name
               const tenantName = row.tenantName.trim();
               const tenantId = tenantMap[tenantName.toLowerCase()];
               
@@ -94,44 +94,50 @@ const ImportCSV = () => {
                 continue;
               }
 
-              const recordId = `${tenantId}_${row.year}_${row.month}`;
+              // Convert to numbers
+              const year = Number(row.year);
+              const month = Number(row.month);
+              const rentAmount = Number(row.rent) || 0;
+              const electricityAmount = Number(row.electricity) || 0;
+              const totalAmount = rentAmount + electricityAmount;
+
+              // Create payment ID: tenantId_year_month
+              const paymentId = `${tenantId}_${year}_${month}`;
               
-              // Check for duplicates
+              // Check for duplicates in payments collection
               const existingDoc = await getDocs(
                 query(
-                  collection(db, 'monthlyRecords'),
+                  collection(db, 'payments'),
                   where('tenantId', '==', tenantId),
-                  where('year', '==', parseInt(row.year)),
-                  where('month', '==', parseInt(row.month))
+                  where('year', '==', year),
+                  where('month', '==', month)
                 )
               );
               
               if (!existingDoc.empty) {
-                errors.push(`Row ${i + 1}: Record already exists for ${tenantName} - ${row.month}/${row.year}`);
+                errors.push(`Row ${i + 1}: Payment already exists for ${tenantName} - ${month}/${year}`);
                 errorCount++;
                 continue;
               }
 
-              const recordData = {
+              // Prepare payment data according to required schema
+              const paymentData = {
                 tenantId,
+                tenantName,
                 roomNumber: row.roomNumber.toString(),
-                year: parseInt(row.year),
-                month: parseInt(row.month),
-                rent: parseFloat(row.rent) || 0,
-                electricity: parseFloat(row.electricity) || 0,
-                extraCharges: parseFloat(row.extraCharges) || 0,
-                lateFee: parseFloat(row.lateFee) || 0,
-                total: (parseFloat(row.rent) || 0) + 
-                       (parseFloat(row.electricity) || 0) + 
-                       (parseFloat(row.extraCharges) || 0) + 
-                       (parseFloat(row.lateFee) || 0),
+                rentAmount,
+                electricityAmount,
+                totalAmount,
+                month,
+                year,
+                paymentDate: row.paymentDate ? new Date(row.paymentDate).toISOString() : new Date().toISOString(),
+                paymentMode: row.paymentMode || 'cash',
                 status: row.status || 'paid',
-                dueDate: row.dueDate || null,
                 createdAt: new Date().toISOString(),
                 importedAt: new Date().toISOString()
               };
 
-              await setDoc(doc(db, 'monthlyRecords', recordId), recordData);
+              await setDoc(doc(db, 'payments', paymentId), paymentData);
               successCount++;
             } catch (err) {
               errors.push(`Row ${i + 1}: ${err.message}`);
@@ -183,11 +189,13 @@ const ImportCSV = () => {
         <h3 className="font-semibold text-blue-900 mb-2">📋 CSV Format Requirements:</h3>
         <ul className="text-sm text-blue-800 space-y-1">
           <li>• <strong>Required columns:</strong> tenantName, roomNumber, year, month, rent</li>
-          <li>• <strong>Optional columns:</strong> electricity, extraCharges, lateFee, status, dueDate</li>
+          <li>• <strong>Optional columns:</strong> electricity, paymentDate, paymentMode, status</li>
           <li>• Tenant names must match exactly with existing tenants in the system</li>
-          <li>• Year format: YYYY (e.g., 2024)</li>
-          <li>• Month format: 1-12 (January = 1, December = 12)</li>
+          <li>• Year format: YYYY (e.g., 2024) - <strong>stored as number</strong></li>
+          <li>• Month format: 1-12 (January = 1, December = 12) - <strong>stored as number</strong></li>
+          <li>• rent and electricity: numeric values - <strong>stored as numbers</strong></li>
           <li>• Duplicate records will be skipped</li>
+          <li>• Data will be imported into <strong>payments</strong> collection</li>
         </ul>
       </div>
 

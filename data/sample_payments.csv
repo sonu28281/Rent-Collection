@@ -1,0 +1,7 @@
+tenantName,roomNumber,year,month,rent,electricity,paymentDate,paymentMode,status
+John Doe,101,2024,1,5000,450,2024-01-05,upi,paid
+John Doe,101,2024,2,5000,500,2024-02-05,upi,paid
+Jane Smith,102,2024,1,6000,600,2024-01-10,cash,paid
+Jane Smith,102,2024,2,6000,550,2024-02-10,cash,paid
+Bob Wilson,103,2024,1,5500,480,2024-01-08,bank,paid
+Bob Wilson,103,2024,2,5500,520,2024-02-08,bank,paid
