@@ -9,6 +9,7 @@ const Sidebar = () => {
   const location = useLocation();
   const { logout } = useAuth();
 
+  // Menu items for sidebar navigation
   const menuItems = [
     { icon: '📊', label: 'Dashboard', path: '/dashboard' },
     { icon: '👥', label: 'Tenants', path: '/tenants' },
