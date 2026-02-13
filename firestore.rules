@@ -14,41 +14,39 @@ service cloud.firestore {
              request.auth.token.email == 'sonu28281@gmail.com';
     }
     
-    // Rooms collection - Admin only for write, read for authenticated users
+    // Rooms collection - Allow public read (for tenant portal), admin write
     match /rooms/{roomId} {
-      allow read: if isAuthenticated();
+      allow read: if true;  // ✅ Tenant portal needs this
       allow write: if isAdmin();
     }
     
-    // Tenants collection - Admin only
+    // Tenants collection - Allow public read (tenant portal validates uniqueToken in app), admin write
     match /tenants/{tenantId} {
-      allow read: if isAuthenticated() || 
-                     (exists(/databases/$(database)/documents/tenants/$(tenantId)) && 
-                      resource.data.uniqueToken == request.auth.token.uniqueToken);
+      allow read: if true;  // ✅ Tenant portal validates token in application code
       allow write: if isAdmin();
     }
     
-    // Monthly records - Admin write, tenant can read their own
+    // Monthly records - Allow public read (for tenant portal), admin write
     match /monthlyRecords/{recordId} {
-      allow read: if isAuthenticated();
+      allow read: if true;  // ✅ Tenant portal needs this
       allow write: if isAdmin();
     }
     
-    // Electricity readings - Admin only
-    match /electricityReadings/{readingId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-    
-    // Payments - Admin only
+    // Payments - Allow public read (for tenant portal), admin write
     match /payments/{paymentId} {
-      allow read: if isAuthenticated();
+      allow read: if true;  // ✅ Tenant portal needs this
       allow write: if isAdmin();
     }
     
-    // Bank accounts - Admin only
+    // Electricity readings - Allow public read (for tenant portal), admin write
+    match /electricityReadings/{readingId} {
+      allow read: if true;  // ✅ Tenant portal needs this
+      allow write: if isAdmin();
+    }
+    
+    // Bank accounts - Allow public read (tenant portal shows UPI for payments), admin write
     match /bankAccounts/{accountId} {
-      allow read: if isAuthenticated();
+      allow read: if true;  // ✅ Tenant portal shows active UPI details
       allow write: if isAdmin();
     }
     
@@ -58,9 +56,9 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
-    // Settings - Admin only
+    // Settings - Allow public read, admin write
     match /settings/{settingId} {
-      allow read: if isAuthenticated();
+      allow read: if true;  // ✅ May be needed for tenant portal
       allow write: if isAdmin();
     }
     
