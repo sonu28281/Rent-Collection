@@ -7,6 +7,8 @@ import Dashboard from './components/Dashboard';
 import Rooms from './components/Rooms';
 import Tenants from './components/Tenants';
 import TenantPortal from './components/TenantPortal';
+import Settings from './components/Settings';
+import Electricity from './components/Electricity';
 
 // Placeholder components for future phases
 const ComingSoon = ({ title, phase }) => (
@@ -62,7 +64,7 @@ function App() {
             path="/electricity" 
             element={
               <ProtectedRoute>
-                <Layout><ComingSoon title="Electricity Readings" phase="Phase 5" /></Layout>
+                <Layout><Electricity /></Layout>
               </ProtectedRoute>
             } 
           />
@@ -102,7 +104,7 @@ function App() {
             path="/settings" 
             element={
               <ProtectedRoute>
-                <Layout><ComingSoon title="Settings" phase="Phase 8" /></Layout>
+                <Layout><Settings /></Layout>
               </ProtectedRoute>
             } 
           />

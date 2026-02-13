@@ -108,23 +108,23 @@ const Dashboard = () => {
         </div>
         <div className="card bg-green-50 border border-green-200">
           <h3 className="text-lg font-semibold text-green-800 mb-2">
-            ✅ Phase 3: Complete
+            ✅ Phase 4: Complete
           </h3>
           <ul className="text-sm text-green-700 space-y-1">
-            <li>✓ Tenants CRUD component</li>
-            <li>✓ Add/Edit tenant form</li>
-            <li>✓ Room assignment logic</li>
-            <li>✓ Duplicate prevention</li>
+            <li>✓ Tenant portal component</li>
+            <li>✓ Token-based access</li>
+            <li>✓ Dues & history display</li>
+            <li>✓ Active UPI display</li>
           </ul>
         </div>
         <div className="card bg-blue-50 border border-blue-200">
           <h3 className="text-lg font-semibold text-blue-800 mb-2">
-            🔄 Phase 4: In Progress
+            🔄 Phase 5: In Progress
           </h3>
           <ul className="text-sm text-blue-700 space-y-1">
-            <li>✓ Tenant portal component</li>
-            <li>✓ Token-based access</li>
-            <li>✓ Dues & history display</li>
+            <li>✓ Settings component</li>
+            <li>✓ Global electricity rate</li>
+            <li>✓ Electricity module</li>
             <li>⏳ Testing in progress</li>
           </ul>
         </div>
