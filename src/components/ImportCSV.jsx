@@ -41,12 +41,12 @@ const ImportCSV = () => {
     setError(null);
     setResult(null);
 
-    try {
-      // Parse CSV
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async (results) => {
+    // Parse CSV
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
           const data = results.data;
           
           if (data.length === 0) {
@@ -189,17 +189,17 @@ const ImportCSV = () => {
           });
           
           setImporting(false);
-        },
-        error: (err) => {
-          setError(`CSV parsing error: ${err.message}`);
+        } catch (err) {
+          console.error('Import processing error:', err);
+          setError(`Import processing failed: ${err.message}`);
           setImporting(false);
         }
-      });
-    } catch (err) {
-      console.error('Import error:', err);
-      setError(`Import failed: ${err.message}`);
-      setImporting(false);
-    }
+      },
+      error: (err) => {
+        setError(`CSV parsing error: ${err.message}`);
+        setImporting(false);
+      }
+    });
   };
 
   return (
