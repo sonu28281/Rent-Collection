@@ -16,6 +16,7 @@ import BankAccounts from './components/BankAccounts';
 import BackupExport from './components/BackupExport';
 import RentIncrease from './components/RentIncrease';
 import HistoryManager from './components/HistoryManager';
+import PaymentsReset from './components/PaymentsReset';
 
 function App() {
   return (
@@ -112,6 +113,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><HistoryManager /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/payments-reset" 
+            element={
+              <ProtectedRoute>
+                <Layout><PaymentsReset /></Layout>
               </ProtectedRoute>
             } 
           />

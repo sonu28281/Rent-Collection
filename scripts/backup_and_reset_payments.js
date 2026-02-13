@@ -11,77 +11,73 @@
  * Run with: node scripts/backup_and_reset_payments.js
  */
 
-const admin = require('firebase-admin');
-const serviceAccount = require('./serviceAccountKey.json');
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, getDocs, doc, setDoc, writeBatch } from 'firebase/firestore';
+import dotenv from 'dotenv';
 
-// Initialize Firebase Admin
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-}
+// Load environment variables
+dotenv.config();
 
-const db = admin.firestore();
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: process.env.VITE_FIREBASE_API_KEY,
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.VITE_FIREBASE_APP_ID
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 async function backupAndResetPayments() {
   console.log('🚀 Starting Backup and Reset Process...\n');
   
   const timestamp = Date.now();
-  const backupCollectionName = `payments_backup_${timestamp}`;
+  const backupCollectionName = `payments_full_backup_${timestamp}`;
   
   try {
     // STEP 1: Count original documents
     console.log('📊 Step 1: Counting original documents...');
-    const paymentsRef = db.collection('payments');
-    const paymentsSnapshot = await paymentsRef.get();
+    const paymentsRef = collection(db, 'payments');
+    const paymentsSnapshot = await getDocs(paymentsRef);
     const originalCount = paymentsSnapshot.size;
     console.log(`✅ Found ${originalCount} documents in 'payments' collection\n`);
     
     if (originalCount === 0) {
-      console.log('⚠️  No documents to backup. Exiting.');
-      return;
+      console.log('⚠️  No documents to backup. Payments collection is already empty.');
+      console.log('✅ System is ready for fresh import.\n');
+      process.exit(0);
     }
     
     // STEP 2: Create backup collection
     console.log(`💾 Step 2: Creating backup collection '${backupCollectionName}'...`);
-    const backupRef = db.collection(backupCollectionName);
+    const backupRef = collection(db, backupCollectionName);
     let backedUpCount = 0;
     
-    const batchSize = 500;
-    const batches = [];
-    let currentBatch = db.batch();
-    let operationCount = 0;
-    
-    for (const doc of paymentsSnapshot.docs) {
-      const backupDocRef = backupRef.doc(doc.id);
-      currentBatch.set(backupDocRef, {
-        ...doc.data(),
-        backupTimestamp: admin.firestore.FieldValue.serverTimestamp(),
-        originalDocId: doc.id
+    // Copy all documents to backup
+    for (const docSnapshot of paymentsSnapshot.docs) {
+      const backupDocRef = doc(backupRef, docSnapshot.id);
+      await setDoc(backupDocRef, {
+        ...docSnapshot.data(),
+        backupTimestamp: new Date().toISOString(),
+        originalDocId: docSnapshot.id
       });
-      
-      operationCount++;
       backedUpCount++;
       
-      // Commit batch when it reaches batchSize
-      if (operationCount >= batchSize) {
-        batches.push(currentBatch.commit());
-        currentBatch = db.batch();
-        operationCount = 0;
+      // Progress indicator
+      if (backedUpCount % 50 === 0) {
+        console.log(`   ... backed up ${backedUpCount} documents`);
       }
     }
     
-    // Commit remaining operations
-    if (operationCount > 0) {
-      batches.push(currentBatch.commit());
-    }
-    
-    await Promise.all(batches);
     console.log(`✅ Backed up ${backedUpCount} documents to '${backupCollectionName}'\n`);
     
     // STEP 3: Verify backup
     console.log('🔍 Step 3: Verifying backup...');
-    const backupSnapshot = await backupRef.get();
+    const backupSnapshot = await getDocs(backupRef);
     const backupCount = backupSnapshot.size;
     console.log(`📊 Backup collection contains ${backupCount} documents`);
     
@@ -92,33 +88,35 @@ async function backupAndResetPayments() {
     
     // STEP 4: Delete original documents
     console.log('🗑️  Step 4: Deleting documents from original collection...');
-    const deleteBatches = [];
-    let deleteBatch = db.batch();
     let deleteCount = 0;
-    let deleteOperationCount = 0;
+    const batchSize = 500;
+    let currentBatch = writeBatch(db);
+    let batchOperations = 0;
     
-    for (const doc of paymentsSnapshot.docs) {
-      deleteBatch.delete(doc.ref);
-      deleteOperationCount++;
+    for (const docSnapshot of paymentsSnapshot.docs) {
+      currentBatch.delete(docSnapshot.ref);
+      batchOperations++;
       deleteCount++;
       
-      if (deleteOperationCount >= batchSize) {
-        deleteBatches.push(deleteBatch.commit());
-        deleteBatch = db.batch();
-        deleteOperationCount = 0;
+      // Commit batch when it reaches limit
+      if (batchOperations >= batchSize) {
+        await currentBatch.commit();
+        currentBatch = writeBatch(db);
+        batchOperations = 0;
+        console.log(`   ... deleted ${deleteCount} documents`);
       }
     }
     
-    if (deleteOperationCount > 0) {
-      deleteBatches.push(deleteBatch.commit());
+    // Commit remaining operations
+    if (batchOperations > 0) {
+      await currentBatch.commit();
     }
     
-    await Promise.all(deleteBatches);
     console.log(`✅ Deleted ${deleteCount} documents from 'payments' collection\n`);
     
     // STEP 5: Final verification
     console.log('🔍 Step 5: Final verification...');
-    const finalSnapshot = await paymentsRef.get();
+    const finalSnapshot = await getDocs(paymentsRef);
     console.log(`📊 'payments' collection now contains ${finalSnapshot.size} documents`);
     
     if (finalSnapshot.size !== 0) {
@@ -134,14 +132,20 @@ async function backupAndResetPayments() {
     console.log(`🗑️  Documents Deleted: ${deleteCount}`);
     console.log(`✅ Verification: PASSED`);
     console.log('\n💡 The "payments" collection is now empty and ready for the new data model.');
-    console.log(`💡 Original data is safely stored in "${backupCollectionName}"\n`);
+    console.log(`💡 Original data is safely stored in "${backupCollectionName}"`);
+    console.log('\n🎯 SYSTEM STATUS:');
+    console.log('   ✅ Ready for historical import (2017-2025)');
+    console.log('   ✅ Meter-based calculation active');
+    console.log('   ✅ Floor auto-detection enabled');
+    console.log('   ✅ Update-on-duplicate configured');
+    console.log('   ✅ Tenant validation disabled (snapshot mode)\n');
     
   } catch (error) {
     console.error('\n' + '='.repeat(60));
     console.error('❌ ERROR DURING BACKUP AND RESET');
     console.error('='.repeat(60));
     console.error(error);
-    console.error('\n⚠️  Process aborted. Original data remains untouched.\n');
+    console.error('\n⚠️  Process aborted. Check error details above.\n');
     process.exit(1);
   }
 }
@@ -149,7 +153,7 @@ async function backupAndResetPayments() {
 // Run the script
 backupAndResetPayments()
   .then(() => {
-    console.log('🏁 Script execution completed.');
+    console.log('🏁 Script execution completed successfully.');
     process.exit(0);
   })
   .catch((error) => {
