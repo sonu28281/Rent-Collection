@@ -117,8 +117,8 @@ const Payments = () => {
 
   const totalPending = monthlyRecords.reduce((sum, record) => sum + (record.total || 0), 0);
   const totalReceived = payments
-    .filter(p => p.status === 'verified')
-    .reduce((sum, payment) => sum + (payment.amount || 0), 0);
+    .filter(p => p.status === 'verified' || p.status === 'paid')
+    .reduce((sum, payment) => sum + (payment.totalAmount || payment.amount || 0), 0);
 
   return (
     <div className="p-4 lg:p-8">
@@ -223,7 +223,7 @@ const Payments = () => {
                 {payments.slice(0, 10).map((payment) => (
                   <tr key={payment.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">{getTenantName(payment.tenantId)}</td>
-                    <td className="px-4 py-3 font-semibold">₹{payment.amount.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3 font-semibold">₹{(payment.totalAmount || payment.amount || 0).toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3 font-mono text-xs">{payment.utr || 'N/A'}</td>
                     <td className="px-4 py-3">
                       {new Date(payment.paymentDate).toLocaleDateString('en-IN')}

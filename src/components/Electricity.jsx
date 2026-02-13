@@ -49,7 +49,7 @@ const Electricity = () => {
       });
 
       // Fetch meter readings
-      const readingsRef = collection(db, 'meterReadings');
+      const readingsRef = collection(db, 'electricityReadings');
       const readingsSnapshot = await getDocs(readingsRef);
       
       const readingsData = [];
@@ -297,7 +297,7 @@ const MeterReadingForm = ({ tenant, latestReading, globalRate, onClose, onSucces
         createdAt: new Date().toISOString()
       };
 
-      await setDoc(doc(db, 'meterReadings', readingId), readingData);
+      await setDoc(doc(db, 'electricityReadings', readingId), readingData);
 
       alert('✅ Meter reading added successfully!');
       onSuccess();
