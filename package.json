@@ -12,7 +12,8 @@
     "setup:database": "node scripts/setup_database.js",
     "migrate:tokens": "node scripts/add_tenant_tokens.js",
     "check:tokens": "node scripts/check_tenant_token.js",
-    "verify:db": "node scripts/verify_database_structure.js"
+    "verify:db": "node scripts/verify_database_structure.js",
+    "create:payment": "node scripts/create_sample_payment.js"
   },
   "dependencies": {
     "date-fns": "^3.0.6",
