@@ -5,11 +5,12 @@ import LanguageSwitcher from './LanguageSwitcher';
 
 const Sidebar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
 
-  // Menu items for sidebar navigation
+  // Main menu items
   const menuItems = [
     { icon: '📊', label: 'Dashboard', path: '/dashboard' },
     { icon: '👥', label: 'Tenants', path: '/tenants' },
@@ -20,10 +21,17 @@ const Sidebar = () => {
     { icon: '🔧', label: 'Maintenance', path: '/maintenance' },
     { icon: '📥', label: 'Import CSV', path: '/import' },
     { icon: '📚', label: 'History Manager', path: '/history' },
-    { icon: '🚨', label: 'Payments Reset', path: '/payments-reset' },
+    { icon: '📊', label: 'Financial History', path: '/financial-history' },
+  ];
+
+  // Settings submenu items
+  const settingsItems = [
+    { icon: '⚙️', label: 'General Settings', path: '/settings' },
     { icon: '🏦', label: 'Bank Accounts', path: '/bank-accounts' },
-    { icon: '💾', label: 'Backup', path: '/backup' },
-    { icon: '⚙️', label: 'Settings', path: '/settings' },
+    { icon: '💾', label: 'Backup & Export', path: '/backup' },
+    { icon: '📋', label: 'Import Logs', path: '/import-logs' },
+    { icon: '🚨', label: 'Payments Reset', path: '/payments-reset' },
+    { icon: '🗑️', label: 'Database Cleanup', path: '/database-cleanup' },
   ];
 
   const handleNavigation = (path) => {
@@ -42,6 +50,10 @@ const Sidebar = () => {
 
   const isActive = (path) => {
     return location.pathname === path;
+  };
+
+  const isSettingsActive = () => {
+    return settingsItems.some(item => item.path === location.pathname);
   };
 
   return (
@@ -78,11 +90,12 @@ const Sidebar = () => {
           fixed top-0 left-0 h-full bg-white border-r border-gray-200 z-50
           transition-transform duration-300 ease-in-out
           w-64 lg:w-240
+          flex flex-col
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
         {/* Logo/Header */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200">
+        <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200 flex-shrink-0">
           <div>
             <h1 className="text-xl font-bold text-gray-800">Autoxweb</h1>
             <p className="text-xs text-gray-500">Rent Management</p>
@@ -97,14 +110,15 @@ const Sidebar = () => {
           </button>
         </div>
 
-        {/* Navigation Menu */}
-        <nav className="flex-1 overflow-y-auto py-4">
+        {/* Navigation Menu - Scrollable */}
+        <nav className="flex-1 overflow-y-auto py-2">
+          {/* Main Menu Items */}
           {menuItems.map((item) => (
             <button
               key={item.path}
               onClick={() => handleNavigation(item.path)}
               className={`
-                w-full flex items-center px-6 py-3 text-left transition
+                w-full flex items-center px-6 py-1.5 text-left transition
                 ${isActive(item.path)
                   ? 'bg-primary text-white font-semibold'
                   : 'text-gray-700 hover:bg-gray-100'
@@ -116,18 +130,69 @@ const Sidebar = () => {
             </button>
           ))}
 
-          {/* Logout Button */}
+          {/* Settings Dropdown */}
+          <div>
+            <button
+              onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+              className={`
+                w-full flex items-center justify-between px-6 py-1.5 text-left transition
+                ${isSettingsActive()
+                  ? 'bg-primary text-white font-semibold'
+                  : 'text-gray-700 hover:bg-gray-100'
+                }
+              `}
+            >
+              <div className="flex items-center">
+                <span className="text-xl mr-3">⚙️</span>
+                <span className="text-sm">Settings & Tools</span>
+              </div>
+              <svg 
+                className={`w-4 h-4 transition-transform ${isSettingsOpen ? 'rotate-180' : ''}`}
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Settings Submenu */}
+            {isSettingsOpen && (
+              <div className="bg-gray-50">
+                {settingsItems.map((item) => (
+                  <button
+                    key={item.path}
+                    onClick={() => handleNavigation(item.path)}
+                    className={`
+                      w-full flex items-center px-10 py-1.5 text-left transition
+                      ${isActive(item.path)
+                        ? 'bg-primary text-white font-semibold'
+                        : 'text-gray-600 hover:bg-gray-200'
+                      }
+                    `}
+                  >
+                    <span className="text-lg mr-2">{item.icon}</span>
+                    <span className="text-xs">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </nav>
+
+        {/* Logout Button - Fixed at bottom of menu */}
+        <div className="flex-shrink-0 border-t border-gray-200">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center px-6 py-3 text-left transition text-red-600 hover:bg-red-50 mt-4"
+            className="w-full flex items-center px-6 py-2 text-left transition text-red-600 hover:bg-red-50"
           >
             <span className="text-xl mr-3">🚪</span>
             <span className="text-sm font-semibold">Logout</span>
           </button>
-        </nav>
+        </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200">
+        <div className="p-4 border-t border-gray-200 flex-shrink-0">
           <div className="mb-3">
             <LanguageSwitcher />
           </div>

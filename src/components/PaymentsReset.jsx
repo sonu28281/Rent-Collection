@@ -122,6 +122,23 @@ const PaymentsReset = () => {
         throw new Error(`Deletion verification failed! Expected 0, found ${finalSnapshot.size}`);
       }
       
+      // STEP 5: Log to importLogs collection
+      addLog('📝 Step 5: Creating import log...', 'info');
+      const logRef = collection(db, 'importLogs');
+      const logDoc = doc(logRef, `backup_reset_${timestamp}`);
+      await setDoc(logDoc, {
+        type: 'backup_and_reset',
+        timestamp: new Date().toISOString(),
+        backupCollectionName: backupCollectionName,
+        originalCount: originalCount,
+        backedUpCount: backedUpCount,
+        deletedCount: deleteCount,
+        finalCount: finalSnapshot.size,
+        verificationPassed: true,
+        status: 'success'
+      });
+      addLog('✅ Import log created', 'success');
+      
       // SUCCESS
       addLog('', 'info');
       addLog('═══════════════════════════════════════════════════', 'success');

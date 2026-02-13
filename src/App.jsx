@@ -16,7 +16,10 @@ import BankAccounts from './components/BankAccounts';
 import BackupExport from './components/BackupExport';
 import RentIncrease from './components/RentIncrease';
 import HistoryManager from './components/HistoryManager';
+import FinancialHistoryManager from './components/FinancialHistoryManager';
+import ImportLogsPage from './components/ImportLogsPage';
 import PaymentsReset from './components/PaymentsReset';
+import DatabaseCleanup from './components/DatabaseCleanup';
 
 function App() {
   return (
@@ -117,10 +120,34 @@ function App() {
             } 
           />
           <Route 
+            path="/financial-history" 
+            element={
+              <ProtectedRoute>
+                <Layout><FinancialHistoryManager /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/import-logs" 
+            element={
+              <ProtectedRoute>
+                <Layout><ImportLogsPage /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
             path="/payments-reset" 
             element={
               <ProtectedRoute>
                 <Layout><PaymentsReset /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/database-cleanup" 
+            element={
+              <ProtectedRoute>
+                <Layout><DatabaseCleanup /></Layout>
               </ProtectedRoute>
             } 
           />

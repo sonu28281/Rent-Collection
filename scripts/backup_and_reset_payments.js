@@ -123,7 +123,24 @@ async function backupAndResetPayments() {
       throw new Error(`❌ Deletion verification failed! Expected 0, found ${finalSnapshot.size}`);
     }
     
-    // STEP 6: Summary
+    // STEP 6: Log to importLogs collection
+    console.log('📝 Step 6: Creating import log...');
+    const logRef = collection(db, 'importLogs');
+    const logDoc = doc(logRef, `backup_reset_${timestamp}`);
+    await setDoc(logDoc, {
+      type: 'backup_and_reset',
+      timestamp: new Date().toISOString(),
+      backupCollectionName: backupCollectionName,
+      originalCount: originalCount,
+      backedUpCount: backedUpCount,
+      deletedCount: deleteCount,
+      finalCount: finalSnapshot.size,
+      verificationPassed: true,
+      status: 'success'
+    });
+    console.log('✅ Import log created\n');
+    
+    // STEP 7: Summary
     console.log('\n' + '='.repeat(60));
     console.log('✅ BACKUP AND RESET COMPLETED SUCCESSFULLY');
     console.log('='.repeat(60));

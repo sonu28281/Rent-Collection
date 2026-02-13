@@ -16,6 +16,43 @@ Production-ready rental management for 12-room lodge
 
 ---
 
+## 🆕 NEW: Historical Import System v2.0 (February 2026)
+
+**Complete system rebuild for 2017-2025 historical data import**
+
+### 📚 Documentation (READ THESE FIRST!)
+- **👉 [USER_ACTION_CHECKLIST.md](USER_ACTION_CHECKLIST.md)** - START HERE! What YOU need to do
+- **[QUICK_START_IMPORT.md](QUICK_START_IMPORT.md)** - 5-step import process (15 min read)
+- **[HISTORICAL_IMPORT_SYSTEM_GUIDE.md](HISTORICAL_IMPORT_SYSTEM_GUIDE.md)** - Complete guide (3000+ words)
+- **[FIRESTORE_INDEX_SETUP.md](FIRESTORE_INDEX_SETUP.md)** - Required index creation
+- **[REBUILD_SUMMARY.md](REBUILD_SUMMARY.md)** - Technical details of what changed
+
+### ✨ What's New
+- ✅ **Excel column mapping** - "Room No.", "Reading (Prev.)", "Price/Unit" now supported
+- ✅ **200-row preview** - See all calculations before importing
+- ✅ **Tenant validation removed** - No more "tenant not found" errors
+- ✅ **Date field preserved** - Dates now stored correctly (not lost)
+- ✅ **Duplicate handling** - Re-imports UPDATE existing records (safe)
+- ✅ **Import logging** - Complete audit trail in Firestore
+- ✅ **Financial History Manager** - New yearly view with inline editing
+- ✅ **Defensive safeguards** - Negative units → 0, missing values → defaults
+- ✅ **Safe backup/reset** - Verified backups before deletion
+
+### 🚀 Quick Start
+1. **Create Firestore index** (REQUIRED) - See [FIRESTORE_INDEX_SETUP.md](FIRESTORE_INDEX_SETUP.md)
+2. **Test with sample** - Use `/data/test_import_excel_format.csv`
+3. **Prepare your CSV** - Use Excel column names (see guide)
+4. **Import & verify** - Preview → Import → Check Financial History
+
+### 📊 New Admin Pages
+- **Import CSV** (`/import`) - Enhanced with preview and validation
+- **Financial History** (`/financial-history`) - NEW! Yearly view with inline editing
+- **Payments Reset** (`/payments-reset`) - Safe backup and reset tool
+
+**Test File Available**: `/data/test_import_excel_format.csv`
+
+---
+
 ## ✨ Features Completed
 
 ### ✅ All 12 Phases Deployed
