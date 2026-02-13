@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Rooms from './components/Rooms';
+import Tenants from './components/Tenants';
 
 // Placeholder components for future phases
 const ComingSoon = ({ title, phase }) => (
@@ -48,7 +49,7 @@ function App() {
             path="/tenants" 
             element={
               <ProtectedRoute>
-                <Layout><ComingSoon title="Tenants Management" phase="Phase 3" /></Layout>
+                <Layout><Tenants /></Layout>
               </ProtectedRoute>
             } 
           />
