@@ -19,6 +19,7 @@ const HistoryManager = () => {
   const [years, setYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState('all');
+  const [selectedFloor, setSelectedFloor] = useState('all'); // New floor filter
   const [payments, setPayments] = useState([]);
   const [filteredPayments, setFilteredPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -127,16 +128,29 @@ const HistoryManager = () => {
     return () => unsubscribe();
   }, [selectedYear, isAdmin]);
 
-  // Filter Payments by Month
+  // Filter Payments by Month and Floor
   useEffect(() => {
-    if (selectedMonth === 'all') {
-      setFilteredPayments(payments);
-    } else {
-      setFilteredPayments(payments.filter(p => p.month === selectedMonth));
+    let filtered = payments;
+    
+    // Month filter
+    if (selectedMonth !== 'all') {
+      filtered = filtered.filter(p => p.month === selectedMonth);
     }
+    
+    // Floor filter
+    if (selectedFloor !== 'all') {
+      const floorNum = Number(selectedFloor);
+      filtered = filtered.filter(p => {
+        // Auto-detect floor if not set
+        const floor = p.floor || (p.roomNumber < 200 ? 1 : 2);
+        return floor === floorNum;
+      });
+    }
+    
+    setFilteredPayments(filtered);
     setCurrentPage(1);
     setSelectedIds(new Set());
-  }, [selectedMonth, payments]);
+  }, [selectedMonth, selectedFloor, payments]);
 
   // Pagination
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -155,7 +169,9 @@ const HistoryManager = () => {
     setEditingId(payment.id);
     setEditData({
       rent: payment.rent || 0,
-      electricity: payment.electricity || 0,
+      oldReading: payment.oldReading || 0,
+      currentReading: payment.currentReading || 0,
+      ratePerUnit: payment.ratePerUnit || 0,
       paidAmount: payment.paidAmount || 0,
       tenantNameSnapshot: payment.tenantNameSnapshot || payment.tenantName || '',
     });
@@ -169,11 +185,25 @@ const HistoryManager = () => {
   const saveEdit = async (paymentId) => {
     try {
       const rent = Number(editData.rent) || 0;
-      const electricity = Number(editData.electricity) || 0;
+      const oldReading = Number(editData.oldReading) || 0;
+      const currentReading = Number(editData.currentReading) || 0;
+      const ratePerUnit = Number(editData.ratePerUnit) || 0;
       const paidAmount = Number(editData.paidAmount) || 0;
+      
+      // Calculate units (defensive check)
+      let units = currentReading - oldReading;
+      if (units < 0) {
+        units = 0;
+      }
+      
+      // Calculate electricity
+      const electricity = units * ratePerUnit;
+      
+      // Calculate total
       const total = rent + electricity;
       
-      let status = 'unpaid';
+      // Determine status
+      let status = 'pending';
       if (paidAmount >= total) {
         status = 'paid';
       } else if (paidAmount > 0) {
@@ -183,8 +213,13 @@ const HistoryManager = () => {
       const docRef = doc(db, 'payments', paymentId);
       await updateDoc(docRef, {
         rent,
+        oldReading,
+        currentReading,
+        units,
+        ratePerUnit,
         electricity,
-        totalAmount: total,
+        total,
+        totalAmount: total, // legacy field
         paidAmount,
         status,
         tenantNameSnapshot: editData.tenantNameSnapshot,
@@ -229,9 +264,10 @@ const HistoryManager = () => {
       const selectedPayments = filteredPayments.filter(p => selectedIds.has(p.id));
       
       selectedPayments.forEach(payment => {
+        const total = payment.total || payment.totalAmount || 0;
         const docRef = doc(db, 'payments', payment.id);
         batch.update(docRef, {
-          paidAmount: payment.totalAmount || 0,
+          paidAmount: total,
           status: 'paid',
           paymentDate: serverTimestamp(),
           updatedAt: serverTimestamp()
@@ -271,15 +307,21 @@ const HistoryManager = () => {
     const csvData = filteredPayments.map(p => ({
       docId: p.id,
       roomNumber: p.roomNumber,
+      floor: p.floor || (p.roomNumber < 200 ? 1 : 2),
       tenantNameSnapshot: p.tenantNameSnapshot || p.tenantName || '',
       year: p.year,
       month: p.month,
       rent: p.rent || 0,
+      oldReading: p.oldReading || 0,
+      currentReading: p.currentReading || 0,
+      units: p.units || 0,
+      ratePerUnit: p.ratePerUnit || 0,
       electricity: p.electricity || 0,
-      totalAmount: p.totalAmount || 0,
+      total: p.total || p.totalAmount || 0,
       paidAmount: p.paidAmount || 0,
       status: p.status,
       paymentDate: p.paymentDate ? new Date(p.paymentDate).toISOString() : '',
+      paymentMode: p.paymentMode || '',
       assignedFrom2022: p.assignedFrom2022 || false
     }));
 
@@ -288,7 +330,8 @@ const HistoryManager = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `payments_${selectedYear}_${selectedMonth === 'all' ? 'all' : selectedMonth}.csv`;
+    const floorSuffix = selectedFloor !== 'all' ? `_floor${selectedFloor}` : '';
+    a.download = `payments_${selectedYear}_${selectedMonth === 'all' ? 'all' : selectedMonth}${floorSuffix}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
     showToast('CSV exported successfully', 'success');
@@ -345,11 +388,23 @@ const HistoryManager = () => {
           }
 
           const rent = Number(row.rent) || 0;
-          const electricity = Number(row.electricity) || 0;
+          const oldReading = Number(row.oldReading) || 0;
+          const currentReading = Number(row.currentReading) || 0;
+          const ratePerUnit = Number(row.ratePerUnit) || 0;
           const paidAmount = Number(row.paidAmount) || 0;
+          
+          // Calculate units (defensive)
+          let units = currentReading - oldReading;
+          if (units < 0) units = 0;
+          
+          // Calculate electricity
+          const electricity = units * ratePerUnit;
+          
+          // Calculate total
           const total = rent + electricity;
           
-          let status = 'unpaid';
+          // Determine status
+          let status = 'pending';
           if (paidAmount >= total) {
             status = 'paid';
           } else if (paidAmount > 0) {
@@ -361,8 +416,13 @@ const HistoryManager = () => {
             roomNumber: Number(row.roomNumber),
             tenantNameSnapshot: row.tenantNameSnapshot || '',
             rent,
+            oldReading,
+            currentReading,
+            units,
+            ratePerUnit,
             electricity,
-            totalAmount: total,
+            total,
+            totalAmount: total, // legacy field
             paidAmount,
             status,
             updatedAt: serverTimestamp()
@@ -418,50 +478,67 @@ const HistoryManager = () => {
 
       {/* Year Selector & Actions */}
       <div className="card mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <label className="font-semibold text-gray-700">Year:</label>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-            >
-              {years.map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-            
-            <div className="text-sm text-gray-600">
-              {filteredPayments.length} payment{filteredPayments.length !== 1 ? 's' : ''}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <label className="font-semibold text-gray-700">Year:</label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  {years.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <label className="font-semibold text-gray-700">Floor:</label>
+                <select
+                  value={selectedFloor}
+                  onChange={(e) => setSelectedFloor(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  <option value="all">All Floors</option>
+                  <option value="1">Floor 1</option>
+                  <option value="2">Floor 2</option>
+                </select>
+              </div>
+              
+              <div className="text-sm text-gray-600">
+                {filteredPayments.length} payment{filteredPayments.length !== 1 ? 's' : ''}
+              </div>
             </div>
-          </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={exportCSV}
-              className="btn-secondary text-sm"
-              disabled={filteredPayments.length === 0}
-            >
-              📥 Export CSV
-            </button>
-            
-            <label className="btn-secondary text-sm cursor-pointer">
-              📤 Import CSV
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleImportFile}
-                className="hidden"
-              />
-            </label>
-            
-            <button
-              onClick={bulkMarkPaid}
-              disabled={selectedIds.size === 0}
-              className="btn-primary text-sm"
-            >
-              ✅ Mark Paid ({selectedIds.size})
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={exportCSV}
+                className="btn-secondary text-sm"
+                disabled={filteredPayments.length === 0}
+              >
+                📥 Export CSV
+              </button>
+              
+              <label className="btn-secondary text-sm cursor-pointer">
+                📤 Import CSV
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleImportFile}
+                  className="hidden"
+                />
+              </label>
+              
+              <button
+                onClick={bulkMarkPaid}
+                disabled={selectedIds.size === 0}
+                className="btn-primary text-sm"
+              >
+                ✅ Mark Paid ({selectedIds.size})
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -525,9 +602,14 @@ const HistoryManager = () => {
                     />
                   </th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-700">Room</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-700">Floor</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-700">Month</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-700">Tenant</th>
                   <th className="px-3 py-3 text-right font-semibold text-gray-700">Rent</th>
+                  <th className="px-3 py-3 text-right font-semibold text-gray-700">Old Reading</th>
+                  <th className="px-3 py-3 text-right font-semibold text-gray-700">Current Reading</th>
+                  <th className="px-3 py-3 text-right font-semibold text-gray-700">Units</th>
+                  <th className="px-3 py-3 text-right font-semibold text-gray-700">Rate</th>
                   <th className="px-3 py-3 text-right font-semibold text-gray-700">Electricity</th>
                   <th className="px-3 py-3 text-right font-semibold text-gray-700">Total</th>
                   <th className="px-3 py-3 text-right font-semibold text-gray-700">Paid</th>
@@ -538,7 +620,18 @@ const HistoryManager = () => {
               <tbody className="divide-y divide-gray-200">
                 {currentItems.map((payment) => {
                   const isEditing = editingId === payment.id;
-                  const total = payment.totalAmount || (payment.rent + payment.electricity);
+                  
+                  // Get values with fallbacks
+                  const rent = payment.rent || 0;
+                  const oldReading = payment.oldReading || 0;
+                  const currentReading = payment.currentReading || 0;
+                  const ratePerUnit = payment.ratePerUnit || 0;
+                  const units = payment.units || (currentReading - oldReading);
+                  const electricity = payment.electricity || (units * ratePerUnit);
+                  const total = payment.total || payment.totalAmount || (rent + electricity);
+                  const paidAmount = payment.paidAmount || 0;
+                  const floor = payment.floor || (payment.roomNumber < 200 ? 1 : 2);
+                  
                   const tenantName = payment.tenantNameSnapshot || payment.tenantName || 'Unknown';
                   const isAutoAssigned = payment.assignedFrom2022 === true;
                   
@@ -554,6 +647,8 @@ const HistoryManager = () => {
                       </td>
                       
                       <td className="px-3 py-3 font-semibold">{payment.roomNumber}</td>
+                      
+                      <td className="px-3 py-3">{floor}</td>
                       
                       <td className="px-3 py-3">{MONTHS[payment.month - 1]?.name}</td>
                       
@@ -586,7 +681,7 @@ const HistoryManager = () => {
                             className="w-24 px-2 py-1 border border-gray-300 rounded text-right"
                           />
                         ) : (
-                          `₹${payment.rent?.toLocaleString('en-IN')}`
+                          `₹${rent.toLocaleString('en-IN')}`
                         )}
                       </td>
                       
@@ -594,17 +689,70 @@ const HistoryManager = () => {
                         {isEditing ? (
                           <input
                             type="number"
-                            value={editData.electricity}
-                            onChange={(e) => setEditData({...editData, electricity: e.target.value})}
+                            value={editData.oldReading}
+                            onChange={(e) => setEditData({...editData, oldReading: e.target.value})}
                             className="w-24 px-2 py-1 border border-gray-300 rounded text-right"
                           />
                         ) : (
-                          `₹${payment.electricity?.toLocaleString('en-IN')}`
+                          oldReading
+                        )}
+                      </td>
+                      
+                      <td className="px-3 py-3 text-right">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={editData.currentReading}
+                            onChange={(e) => setEditData({...editData, currentReading: e.target.value})}
+                            className="w-24 px-2 py-1 border border-gray-300 rounded text-right"
+                          />
+                        ) : (
+                          currentReading
+                        )}
+                      </td>
+                      
+                      <td className="px-3 py-3 text-right">
+                        {isEditing ? (
+                          <span className="text-blue-600 font-semibold">
+                            {(Number(editData.currentReading) - Number(editData.oldReading)) || 0}
+                          </span>
+                        ) : (
+                          units
+                        )}
+                      </td>
+                      
+                      <td className="px-3 py-3 text-right">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editData.ratePerUnit}
+                            onChange={(e) => setEditData({...editData, ratePerUnit: e.target.value})}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-right"
+                          />
+                        ) : (
+                          `₹${ratePerUnit.toFixed(2)}`
+                        )}
+                      </td>
+                      
+                      <td className="px-3 py-3 text-right">
+                        {isEditing ? (
+                          <span className="text-blue-600 font-semibold">
+                            ₹{((Number(editData.currentReading) - Number(editData.oldReading)) * Number(editData.ratePerUnit)).toFixed(2)}
+                          </span>
+                        ) : (
+                          `₹${electricity.toLocaleString('en-IN')}`
                         )}
                       </td>
                       
                       <td className="px-3 py-3 text-right font-semibold">
-                        ₹{total?.toLocaleString('en-IN')}
+                        {isEditing ? (
+                          <span className="text-green-600">
+                            ₹{(Number(editData.rent) + ((Number(editData.currentReading) - Number(editData.oldReading)) * Number(editData.ratePerUnit))).toFixed(2)}
+                          </span>
+                        ) : (
+                          `₹${total.toLocaleString('en-IN')}`
+                        )}
                       </td>
                       
                       <td className="px-3 py-3 text-right">
@@ -616,7 +764,7 @@ const HistoryManager = () => {
                             className="w-24 px-2 py-1 border border-gray-300 rounded text-right"
                           />
                         ) : (
-                          `₹${payment.paidAmount?.toLocaleString('en-IN')}`
+                          `₹${paidAmount.toLocaleString('en-IN')}`
                         )}
                       </td>
                       

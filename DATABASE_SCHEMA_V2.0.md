@@ -60,32 +60,50 @@ All collections must follow these field definitions precisely.
 
 ---
 
-### 3. **payments** Collection ⚠️ CRITICAL - ROOM-BASED
+### 3. **payments** Collection ⚠️ CRITICAL - ROOM-BASED WITH METER READINGS
 
-**Purpose:** ONE document per room per month - Primary financial record (tenant-independent)
+**Purpose:** ONE document per room per month - Primary financial record with full electricity calculation
 
 **Document Structure:**
 ```javascript
 {
+  // Room & Tenant Info
   roomNumber: number,                // ⚠️ MUST be number type - PRIMARY KEY COMPONENT
+  floor: number,                     // ⚠️ Floor number (auto-detected: <200=1, >=200=2)
   tenantNameSnapshot: string,        // ⚠️ Plain text from CSV/input - NEVER VALIDATED
+  
+  // Time Period
   year: number,                      // ⚠️ MUST be number (YYYY format, e.g., 2024)
   month: number,                     // ⚠️ MUST be number (1-12)
+  
+  // Rent
   rent: number,                      // ⚠️ Monthly rent amount
-  electricity: number,               // ⚠️ Electricity charges
-  totalAmount: number,               // rent + electricity
+  
+  // Electricity Calculation (Meter-Based)
+  oldReading: number,                // ⚠️ Previous meter reading
+  currentReading: number,            // ⚠️ Current meter reading
+  units: number,                     // ⚠️ Auto-calculated: currentReading - oldReading
+  ratePerUnit: number,               // ⚠️ Rate per unit (e.g., 8.5)
+  electricity: number,               // ⚠️ Auto-calculated: units * ratePerUnit
+  
+  // Totals & Payment
+  total: number,                     // ⚠️ Auto-calculated: rent + electricity
   paidAmount: number,                // Amount actually paid (can be partial)
-  status: "paid" | "partial" | "unpaid",  // Payment status
-  paymentDate: timestamp | null,     // Date payment received (null if unpaid)
+  status: "paid" | "partial" | "pending",  // Auto-calculated based on paidAmount
+  
+  // Timestamps
   createdAt: timestamp,              // Record creation time
+  updatedAt: timestamp,              // Last modification time
   
   // Optional fields:
+  paymentDate: timestamp | null,     // Date payment received (null if unpaid)
   paymentMode: string,               // 'cash', 'upi', 'bank'
   importedAt: timestamp,             // Set if imported from CSV
   
   // LEGACY FIELDS (backward compatibility - optional):
   tenantId: string,                  // Only present in old records
-  tenantName: string                 // Replaced by tenantNameSnapshot
+  tenantName: string,                // Replaced by tenantNameSnapshot
+  totalAmount: number                // Old field, replaced by 'total'
 }
 ```
 
@@ -102,19 +120,44 @@ Collection: payments
 Fields: roomNumber (Ascending), year (Ascending), month (Ascending)
 ```
 
-**⚠️ CRITICAL BUSINESS RULE:**
+**⚠️ CRITICAL BUSINESS RULES:**
 - Payment records are **room-based**, NOT tenant-based
 - `tenantNameSnapshot` is stored as plain text and NEVER validated against tenants collection
 - Historical data remains intact even when tenants change
 - Duplicate prevention based on: `roomNumber + year + month`
+- **Floor auto-detection:** roomNumber < 200 → floor = 1, else floor = 2
+- **Electricity MUST be meter-based:** No manual electricity input allowed
+- All calculations are auto-derived from meter readings
+
+**Auto-Calculation Logic:**
+```javascript
+// Floor detection
+floor = roomNumber < 200 ? 1 : 2
+
+// Units calculation
+units = currentReading - oldReading
+// Defensive: if negative, set to 0
+if (units < 0) units = 0
+
+// Electricity calculation
+electricity = units * ratePerUnit
+
+// Total calculation
+total = rent + electricity
+
+// Status determination
+if (paidAmount >= total) status = "paid"
+else if (paidAmount > 0) status = "partial"
+else status = "pending"
+```
 
 **Validation Rules:**
-- `tenantId + year + month` must be unique
+- `roomNumber + year + month` must be unique
 - `year` must be 4-digit number (2020-2050)
 - `month` must be 1-12
-- `rent`, `electricity`, `totalAmount`, `paidAmount` must be >= 0
-- `totalAmount` = `rent` + `electricity`
-- `paidAmount` <= `totalAmount`
+- `rent`, `oldReading`, `currentReading`, `ratePerUnit`, `paidAmount` must be >= 0
+- `currentReading` should be >= `oldReading` (warning if negative units)
+- All calculations done automatically - no manual override
 
 ---
 
