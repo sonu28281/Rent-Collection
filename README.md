@@ -23,19 +23,15 @@ OWNER CONTEXT
 - Tenant portal token-based.
 - Admin only via Email/Password.
 
-FIREBASE CONFIG (USE THESE VALUES)
------------------------------------
-const firebaseConfig = {
-  apiKey: "AIzaSyD5Nv3uIlCQuOQkj7crx1kcg-ENIH9cXT4",
-  authDomain: "rent-collection-5e1d2.firebaseapp.com",
-  projectId: "rent-collection-5e1d2",
-  storageBucket: "rent-collection-5e1d2.firebasestorage.app",
-  messagingSenderId: "605839501523",
-  appId: "1:605839501523:web:153e006f8ada52f9804c26",
-  measurementId: "G-ZK8D32M76Y"
-};
+FIREBASE CONFIG
+---------------
+Project ID: rent-collection-5e1d2
+Region: us-central1
 
-REGION: us-central1
+🔒 SECURITY NOTE:
+Firebase configuration values are stored as environment variables in Netlify.
+Never commit actual API keys to the repository.
+See .env.example for required environment variable names.
 
 DEPLOYMENT TARGET
 -----------------
@@ -43,16 +39,24 @@ Netlify
 
 SETUP REQUIREMENTS
 ------------------
-1. Create GitHub repository.
-2. Connect repo to Netlify.
-3. Add environment variables in Netlify:
-   VITE_FIREBASE_API_KEY
-   VITE_FIREBASE_AUTH_DOMAIN
-   VITE_FIREBASE_PROJECT_ID
-   VITE_FIREBASE_APP_ID
-   FIREBASE_ADMIN_SERVICE_ACCOUNT (secure)
-   DEFAULT_UPI_ID
-4. Never commit secrets to repo.
+1. ✅ Create GitHub repository.
+2. ✅ Connect repo to Netlify.
+3. ✅ Add environment variables in Netlify Dashboard:
+   
+   Required Environment Variables:
+   • VITE_FIREBASE_API_KEY
+   • VITE_FIREBASE_AUTH_DOMAIN
+   • VITE_FIREBASE_PROJECT_ID
+   • VITE_FIREBASE_STORAGE_BUCKET
+   • VITE_FIREBASE_MESSAGING_SENDER_ID
+   • VITE_FIREBASE_APP_ID
+   • VITE_FIREBASE_MEASUREMENT_ID
+   • DEFAULT_UPI_ID
+
+   Get Firebase values from: Firebase Console > Project Settings > General
+   
+4. ✅ Never commit secrets to repo - use environment variables only.
+5. ✅ Admin user (sonu28281@gmail.com) already created in Firebase Auth.
 
 REPO STRUCTURE
 --------------
