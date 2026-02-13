@@ -7,6 +7,7 @@
  */
 
 import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDocs } from 'firebase/firestore';
 import * as dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
@@ -30,7 +31,12 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Admin credentials
+const ADMIN_EMAIL = 'sonu28281@gmail.com';
+const ADMIN_PASSWORD = 'kavyA@18deC';
 
 // Room configuration
 const FLOOR_1_ROOMS = [101, 102, 103, 104, 105, 106];
@@ -39,6 +45,10 @@ const DEFAULT_RENT = 5000; // Base rent per room
 
 async function seedRooms() {
   try {
+    console.log('🔐 Authenticating as admin...');
+    await signInWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_PASSWORD);
+    console.log('✅ Authenticated successfully\n');
+
     console.log('🏠 Starting room seeding...\n');
 
     // Check if rooms already exist
