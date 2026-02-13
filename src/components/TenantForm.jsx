@@ -146,6 +146,11 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
 
       if (tenant) {
         // Update existing tenant
+        // Generate uniqueToken if it doesn't exist (for older tenants)
+        if (!tenant.uniqueToken) {
+          tenantData.uniqueToken = generateUniqueToken();
+        }
+        
         await updateDoc(doc(db, 'tenants', tenant.id), tenantData);
         
         // Update room status

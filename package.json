@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "seed:rooms": "node scripts/seed_rooms.js",
-    "setup:database": "node scripts/setup_database.js"
+    "setup:database": "node scripts/setup_database.js",
+    "migrate:tokens": "node scripts/add_tenant_tokens.js"
   },
   "dependencies": {
     "date-fns": "^3.0.6",
