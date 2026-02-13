@@ -60,16 +60,15 @@ All collections must follow these field definitions precisely.
 
 ---
 
-### 3. **payments** Collection ⚠️ CRITICAL
+### 3. **payments** Collection ⚠️ CRITICAL - ROOM-BASED
 
-**Purpose:** ONE document per tenant per month - Primary financial record
+**Purpose:** ONE document per room per month - Primary financial record (tenant-independent)
 
 **Document Structure:**
 ```javascript
 {
-  tenantId: string,                  // Reference to tenants document ID
-  tenantName: string,                // Denormalized for historical integrity  
-  roomNumber: number,                // ⚠️ MUST be number type
+  roomNumber: number,                // ⚠️ MUST be number type - PRIMARY KEY COMPONENT
+  tenantNameSnapshot: string,        // ⚠️ Plain text from CSV/input - NEVER VALIDATED
   year: number,                      // ⚠️ MUST be number (YYYY format, e.g., 2024)
   month: number,                     // ⚠️ MUST be number (1-12)
   rent: number,                      // ⚠️ Monthly rent amount
@@ -82,22 +81,32 @@ All collections must follow these field definitions precisely.
   
   // Optional fields:
   paymentMode: string,               // 'cash', 'upi', 'bank'
-  importedAt: timestamp              // Set if imported from CSV
+  importedAt: timestamp,             // Set if imported from CSV
+  
+  // LEGACY FIELDS (backward compatibility - optional):
+  tenantId: string,                  // Only present in old records
+  tenantName: string                 // Replaced by tenantNameSnapshot
 }
 ```
 
-**Document ID Format:** `{tenantId}_{year}_{month}`  
-**Example:** `abc123xyz_2024_1` (tenant abc123xyz, January 2024)
+**Document ID Format:** `{roomNumber}_{year}_{month}`  
+**Example:** `101_2024_1` (Room 101, January 2024)
 
 **⚠️ COMPOSITE INDEX REQUIRED:**
-- Fields: `tenantId` (Ascending) + `year` (Ascending) + `month` (Ascending)
+- Fields: `roomNumber` (Ascending) + `year` (Ascending) + `month` (Ascending)
 - Purpose: Prevent duplicates, fast queries
 
 **Create index in Firebase Console:**
 ```
 Collection: payments
-Fields: tenantId (Ascending), year (Ascending), month (Ascending)
+Fields: roomNumber (Ascending), year (Ascending), month (Ascending)
 ```
+
+**⚠️ CRITICAL BUSINESS RULE:**
+- Payment records are **room-based**, NOT tenant-based
+- `tenantNameSnapshot` is stored as plain text and NEVER validated against tenants collection
+- Historical data remains intact even when tenants change
+- Duplicate prevention based on: `roomNumber + year + month`
 
 **Validation Rules:**
 - `tenantId + year + month` must be unique
@@ -222,6 +231,8 @@ Fields: tenantId (Ascending), year (Ascending), month (Ascending)
 
 **File Name:** `payments_import.csv`
 
+**⚠️ CRITICAL: Tenant names are stored as plain text and NOT validated against tenants collection**
+
 **Headers:**
 ```csv
 tenantName,roomNumber,year,month,rent,electricity,paidAmount,status,paymentDate
@@ -233,7 +244,14 @@ tenantName,roomNumber,year,month,rent,electricity,paidAmount,status,paymentDate
 John Doe,101,2024,1,5000,450,5450,paid,2024-01-05
 Jane Smith,102,2024,1,6000,600,6600,paid,2024-01-10
 Bob Wilson,103,2024,2,5500,480,3000,partial,2024-02-08
+Unknown Tenant XYZ,104,2024,3,7000,500,0,unpaid
 ```
+
+**Import Rules:**
+- ✅ `tenantName` can be ANY text - does NOT need to match existing tenants
+- ✅ Duplicate prevention based on: `roomNumber + year + month`
+- ✅ Import will NEVER fail due to "Tenant not found"
+- ✅ Historical data preserved even when tenants change
 
 **Validation:**
 - `year` must be number

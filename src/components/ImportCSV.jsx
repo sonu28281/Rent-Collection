@@ -70,29 +70,14 @@ const ImportCSV = () => {
             return;
           }
 
-          // Get existing tenants to map names to IDs
-          const tenantsRef = collection(db, 'tenants');
-          const tenantsSnapshot = await getDocs(tenantsRef);
-          const tenantMap = {};
-          tenantsSnapshot.forEach((doc) => {
-            const data = doc.data();
-            tenantMap[data.name.toLowerCase()] = doc.id;
-          });
-
           // Import records
           for (let i = 0; i < data.length; i++) {
             try {
               const row = data[i];
               
-              // Find tenant ID and name
-              const tenantName = row.tenantName.trim();
-              const tenantId = tenantMap[tenantName.toLowerCase()];
-              
-              if (!tenantId) {
-                errors.push(`Row ${i + 1}: Tenant "${tenantName}" not found`);
-                errorCount++;
-                continue;
-              }
+              // Store tenant name as plain text snapshot from CSV
+              const tenantNameSnapshot = row.tenantName.trim();
+              const roomNumber = Number(row.roomNumber);
 
               // Convert to numbers
               const year = Number(row.year);
@@ -112,39 +97,38 @@ const ImportCSV = () => {
                 status = 'partial';
               }
 
-              // Create payment ID: tenantId_year_month
-              const paymentId = `${tenantId}_${year}_${month}`;
+              // Create payment ID: roomNumber_year_month (room-based)
+              const paymentId = `${roomNumber}_${year}_${month}`;
               
-              // Check for duplicates in payments collection
+              // Check for duplicates based on roomNumber + year + month
               const existingDoc = await getDocs(
                 query(
                   collection(db, 'payments'),
-                  where('tenantId', '==', tenantId),
+                  where('roomNumber', '==', roomNumber),
                   where('year', '==', year),
                   where('month', '==', month)
                 )
               );
               
               if (!existingDoc.empty) {
-                errors.push(`Row ${i + 1}: Payment already exists for ${tenantName} - ${month}/${year}`);
+                errors.push(`Row ${i + 1}: Payment already exists for Room ${roomNumber} - ${month}/${year}`);
                 errorCount++;
                 continue;
               }
 
-              // Prepare payment data according to required schema
+              // Prepare payment data according to room-based schema
               const paymentData = {
-                tenantId,
-                tenantName,
-                roomNumber: Number(row.roomNumber), // ⚠️ Now number type
-                rent,           // ⚠️ Changed from rentAmount
-                electricity,    // ⚠️ Changed from electricityAmount
+                roomNumber,
+                tenantNameSnapshot, // Plain text from CSV - never validated
+                rent,
+                electricity,
                 totalAmount,
-                paidAmount,     // ⚠️ New field
+                paidAmount,
                 month,
                 year,
                 paymentDate: row.paymentDate ? new Date(row.paymentDate).toISOString() : null,
                 paymentMode: row.paymentMode || 'cash',
-                status,         // ⚠️ Now: 'paid' | 'partial' | 'unpaid'
+                status,
                 createdAt: new Date().toISOString(),
                 importedAt: new Date().toISOString()
               };
@@ -202,11 +186,12 @@ const ImportCSV = () => {
         <ul className="text-sm text-blue-800 space-y-1">
           <li>• <strong>Required columns:</strong> tenantName, roomNumber, year, month, rent</li>
           <li>• <strong>Optional columns:</strong> electricity, paymentDate, paymentMode, status</li>
-          <li>• Tenant names must match exactly with existing tenants in the system</li>
+          <li>• <strong>tenantName:</strong> Stored as plain text - does NOT need to match existing tenants</li>
+          <li>• <strong>roomNumber:</strong> Room-based records - <strong>stored as number</strong></li>
           <li>• Year format: YYYY (e.g., 2024) - <strong>stored as number</strong></li>
           <li>• Month format: 1-12 (January = 1, December = 12) - <strong>stored as number</strong></li>
           <li>• rent and electricity: numeric values - <strong>stored as numbers</strong></li>
-          <li>• Duplicate records will be skipped</li>
+          <li>• Duplicate prevention: roomNumber + year + month</li>
           <li>• Data will be imported into <strong>payments</strong> collection</li>
         </ul>
       </div>

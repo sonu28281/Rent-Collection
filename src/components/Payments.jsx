@@ -222,7 +222,9 @@ const Payments = () => {
               <tbody className="divide-y divide-gray-200">
                 {payments.slice(0, 10).map((payment) => (
                   <tr key={payment.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">{getTenantName(payment.tenantId)}</td>
+                    <td className="px-4 py-3">
+                      {payment.tenantNameSnapshot || getTenantName(payment.tenantId) || 'Unknown'}
+                    </td>
                     <td className="px-4 py-3 font-semibold">₹{(payment.totalAmount || payment.amount || 0).toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3 font-mono text-xs">{payment.utr || 'N/A'}</td>
                     <td className="px-4 py-3">
@@ -230,11 +232,14 @@ const Payments = () => {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                        payment.status === 'verified' 
+                        payment.status === 'verified' || payment.status === 'paid'
                           ? 'bg-green-100 text-green-800' 
-                          : 'bg-yellow-100 text-yellow-800'
+                          : payment.status === 'partial'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-red-100 text-red-800'
                       }`}>
-                        {payment.status === 'verified' ? '✅ Verified' : '⏳ Pending'}
+                        {payment.status === 'verified' || payment.status === 'paid' ? '✅ Paid' : 
+                         payment.status === 'partial' ? '⏳ Partial' : '❌ Unpaid'}
                       </span>
                     </td>
                   </tr>
