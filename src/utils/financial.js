@@ -16,13 +16,16 @@ export const getActiveTenantCount = async () => {
 };
 
 /**
- * Get count of pending payments
+ * Get count of pending payments (unpaid or partial)
  */
 export const getPendingPaymentCount = async () => {
   try {
     const paymentsRef = collection(db, 'payments');
     const paymentsSnapshot = await getDocs(
-      query(paymentsRef, where('status', '==', 'pending'))
+      query(
+        paymentsRef,
+        where('status', 'in', ['unpaid', 'partial', 'pending']) // Support both old and new status values
+      )
     );
     return paymentsSnapshot.size;
   } catch (error) {
@@ -53,7 +56,8 @@ export const getCurrentMonthIncome = async () => {
     let total = 0;
     paymentsSnapshot.forEach((doc) => {
       const data = doc.data();
-      total += Number(data.totalAmount) || 0;
+      // Use paidAmount if available, otherwise totalAmount (backward compatibility)
+      total += Number(data.paidAmount) || Number(data.totalAmount) || 0;
     });
 
     return total;
@@ -91,8 +95,9 @@ export const getYearlyIncomeSummary = async () => {
       }
 
       yearlyData[year].totalIncome += amount;
-      yearlyData[year].rentIncome += Number(data.rentAmount) || 0;
-      yearlyData[year].electricityIncome += Number(data.electricityAmount) || 0;
+      // Support both old (rentAmount/electricityAmount) and new (rent/electricity) field names
+      yearlyData[year].rentIncome += Number(data.rent || data.rentAmount) || 0;
+      yearlyData[year].electricityIncome += Number(data.electricity || data.electricityAmount) || 0;
       yearlyData[year].paymentCount += 1;
     });
 
@@ -133,8 +138,9 @@ export const getMonthlyIncomeByYear = async (year) => {
       
       if (monthIndex >= 0 && monthIndex < 12) {
         monthlyData[monthIndex].totalIncome += Number(data.totalAmount) || 0;
-        monthlyData[monthIndex].rentIncome += Number(data.rentAmount) || 0;
-        monthlyData[monthIndex].electricityIncome += Number(data.electricityAmount) || 0;
+        // Support both old (rentAmount/electricityAmount) and new (rent/electricity) field names
+        monthlyData[monthIndex].rentIncome += Number(data.rent || data.rentAmount) || 0;
+        monthlyData[monthIndex].electricityIncome += Number(data.electricity || data.electricityAmount) || 0;
         monthlyData[monthIndex].paymentCount += 1;
       }
     });

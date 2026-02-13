@@ -97,9 +97,20 @@ const ImportCSV = () => {
               // Convert to numbers
               const year = Number(row.year);
               const month = Number(row.month);
-              const rentAmount = Number(row.rent) || 0;
-              const electricityAmount = Number(row.electricity) || 0;
-              const totalAmount = rentAmount + electricityAmount;
+              const rent = Number(row.rent) || 0;
+              const electricity = Number(row.electricity) || 0;
+              const totalAmount = rent + electricity;
+              const paidAmount = Number(row.paidAmount) || totalAmount; // Default to full if not specified
+              
+              // Determine status based on paidAmount
+              let status = 'unpaid';
+              if (row.status) {
+                status = row.status; // Use provided status if available
+              } else if (paidAmount >= totalAmount) {
+                status = 'paid';
+              } else if (paidAmount > 0) {
+                status = 'partial';
+              }
 
               // Create payment ID: tenantId_year_month
               const paymentId = `${tenantId}_${year}_${month}`;
@@ -124,15 +135,16 @@ const ImportCSV = () => {
               const paymentData = {
                 tenantId,
                 tenantName,
-                roomNumber: row.roomNumber.toString(),
-                rentAmount,
-                electricityAmount,
+                roomNumber: Number(row.roomNumber), // ⚠️ Now number type
+                rent,           // ⚠️ Changed from rentAmount
+                electricity,    // ⚠️ Changed from electricityAmount
                 totalAmount,
+                paidAmount,     // ⚠️ New field
                 month,
                 year,
-                paymentDate: row.paymentDate ? new Date(row.paymentDate).toISOString() : new Date().toISOString(),
+                paymentDate: row.paymentDate ? new Date(row.paymentDate).toISOString() : null,
                 paymentMode: row.paymentMode || 'cash',
-                status: row.status || 'paid',
+                status,         // ⚠️ Now: 'paid' | 'partial' | 'unpaid'
                 createdAt: new Date().toISOString(),
                 importedAt: new Date().toISOString()
               };
