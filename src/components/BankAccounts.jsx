@@ -18,7 +18,7 @@ const BankAccounts = () => {
       setLoading(true);
       setError(null);
 
-      const accountsRef = collection(db, 'bank Accounts');
+      const accountsRef = collection(db, 'bankAccounts');
       const accountsSnapshot = await getDocs(accountsRef);
       
       const accountsData = [];
