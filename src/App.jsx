@@ -9,22 +9,11 @@ import Tenants from './components/Tenants';
 import TenantPortal from './components/TenantPortal';
 import Settings from './components/Settings';
 import Electricity from './components/Electricity';
-
-// Placeholder components for future phases
-const ComingSoon = ({ title, phase }) => (
-  <div className="p-8">
-    <div className="max-w-2xl mx-auto">
-      <div className="card text-center py-12">
-        <div className="text-6xl mb-4">🚧</div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">{title}</h2>
-        <p className="text-gray-600 mb-4">Coming in {phase}</p>
-        <p className="text-sm text-gray-500">
-          This feature is under development and will be available soon.
-        </p>
-      </div>
-    </div>
-  </div>
-);
+import Payments from './components/Payments';
+import Maintenance from './components/Maintenance';
+import ImportCSV from './components/ImportCSV';
+import BankAccounts from './components/BankAccounts';
+import BackupExport from './components/BackupExport';
 
 function App() {
   return (
@@ -72,7 +61,7 @@ function App() {
             path="/payments" 
             element={
               <ProtectedRoute>
-                <Layout><ComingSoon title="Payments Management" phase="Phase 6" /></Layout>
+                <Layout><Payments /></Layout>
               </ProtectedRoute>
             } 
           />
@@ -80,7 +69,7 @@ function App() {
             path="/maintenance" 
             element={
               <ProtectedRoute>
-                <Layout><ComingSoon title="Maintenance Records" phase="Phase 11" /></Layout>
+                <Layout><Maintenance /></Layout>
               </ProtectedRoute>
             } 
           />
@@ -88,7 +77,7 @@ function App() {
             path="/import" 
             element={
               <ProtectedRoute>
-                <Layout><ComingSoon title="CSV Import" phase="Phase 10" /></Layout>
+                <Layout><ImportCSV /></Layout>
               </ProtectedRoute>
             } 
           />
@@ -96,7 +85,15 @@ function App() {
             path="/bank-accounts" 
             element={
               <ProtectedRoute>
-                <Layout><ComingSoon title="Bank Accounts" phase="Phase 9" /></Layout>
+                <Layout><BankAccounts /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/backup" 
+            element={
+              <ProtectedRoute>
+                <Layout><BackupExport /></Layout>
               </ProtectedRoute>
             } 
           />

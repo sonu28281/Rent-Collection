@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import LanguageSwitcher from './LanguageSwitcher';
 
 const Sidebar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -17,6 +18,7 @@ const Sidebar = () => {
     { icon: '🔧', label: 'Maintenance', path: '/maintenance' },
     { icon: '📥', label: 'Import CSV', path: '/import' },
     { icon: '🏦', label: 'Bank Accounts', path: '/bank-accounts' },
+    { icon: '💾', label: 'Backup', path: '/backup' },
     { icon: '⚙️', label: 'Settings', path: '/settings' },
   ];
 
@@ -122,6 +124,9 @@ const Sidebar = () => {
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-200">
+          <div className="mb-3">
+            <LanguageSwitcher />
+          </div>
           <div className="text-xs text-gray-500 text-center">
             <p>v1.0.0</p>
             <p>© 2026 Autoxweb</p>
