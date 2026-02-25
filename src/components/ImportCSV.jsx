@@ -114,9 +114,11 @@ const ImportCSV = () => {
     const floor = roomNumber < 200 ? 1 : 2;
     
     // Tenant name (stored as snapshot, NEVER validated)
-    const tenantName = (mappedRow.tenantName || '').trim();
+    // Allow empty tenant names for historical data (2017-2022)
+    let tenantName = (mappedRow.tenantName || '').trim();
     if (!tenantName) {
-      throw new Error('Tenant name is required');
+      tenantName = 'Historical Record'; // Default for old data without tenant info
+      warnings.push('Tenant name missing - using "Historical Record"');
     }
     
     // Year and month
@@ -562,9 +564,20 @@ const ImportCSV = () => {
               <li>• Missing ratePerUnit → defaults to 0</li>
               <li>• Missing paidAmount → defaults to 0</li>
               <li>• Missing date → allowed (stored as null)</li>
+              <li>• <strong>Missing tenant name → replaced with "Historical Record"</strong></li>
               <li>• <strong>Room status = vacant → all amounts forced to 0</strong></li>
               <li>• Tenant names stored as snapshots - NEVER validated</li>
               <li>• Duplicates (room + year + month) → UPDATED, not rejected</li>
+            </ul>
+          </div>
+
+          <div className="bg-blue-100 border border-blue-300 rounded p-3 mt-3">
+            <strong className="text-blue-900">📅 HISTORICAL DATA IMPORT (2017-2022):</strong>
+            <ul className="ml-4 mt-1 space-y-1">
+              <li>• <strong>Tenant Name field can be empty</strong> - System uses "Historical Record"</li>
+              <li>• Perfect for old records where tenant names are unavailable</li>
+              <li>• All other fields work normally</li>
+              <li>• No validation errors for missing tenant information</li>
             </ul>
           </div>
         </div>
