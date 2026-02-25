@@ -73,16 +73,17 @@ export const getCurrentMonthIncome = async () => {
 export const getYearlyIncomeSummary = async () => {
   try {
     const paymentsRef = collection(db, 'payments');
-    const paymentsSnapshot = await getDocs(
-      query(paymentsRef, where('status', '==', 'paid'))
-    );
+    // Get ALL payments regardless of status to show complete financial picture
+    const paymentsSnapshot = await getDocs(paymentsRef);
 
     const yearlyData = {};
 
     paymentsSnapshot.forEach((doc) => {
       const data = doc.data();
       const year = data.year;
-      const amount = Number(data.totalAmount) || 0;
+      // Use paidAmount for actual received money (handles partial payments correctly)
+      const paidAmount = Number(data.paidAmount) || 0;
+      const totalAmount = Number(data.totalAmount) || Number(data.total) || 0;
 
       if (!yearlyData[year]) {
         yearlyData[year] = {
@@ -94,10 +95,25 @@ export const getYearlyIncomeSummary = async () => {
         };
       }
 
-      yearlyData[year].totalIncome += amount;
-      // Support both old (rentAmount/electricityAmount) and new (rent/electricity) field names
-      yearlyData[year].rentIncome += Number(data.rent || data.rentAmount) || 0;
-      yearlyData[year].electricityIncome += Number(data.electricity || data.electricityAmount) || 0;
+      // Use paidAmount if available (actual received money), otherwise totalAmount
+      const amountToAdd = paidAmount > 0 ? paidAmount : totalAmount;
+      yearlyData[year].totalIncome += amountToAdd;
+      
+      // For rent and electricity, use proportional calculation based on what was actually paid
+      const rent = Number(data.rent || data.rentAmount) || 0;
+      const electricity = Number(data.electricity || data.electricityAmount) || 0;
+      
+      if (totalAmount > 0 && paidAmount > 0) {
+        // Proportionally allocate paid amount to rent and electricity
+        const paidRatio = paidAmount / totalAmount;
+        yearlyData[year].rentIncome += rent * paidRatio;
+        yearlyData[year].electricityIncome += electricity * paidRatio;
+      } else {
+        // If no paid amount, use full amounts (for backward compatibility)
+        yearlyData[year].rentIncome += rent;
+        yearlyData[year].electricityIncome += electricity;
+      }
+      
       yearlyData[year].paymentCount += 1;
     });
 
@@ -115,10 +131,10 @@ export const getYearlyIncomeSummary = async () => {
 export const getMonthlyIncomeByYear = async (year) => {
   try {
     const paymentsRef = collection(db, 'payments');
+    // Get ALL payments for the year regardless of status
     const paymentsSnapshot = await getDocs(
       query(
         paymentsRef,
-        where('status', '==', 'paid'),
         where('year', '==', year)
       )
     );
@@ -137,10 +153,26 @@ export const getMonthlyIncomeByYear = async (year) => {
       const monthIndex = data.month - 1; // 0-based index
       
       if (monthIndex >= 0 && monthIndex < 12) {
-        monthlyData[monthIndex].totalIncome += Number(data.totalAmount) || 0;
-        // Support both old (rentAmount/electricityAmount) and new (rent/electricity) field names
-        monthlyData[monthIndex].rentIncome += Number(data.rent || data.rentAmount) || 0;
-        monthlyData[monthIndex].electricityIncome += Number(data.electricity || data.electricityAmount) || 0;
+        // Use paidAmount for actual received money (handles partial payments)
+        const paidAmount = Number(data.paidAmount) || 0;
+        const totalAmount = Number(data.totalAmount) || Number(data.total) || 0;
+        const amountToAdd = paidAmount > 0 ? paidAmount : totalAmount;
+        
+        monthlyData[monthIndex].totalIncome += amountToAdd;
+        
+        // For rent and electricity, use proportional calculation
+        const rent = Number(data.rent || data.rentAmount) || 0;
+        const electricity = Number(data.electricity || data.electricityAmount) || 0;
+        
+        if (totalAmount > 0 && paidAmount > 0) {
+          const paidRatio = paidAmount / totalAmount;
+          monthlyData[monthIndex].rentIncome += rent * paidRatio;
+          monthlyData[monthIndex].electricityIncome += electricity * paidRatio;
+        } else {
+          monthlyData[monthIndex].rentIncome += rent;
+          monthlyData[monthIndex].electricityIncome += electricity;
+        }
+        
         monthlyData[monthIndex].paymentCount += 1;
       }
     });
@@ -158,14 +190,16 @@ export const getMonthlyIncomeByYear = async (year) => {
 export const getTotalLifetimeIncome = async () => {
   try {
     const paymentsRef = collection(db, 'payments');
-    const paymentsSnapshot = await getDocs(
-      query(paymentsRef, where('status', '==', 'paid'))
-    );
+    // Get ALL payments regardless of status
+    const paymentsSnapshot = await getDocs(paymentsRef);
 
     let total = 0;
     paymentsSnapshot.forEach((doc) => {
       const data = doc.data();
-      total += Number(data.totalAmount) || 0;
+      // Use paidAmount for actual received money (handles partial payments)
+      const paidAmount = Number(data.paidAmount) || 0;
+      const totalAmount = Number(data.totalAmount) || Number(data.total) || 0;
+      total += paidAmount > 0 ? paidAmount : totalAmount;
     });
 
     return total;

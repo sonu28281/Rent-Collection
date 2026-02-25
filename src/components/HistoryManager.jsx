@@ -576,6 +576,61 @@ const HistoryManager = () => {
         </div>
       </div>
 
+      {/* Summary Totals */}
+      {filteredPayments.length > 0 && (() => {
+        const totals = filteredPayments.reduce((acc, payment) => {
+          acc.rent += Number(payment.rent) || 0;
+          acc.electricity += Number(payment.electricity) || 0;
+          acc.total += Number(payment.total || payment.totalAmount) || 0;
+          acc.paidAmount += Number(payment.paidAmount) || 0;
+          acc.balance += Number(payment.balance) || 0;
+          return acc;
+        }, { rent: 0, electricity: 0, total: 0, paidAmount: 0, balance: 0 });
+
+        const selectedPeriod = selectedMonth === 'all' 
+          ? `${selectedYear} (All Months)` 
+          : `${MONTHS.find(m => m.num === selectedMonth)?.name} ${selectedYear}`;
+
+        return (
+          <div className="card mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-800">
+                💰 Total Summary - {selectedPeriod}
+                {selectedFloor !== 'all' && ` (Floor ${selectedFloor})`}
+              </h3>
+              <div className="text-sm text-gray-600">
+                {filteredPayments.length} record{filteredPayments.length !== 1 ? 's' : ''}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <p className="text-xs text-gray-600 mb-1">Total Rent</p>
+                <p className="text-xl font-bold text-blue-600">₹{totals.rent.toLocaleString('en-IN')}</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-purple-200">
+                <p className="text-xs text-gray-600 mb-1">Total Electricity</p>
+                <p className="text-xl font-bold text-purple-600">₹{totals.electricity.toLocaleString('en-IN')}</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-green-200">
+                <p className="text-xs text-gray-600 mb-1">Grand Total</p>
+                <p className="text-xl font-bold text-green-600">₹{totals.total.toLocaleString('en-IN')}</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-teal-200">
+                <p className="text-xs text-gray-600 mb-1">Total Paid</p>
+                <p className="text-xl font-bold text-teal-600">₹{totals.paidAmount.toLocaleString('en-IN')}</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-orange-200">
+                <p className="text-xs text-gray-600 mb-1">Total Balance</p>
+                <p className={`text-xl font-bold ${totals.balance < 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                  ₹{totals.balance.toLocaleString('en-IN')}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Payments Table */}
       {loading ? (
         <div className="card text-center py-12">
