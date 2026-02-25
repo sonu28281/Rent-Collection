@@ -55,6 +55,15 @@ const QuickDatabaseCheck = () => {
         return roomA - roomB;
       });
 
+      // Check for duplicates
+      const roomCounts = {};
+      report.tenants.forEach(tenant => {
+        const room = tenant.roomNumber;
+        roomCounts[room] = (roomCounts[room] || 0) + 1;
+      });
+      report.duplicateRooms = Object.keys(roomCounts).filter(room => roomCounts[room] > 1);
+      report.hasDuplicates = report.duplicateRooms.length > 0;
+
       // Check rooms collection
       const roomsRef = collection(db, 'rooms');
       const roomsSnapshot = await getDocs(roomsRef);
@@ -166,6 +175,39 @@ const QuickDatabaseCheck = () => {
                     <li>Come back here and click refresh button below</li>
                   </ol>
                 </div>
+              </div>
+            )}
+
+            {/* Duplicate Tenants Warning */}
+            {results.hasDuplicates && (
+              <div className="bg-red-100 border-2 border-red-400 rounded-lg p-6">
+                <h2 className="text-2xl font-bold text-red-800 mb-2">🚨 DUPLICATE TENANTS DETECTED!</h2>
+                <p className="text-red-700 mb-4">
+                  Found {results.duplicateRooms.length} rooms with multiple tenant records. 
+                  This is causing "Access Denied" errors.
+                </p>
+                <div className="bg-white rounded p-4 mb-4">
+                  <h3 className="font-bold mb-2">Duplicate Rooms:</h3>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {results.duplicateRooms.map(room => (
+                      <span key={room} className="px-3 py-1 bg-red-200 text-red-900 font-bold rounded">
+                        Room {room}
+                      </span>
+                    ))}
+                  </div>
+                  <h3 className="font-bold mb-2">How to Fix:</h3>
+                  <ol className="list-decimal list-inside space-y-2 text-sm">
+                    <li>Click the <strong>"🗑️ Clean Up Duplicates"</strong> button below</li>
+                    <li>Select which duplicate records to delete (keep one per room)</li>
+                    <li>After cleanup, go to Setup 2026 and regenerate tenants if needed</li>
+                  </ol>
+                </div>
+                <button
+                  onClick={() => window.location.href = '/tenant-cleanup'}
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg"
+                >
+                  🗑️ Clean Up Duplicates Now
+                </button>
               </div>
             )}
 
