@@ -163,6 +163,17 @@ const Tenants = () => {
     return matchesActiveFilter && matchesFloorFilter;
   });
 
+  const getRoomNumberValue = (roomNumber) => {
+    const parsed = Number.parseInt(roomNumber, 10);
+    return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+  };
+
+  const sortedTenants = [...filteredTenants].sort((a, b) => {
+    const roomDiff = getRoomNumberValue(a.roomNumber) - getRoomNumberValue(b.roomNumber);
+    if (roomDiff !== 0) return roomDiff;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
   const stats = {
     total: tenants.length,
     active: tenants.filter(t => t.isActive).length,
@@ -373,7 +384,7 @@ const Tenants = () => {
         </div>
       ) : viewMode === 'card' ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filteredTenants.map(tenant => (
+          {sortedTenants.map(tenant => (
             <TenantCard
               key={tenant.id}
               tenant={tenant}
@@ -401,7 +412,7 @@ const Tenants = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredTenants.map(tenant => {
+              {sortedTenants.map(tenant => {
                 // Calculate duration
                 const calculateDuration = () => {
                   if (!tenant.checkInDate) return '-';

@@ -9,6 +9,7 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
     roomNumber: '',
     checkInDate: '',
     checkOutDate: '',
+    dueDate: 20,
     baseRent: '',
     currentRent: '',
     securityDeposit: '',
@@ -30,6 +31,7 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
         roomNumber: tenant.roomNumber || '',
         checkInDate: tenant.checkInDate ? tenant.checkInDate.split('T')[0] : '',
         checkOutDate: tenant.checkOutDate ? tenant.checkOutDate.split('T')[0] : '',
+        dueDate: tenant.dueDate || 20,
         baseRent: tenant.baseRent || '',
         currentRent: tenant.currentRent || '',
         securityDeposit: tenant.securityDeposit || '',
@@ -101,6 +103,11 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
       }
     }
 
+    const dueDateValue = Number.parseInt(formData.dueDate, 10);
+    if (!Number.isFinite(dueDateValue) || dueDateValue < 1 || dueDateValue > 31) {
+      newErrors.dueDate = 'Due date must be between 1 and 31';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -134,6 +141,7 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
         roomNumber: formData.roomNumber,
         checkInDate: new Date(formData.checkInDate).toISOString(),
         checkOutDate: formData.checkOutDate ? new Date(formData.checkOutDate).toISOString() : null,
+        dueDate: Number.parseInt(formData.dueDate, 10),
         isActive: formData.isActive,
         baseRent: parseFloat(formData.baseRent),
         currentRent: parseFloat(formData.currentRent),
@@ -350,7 +358,7 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-800">Dates</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Check-in Date *
@@ -379,6 +387,24 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
                   disabled={loading}
                 />
                 {errors.checkOutDate && <p className="text-red-500 text-sm mt-1">{errors.checkOutDate}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Monthly Due Date
+                </label>
+                <input
+                  type="number"
+                  name="dueDate"
+                  value={formData.dueDate}
+                  onChange={handleChange}
+                  className={`input-field ${errors.dueDate ? 'border-red-500' : ''}`}
+                  min="1"
+                  max="31"
+                  placeholder="20"
+                  disabled={loading}
+                />
+                {errors.dueDate && <p className="text-red-500 text-sm mt-1">{errors.dueDate}</p>}
               </div>
             </div>
           </div>
