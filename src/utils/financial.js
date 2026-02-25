@@ -272,3 +272,133 @@ export const getDashboardStats = async () => {
     };
   }
 };
+
+/**
+ * Get current month detailed summary with tenant information
+ */
+export const getCurrentMonthDetailedSummary = async () => {
+  try {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    const currentYear = now.getFullYear();
+
+    // Fetch all active tenants
+    const tenantsRef = collection(db, 'tenants');
+    const tenantsSnapshot = await getDocs(query(tenantsRef, where('isActive', '==', true)));
+    
+    // Fetch all current month payments
+    const paymentsRef = collection(db, 'payments');
+    const paymentsSnapshot = await getDocs(
+      query(
+        paymentsRef,
+        where('year', '==', currentYear),
+        where('month', '==', currentMonth)
+      )
+    );
+
+    // Create a map of payments by room number
+    const paymentsMap = {};
+    paymentsSnapshot.forEach((doc) => {
+      const data = doc.data();
+      paymentsMap[data.roomNumber] = {
+        id: doc.id,
+        ...data
+      };
+    });
+
+    // Build tenant payment summary
+    const tenantList = [];
+    let totalExpected = 0;
+    let totalCollected = 0;
+    let totalDue = 0;
+
+    tenantsSnapshot.forEach((doc) => {
+      const tenant = doc.data();
+      const roomNumber = typeof tenant.roomNumber === 'string' 
+        ? parseInt(tenant.roomNumber, 10) 
+        : tenant.roomNumber;
+      
+      const payment = paymentsMap[roomNumber];
+      
+      // Calculate expected rent (from tenant data or payment record)
+      const expectedRent = tenant.currentRent || 0;
+      const expectedElectricity = payment ? (payment.electricity || 0) : 0;
+      const expectedTotal = expectedRent + expectedElectricity;
+      
+      // Calculate actual collected amount
+      const collectedAmount = payment ? (payment.paidAmount || 0) : 0;
+      const dueAmount = expectedTotal - collectedAmount;
+      
+      // Payment status
+      const status = payment ? payment.status : 'pending';
+      const paidDate = payment && payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('en-IN') : null;
+      
+      tenantList.push({
+        id: doc.id,
+        name: tenant.name,
+        roomNumber: tenant.roomNumber,
+        expectedRent,
+        expectedElectricity,
+        expectedTotal,
+        collectedAmount,
+        dueAmount,
+        status,
+        paidDate,
+        paymentMethod: payment ? payment.paymentMethod : null
+      });
+      
+      totalExpected += expectedTotal;
+      totalCollected += collectedAmount;
+      totalDue += dueAmount;
+    });
+
+    // Sort: paid tenants first (by date), then pending by room number
+    tenantList.sort((a, b) => {
+      if (a.status === 'paid' && b.status !== 'paid') return -1;
+      if (a.status !== 'paid' && b.status === 'paid') return 1;
+      
+      if (a.status === 'paid' && b.status === 'paid') {
+        // Sort paid tenants by payment date (most recent first)
+        if (a.paidDate && b.paidDate) {
+          return b.paidDate.localeCompare(a.paidDate);
+        }
+      }
+      
+      // Sort by room number
+      const roomA = typeof a.roomNumber === 'string' ? parseInt(a.roomNumber) : a.roomNumber;
+      const roomB = typeof b.roomNumber === 'string' ? parseInt(b.roomNumber) : b.roomNumber;
+      return roomA - roomB;
+    });
+
+    const paidTenants = tenantList.filter(t => t.status === 'paid');
+    const pendingTenants = tenantList.filter(t => t.status !== 'paid');
+
+    return {
+      month: currentMonth,
+      year: currentYear,
+      totalExpected,
+      totalCollected,
+      totalDue,
+      paidCount: paidTenants.length,
+      pendingCount: pendingTenants.length,
+      paidTenants,
+      pendingTenants,
+      allTenants: tenantList
+    };
+  } catch (error) {
+    console.error('Error getting current month detailed summary:', error);
+    return {
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear(),
+      totalExpected: 0,
+      totalCollected: 0,
+      totalDue: 0,
+      paidCount: 0,
+      pendingCount: 0,
+      paidTenants: [],
+      pendingTenants: [],
+      allTenants: []
+    };
+  }
+};
+

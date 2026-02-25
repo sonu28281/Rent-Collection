@@ -125,8 +125,8 @@ const TenantPortal = () => {
         console.log('❌ Room not found!');
       }
 
-      // Fetch payment records - Simplified query without year filter
-      // Convert roomNumber to number for matching with payments collection
+      // Fetch payment records - Filter by room AND tenant name
+      // This ensures tenant only sees their own payment history, not previous tenants
       const paymentsRef = collection(db, 'payments');
       const paymentsQuery = query(
         paymentsRef, 
@@ -134,23 +134,34 @@ const TenantPortal = () => {
       );
       
       console.log('🔍 Fetching payments for room:', roomNumberAsNumber);
+      console.log('👤 Filtering for tenant:', tenantData.name);
       const paymentsSnapshot = await getDocs(paymentsQuery);
-      console.log('📊 Total payments fetched:', paymentsSnapshot.size);
+      console.log('📊 Total payments fetched from DB:', paymentsSnapshot.size);
       
-      // Collect all records and sort in JavaScript
+      // Collect records and filter by tenant name
       const records = [];
       paymentsSnapshot.forEach((doc) => {
         const data = doc.data();
-        records.push({ id: doc.id, ...data });
+        // Only include payments made by current tenant
+        // Match by tenantNameSnapshot field
+        if (data.tenantNameSnapshot === tenantData.name || data.tenantName === tenantData.name) {
+          records.push({ id: doc.id, ...data });
+        }
       });
       
-      console.log('📋 Total records collected:', records.length);
+      console.log('📋 Records for current tenant:', records.length);
+      console.log('🔍 Tenant name match filter:', tenantData.name);
       
       // Log some raw data before sorting
       const sample2026 = records.filter(r => r.year === 2026);
-      console.log('🔍 2026 records found:', sample2026.length);
+      console.log('🔍 2026 records for this tenant:', sample2026.length);
       if (sample2026.length > 0) {
-        console.log('Sample 2026 records:', sample2026.map(r => ({ month: r.month, year: r.year, status: r.status })));
+        console.log('Sample 2026 records:', sample2026.map(r => ({ 
+          month: r.month, 
+          year: r.year, 
+          status: r.status,
+          tenantName: r.tenantNameSnapshot || r.tenantName 
+        })));
       }
       
       // Sort by year and month (descending)
