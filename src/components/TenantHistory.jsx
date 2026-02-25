@@ -11,6 +11,8 @@ const TenantHistory = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [tenantDetails, setTenantDetails] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [floorFilter, setFloorFilter] = useState('all');
+  const [roomFilter, setRoomFilter] = useState('all');
 
   const MONTHS = [
     { num: 1, name: 'Jan' }, { num: 2, name: 'Feb' }, { num: 3, name: 'Mar' },
@@ -31,6 +33,25 @@ const TenantHistory = () => {
     const date = new Date(dateLike);
     if (Number.isNaN(date.getTime())) return '-';
     return date.toLocaleDateString('en-IN');
+  };
+
+  const normalizeRoomValue = (roomValue) => {
+    if (roomValue === null || roomValue === undefined || roomValue === '') return null;
+    const roomText = String(roomValue).trim();
+    if (!roomText) return null;
+
+    const numericRoom = Number(roomText);
+    return Number.isNaN(numericRoom) ? roomText : numericRoom;
+  };
+
+  const getFloorFromRoom = (roomValue) => {
+    const normalizedRoom = normalizeRoomValue(roomValue);
+    if (normalizedRoom === null) return null;
+
+    const numericRoom = Number(normalizedRoom);
+    if (Number.isNaN(numericRoom)) return null;
+
+    return String(Math.floor(numericRoom / 100));
   };
 
   // Load all unique tenants from tenants + payments
@@ -225,15 +246,37 @@ const TenantHistory = () => {
     return grouped;
   };
 
-  // Filter tenants based on status + search
+  const floorOptions = [...new Set(
+    tenants
+      .map((tenant) => getFloorFromRoom(tenant.roomNumber))
+      .filter(Boolean)
+  )].sort((a, b) => Number(a) - Number(b));
+
+  const roomOptions = [...new Set(
+    tenants
+      .map((tenant) => normalizeRoomValue(tenant.roomNumber))
+      .filter((room) => room !== null)
+      .map((room) => String(room))
+  )].sort((a, b) => {
+    const roomA = Number(a);
+    const roomB = Number(b);
+    if (!Number.isNaN(roomA) && !Number.isNaN(roomB)) return roomA - roomB;
+    return a.localeCompare(b);
+  });
+
+  // Filter tenants based on status + floor + room + search
   const filteredTenants = tenants.filter((tenant) => {
     const matchesSearch = tenant.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus =
       statusFilter === 'all' ||
       (statusFilter === 'active' && tenant.isActive) ||
       (statusFilter === 'past' && !tenant.isActive);
+    const tenantFloor = getFloorFromRoom(tenant.roomNumber);
+    const tenantRoom = normalizeRoomValue(tenant.roomNumber);
+    const matchesFloor = floorFilter === 'all' || tenantFloor === floorFilter;
+    const matchesRoom = roomFilter === 'all' || String(tenantRoom) === roomFilter;
 
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesFloor && matchesRoom;
   });
 
   useEffect(() => {
@@ -309,10 +352,47 @@ const TenantHistory = () => {
           </button>
         </div>
 
+        {/* Floor/Room Filters */}
+        <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Floor</label>
+            <select
+              value={floorFilter}
+              onChange={(e) => setFloorFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent"
+            >
+              <option value="all">All Floors</option>
+              {floorOptions.map((floor) => (
+                <option key={floor} value={floor}>
+                  Floor {floor}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Room</label>
+            <select
+              value={roomFilter}
+              onChange={(e) => setRoomFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent"
+            >
+              <option value="all">All Rooms</option>
+              {roomOptions.map((room) => (
+                <option key={room} value={room}>
+                  Room {room}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         {/* Tenant List */}
         {filteredTenants.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            {searchQuery ? 'No tenants found matching your search' : 'No tenants found in database'}
+            {searchQuery || statusFilter !== 'all' || floorFilter !== 'all' || roomFilter !== 'all'
+              ? 'No tenants found for selected filters'
+              : 'No tenants found in database'}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
