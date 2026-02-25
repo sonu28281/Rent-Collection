@@ -1,93 +1,94 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, where, orderBy, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const Payments = () => {
   const [tenants, setTenants] = useState([]);
-  const [monthlyRecords, setMonthlyRecords] = useState([]);
   const [payments, setPayments] = useState([]);
-  const [bankAccounts, setBankAccounts] = useState([]);
+  const [allPayments, setAllPayments] = useState([]); // For payment history
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [selectedTenant, setSelectedTenant] = useState(null);
+  const [filter, setFilter] = useState('all');
+
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch tenants
       const tenantsRef = collection(db, 'tenants');
-      const tenantsSnapshot = await getDocs(tenantsRef);
+      const tenantsQuery = query(tenantsRef, where('isActive', '==', true));
+      const tenantsSnapshot = await getDocs(tenantsQuery);
       const tenantsData = [];
       tenantsSnapshot.forEach((doc) => {
         tenantsData.push({ id: doc.id, ...doc.data() });
       });
 
-      // Fetch monthly records (pending/overdue)
-      const recordsRef = collection(db, 'monthlyRecords');
-      const recordsSnapshot = await getDocs(recordsRef);
-      const recordsData = [];
-      recordsSnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.status === 'pending' || data.status === 'overdue') {
-          recordsData.push({ id: doc.id, ...data });
-        }
-      });
-
-      // Fetch recent payments
       const paymentsRef = collection(db, 'payments');
-      const paymentsSnapshot = await getDocs(query(paymentsRef, orderBy('createdAt', 'desc')));
+      const paymentsQuery = query(
+        paymentsRef,
+        where('year', '==', selectedYear),
+        where('month', '==', selectedMonth)
+      );
+      const paymentsSnapshot = await getDocs(paymentsQuery);
       const paymentsData = [];
       paymentsSnapshot.forEach((doc) => {
         paymentsData.push({ id: doc.id, ...doc.data() });
       });
 
-      // Fetch bank accounts
-      const accountsRef = collection(db, 'bankAccounts');
-      const accountsSnapshot = await getDocs(accountsRef);
-      const accountsData = [];
-      accountsSnapshot.forEach((doc) => {
-        accountsData.push({ id: doc.id, ...doc.data() });
+      // Fetch all payments for history
+      const allPaymentsSnapshot = await getDocs(collection(db, 'payments'));
+      const allPaymentsData = [];
+      allPaymentsSnapshot.forEach((doc) => {
+        allPaymentsData.push({ id: doc.id, ...doc.data() });
       });
 
       setTenants(tenantsData);
-      setMonthlyRecords(recordsData);
       setPayments(paymentsData);
-      setBankAccounts(accountsData);
+      setAllPayments(allPaymentsData);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching data:', err);
-      setError('Failed to load payment data. Please try again.');
+      setError('Failed to load data. Please try again.');
       setLoading(false);
     }
   };
 
-  const handleRecordPayment = (record) => {
-    setSelectedRecord(record);
+  const handleRecordPayment = (tenant) => {
+    setSelectedTenant(tenant);
     setShowForm(true);
   };
 
   const handleFormClose = () => {
     setShowForm(false);
-    setSelectedRecord(null);
+    setSelectedTenant(null);
   };
 
   const handleFormSuccess = () => {
     setShowForm(false);
-    setSelectedRecord(null);
+    setSelectedTenant(null);
     fetchData();
   };
 
-  const getTenantName = (tenantId) => {
-    const tenant = tenants.find(t => t.id === tenantId);
-    return tenant ? tenant.name : 'Unknown';
+  const getTenantPaymentStatus = (tenantId) => {
+    return payments.find(p => p.tenantId === tenantId && p.status === 'paid');
   };
+
+  const filteredTenants = tenants.filter(tenant => {
+    const hasPaid = getTenantPaymentStatus(tenant.id);
+    if (filter === 'paid') return hasPaid;
+    if (filter === 'pending') return !hasPaid;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -95,7 +96,7 @@ const Payments = () => {
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading payments data...</p>
+            <p className="text-gray-600">Loading payments...</p>
           </div>
         </div>
       </div>
@@ -115,153 +116,224 @@ const Payments = () => {
     );
   }
 
-  const totalPending = monthlyRecords.reduce((sum, record) => sum + (record.total || 0), 0);
-  const totalReceived = payments
-    .filter(p => p.status === 'verified' || p.status === 'paid')
-    .reduce((sum, payment) => sum + (payment.totalAmount || payment.amount || 0), 0);
+  const paidCount = tenants.filter(t => getTenantPaymentStatus(t.id)).length;
+  const pendingCount = tenants.length - paidCount;
+  const totalCollected = payments
+    .filter(p => p.status === 'paid')
+    .reduce((sum, p) => sum + (p.paidAmount || 0), 0);
+  const totalExpected = tenants.reduce((sum, t) => sum + (t.currentRent || 0), 0);
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+
+  const handlePreviousMonth = () => {
+    if (selectedMonth === 1) {
+      setSelectedMonth(12);
+      setSelectedYear(selectedYear - 1);
+    } else {
+      setSelectedMonth(selectedMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 12) {
+      setSelectedMonth(1);
+      setSelectedYear(selectedYear + 1);
+    } else {
+      setSelectedMonth(selectedMonth + 1);
+    }
+  };
+
+  const getPreviousPayment = (tenantId) => {
+    // Get most recent payment before current month
+    const tenantPayments = allPayments
+      .filter(p => p.tenantId === tenantId && p.status === 'paid')
+      .filter(p => {
+        if (p.year < selectedYear) return true;
+        if (p.year === selectedYear && p.month < selectedMonth) return true;
+        return false;
+      })
+      .sort((a, b) => {
+        if (b.year !== a.year) return b.year - a.year;
+        return b.month - a.month;
+      });
+    return tenantPayments[0] || null;
+  };
 
   return (
     <div className="p-4 lg:p-8">
-      {/* Header */}
+      {/* Header with Month Navigation */}
       <div className="mb-6">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">💳 Payments Management</h2>
-        <p className="text-gray-600">Record and verify tenant payments</p>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-3xl font-bold text-gray-900">💳 Payments</h2>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handlePreviousMonth}
+              className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
+            >
+              ← Previous
+            </button>
+            <div className="px-4 py-2 bg-primary text-white rounded-lg font-bold text-lg">
+              {monthNames[selectedMonth - 1]} {selectedYear}
+            </div>
+            <button
+              onClick={handleNextMonth}
+              className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+        <p className="text-gray-600">Record rent payments for active tenants</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="card bg-gradient-to-br from-red-500 to-red-600 text-white">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-red-100 text-sm mb-1">Total Pending</p>
-              <p className="text-3xl font-bold">₹{totalPending.toLocaleString('en-IN')}</p>
+              <p className="text-blue-100 text-sm mb-1">Total Tenants</p>
+              <p className="text-3xl font-bold">{tenants.length}</p>
             </div>
-            <div className="text-5xl">⚠️</div>
+            <div className="text-4xl">👥</div>
           </div>
         </div>
 
         <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-sm mb-1">Total Received</p>
-              <p className="text-3xl font-bold">₹{totalReceived.toLocaleString('en-IN')}</p>
+              <p className="text-green-100 text-sm mb-1">Paid</p>
+              <p className="text-3xl font-bold">{paidCount}</p>
             </div>
-            <div className="text-5xl">✅</div>
+            <div className="text-4xl">✅</div>
+          </div>
+        </div>
+
+        <div className="card bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-orange-100 text-sm mb-1">Pending</p>
+              <p className="text-3xl font-bold">{pendingCount}</p>
+            </div>
+            <div className="text-4xl">⏳</div>
+          </div>
+        </div>
+
+        <div className="card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm mb-1">Collected</p>
+              <p className="text-2xl font-bold">₹{totalCollected.toLocaleString('en-IN')}</p>
+              <p className="text-purple-200 text-xs">of ₹{totalExpected.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="text-4xl">💰</div>
           </div>
         </div>
       </div>
 
-      {/* Pending Payments */}
       <div className="card mb-6">
-        <h3 className="text-xl font-bold text-gray-800 mb-4">📋 Pending Payments</h3>
-        
-        {monthlyRecords.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <div className="text-5xl mb-2">🎉</div>
-            <p>No pending payments</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {monthlyRecords.map((record) => (
-              <div key={record.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <p className="font-bold text-gray-800">{getTenantName(record.tenantId)}</p>
-                    <p className="text-sm text-gray-600">
-                      Room {record.roomNumber} • {getMonthName(record.month)} {record.year}
-                    </p>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    record.status === 'overdue' 
-                      ? 'bg-red-100 text-red-800' 
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {record.status === 'overdue' ? '⚠️ Overdue' : '⏳ Pending'}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    <span>Amount: </span>
-                    <span className="font-bold text-lg text-gray-800">₹{record.total.toLocaleString('en-IN')}</span>
-                  </div>
-                  <button
-                    onClick={() => handleRecordPayment(record)}
-                    className="btn-primary text-sm"
-                  >
-                    💰 Record Payment
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-4 py-2 rounded-lg font-semibold transition ${
+              filter === 'all'
+                ? 'bg-primary text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            All ({tenants.length})
+          </button>
+          <button
+            onClick={() => setFilter('paid')}
+            className={`px-4 py-2 rounded-lg font-semibold transition ${
+              filter === 'paid'
+                ? 'bg-green-500 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Paid ({paidCount})
+          </button>
+          <button
+            onClick={() => setFilter('pending')}
+            className={`px-4 py-2 rounded-lg font-semibold transition ${
+              filter === 'pending'
+                ? 'bg-orange-500 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Pending ({pendingCount})
+          </button>
+        </div>
       </div>
 
-      {/* Recent Payments */}
       <div className="card">
-        <h3 className="text-xl font-bold text-gray-800 mb-4">📊 Recent Payments</h3>
+        <h3 className="text-xl font-bold text-gray-800 mb-4">Tenant Payment Status</h3>
         
-        {payments.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+        {filteredTenants.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
             <div className="text-5xl mb-2">📋</div>
-            <p>No payments recorded yet</p>
+            <p>No tenants found</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Room</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Tenant</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Amount</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">UTR</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Phone</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Rent</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {payments.slice(0, 10).map((payment) => {
-                  // Format date properly with fallback
-                  let displayDate = '-';
-                  try {
-                    if (payment.paymentDate) {
-                      const date = new Date(payment.paymentDate);
-                      if (!isNaN(date.getTime())) {
-                        displayDate = date.toLocaleDateString('en-IN');
-                      }
-                    } else if (payment.createdAt) {
-                      const date = new Date(payment.createdAt);
-                      if (!isNaN(date.getTime())) {
-                        displayDate = date.toLocaleDateString('en-IN');
-                      }
-                    }
-                  } catch (e) {
-                    displayDate = '-';
-                  }
-
+                {filteredTenants.map((tenant) => {
+                  const payment = getTenantPaymentStatus(tenant.id);
+                  const isPaid = !!payment;
+                  
                   return (
-                    <tr key={payment.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        {payment.tenantNameSnapshot || getTenantName(payment.tenantId) || 'Unknown'}
+                    <tr key={tenant.id} className={`hover:bg-gray-50 ${isPaid ? 'bg-green-50' : ''}`}>
+                      <td className="px-4 py-3 font-bold text-gray-900">
+                        {tenant.roomNumber}
                       </td>
-                      <td className="px-4 py-3 font-semibold">₹{(payment.totalAmount || payment.amount || 0).toLocaleString('en-IN')}</td>
-                      <td className="px-4 py-3 font-mono text-xs">{payment.utr || 'N/A'}</td>
-                      <td className="px-4 py-3">
-                        {displayDate}
+                      <td className="px-4 py-3 font-semibold text-gray-900">
+                        {tenant.name}
                       </td>
-                      <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                        payment.status === 'verified' || payment.status === 'paid'
-                          ? 'bg-green-100 text-green-800' 
-                          : payment.status === 'partial'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {payment.status === 'verified' || payment.status === 'paid' ? '✅ Paid' : 
-                         payment.status === 'partial' ? '⏳ Partial' : '❌ Unpaid'}
-                      </span>
-                    </td>
-                  </tr>
+                      <td className="px-4 py-3 text-gray-600">
+                        {tenant.phone || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-900">
+                        ₹{(tenant.currentRent || 0).toLocaleString('en-IN')}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {isPaid ? (
+                          <div className="flex flex-col items-center">
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-200 text-green-900 mb-1">
+                              ✅ Paid
+                            </span>
+                            {payment.paidDate && (
+                              <span className="text-xs text-gray-600">
+                                {new Date(payment.paidDate).toLocaleDateString('en-IN')}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-200 text-orange-900">
+                            ⏳ Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {!isPaid && (
+                          <button
+                            onClick={() => handleRecordPayment(tenant)}
+                            className="px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition text-xs font-semibold"
+                          >
+                            💰 Record
+                          </button>
+                        )}
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -270,12 +342,12 @@ const Payments = () => {
         )}
       </div>
 
-      {/* Payment Form Modal */}
-      {showForm && selectedRecord && (
+      {showForm && selectedTenant && (
         <PaymentForm
-          record={selectedRecord}
-          tenantName={getTenantName(selectedRecord.tenantId)}
-          bankAccounts={bankAccounts}
+          tenant={selectedTenant}
+          currentMonth={selectedMonth}
+          currentYear={selectedYear}
+          previousPayment={getPreviousPayment(selectedTenant.id)}
           onClose={handleFormClose}
           onSuccess={handleFormSuccess}
         />
@@ -284,16 +356,19 @@ const Payments = () => {
   );
 };
 
-const PaymentForm = ({ record, tenantName, bankAccounts, onClose, onSuccess }) => {
+const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
-    amount: record.total,
-    paymentDate: new Date().toISOString().split('T')[0],
+    paidAmount: tenant.currentRent || 0,
+    paidDate: new Date().toISOString().split('T')[0],
+    paymentMethod: 'UPI',
     utr: '',
-    receivedAccountId: '',
     notes: ''
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                      'July', 'August', 'September', 'October', 'November', 'December'];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -303,12 +378,12 @@ const PaymentForm = ({ record, tenantName, bankAccounts, onClose, onSuccess }) =
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+    if (!formData.paidAmount || parseFloat(formData.paidAmount) <= 0) {
       setError('Please enter a valid amount');
       return;
     }
 
-    if (!formData.paymentDate) {
+    if (!formData.paidDate) {
       setError('Please select payment date');
       return;
     }
@@ -317,30 +392,44 @@ const PaymentForm = ({ record, tenantName, bankAccounts, onClose, onSuccess }) =
       setSaving(true);
       setError('');
 
-      const paymentId = `payment_${Date.now()}`;
+      const paymentsRef = collection(db, 'payments');
+      const existingQuery = query(
+        paymentsRef,
+        where('tenantId', '==', tenant.id),
+        where('year', '==', currentYear),
+        where('month', '==', currentMonth)
+      );
+      const existingSnapshot = await getDocs(existingQuery);
 
-      // Create payment record
-      const paymentData = {
-        tenantId: record.tenantId,
-        roomNumber: record.roomNumber,
-        ledgerId: record.id,
-        amount: parseFloat(formData.amount),
-        paymentDate: formData.paymentDate,
-        utr: formData.utr.trim(),
-        screenshotUrl: null, // Future: storage adapter
-        receivedAccountId: formData.receivedAccountId || null,
-        status: 'verified', // Auto-verify for now
-        notes: formData.notes.trim(),
-        createdAt: new Date().toISOString()
-      };
-
-      await setDoc(doc(db, 'payments', paymentId), paymentData);
-
-      // Update monthly record status
-      await updateDoc(doc(db, 'monthlyRecords', record.id), {
-        status: 'paid',
-        paidAt: new Date().toISOString()
-      });
+      if (!existingSnapshot.empty) {
+        const paymentDoc = existingSnapshot.docs[0];
+        await updateDoc(doc(db, 'payments', paymentDoc.id), {
+          paidAmount: parseFloat(formData.paidAmount),
+          paidDate: formData.paidDate,
+          paymentMethod: formData.paymentMethod,
+          utr: formData.utr.trim(),
+          notes: formData.notes.trim(),
+          status: 'paid',
+          updatedAt: new Date().toISOString()
+        });
+      } else {
+        await addDoc(paymentsRef, {
+          tenantId: tenant.id,
+          tenantNameSnapshot: tenant.name,
+          roomNumber: tenant.roomNumber,
+          year: currentYear,
+          month: currentMonth,
+          rent: tenant.currentRent || 0,
+          electricity: 0,
+          paidAmount: parseFloat(formData.paidAmount),
+          paidDate: formData.paidDate,
+          paymentMethod: formData.paymentMethod,
+          utr: formData.utr.trim(),
+          notes: formData.notes.trim(),
+          status: 'paid',
+          createdAt: new Date().toISOString()
+        });
+      }
 
       alert('✅ Payment recorded successfully!');
       onSuccess();
@@ -353,25 +442,67 @@ const PaymentForm = ({ record, tenantName, bankAccounts, onClose, onSuccess }) =
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-4 rounded-t-lg">
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-gray-800">💳 Record Payment</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">
-              ×
+            <h3 className="text-xl font-bold">💳 Record Payment</h3>
+            <button onClick={onClose} className="text-white hover:bg-white hover:bg-opacity-20 rounded-full w-8 h-8 flex items-center justify-center transition">
+              ✕
             </button>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6">
-          {/* Record Info */}
           <div className="bg-blue-50 rounded-lg p-4 mb-4">
-            <p className="text-sm text-blue-600 mb-1">Tenant</p>
-            <p className="font-bold text-blue-900">{tenantName}</p>
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <p className="text-sm text-blue-600 mb-1">Tenant</p>
+                <p className="font-bold text-blue-900 text-lg">{tenant.name}</p>
+              </div>
+              <span className="px-3 py-1 bg-blue-500 text-white rounded-full text-xs font-semibold">
+                Room {tenant.roomNumber}
+              </span>
+            </div>
             <p className="text-sm text-blue-700">
-              Room {record.roomNumber} • {getMonthName(record.month)} {record.year}
+              {monthNames[currentMonth - 1]} {currentYear}
             </p>
           </div>
+
+          {/* Previous Payment Info */}
+          {previousPayment && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">📜</span>
+                <p className="text-sm font-semibold text-gray-700">Previous Payment</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-gray-600">Month</p>
+                  <p className="font-bold text-gray-900">
+                    {monthNames[previousPayment.month - 1]} {previousPayment.year}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Amount</p>
+                  <p className="font-bold text-gray-900">
+                    ₹{(previousPayment.paidAmount || 0).toLocaleString('en-IN')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Date Paid</p>
+                  <p className="font-bold text-gray-900">
+                    {previousPayment.paidDate ? new Date(previousPayment.paidDate).toLocaleDateString('en-IN') : '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600">UTR</p>
+                  <p className="font-mono text-xs text-gray-900">
+                    {previousPayment.utr || 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
@@ -379,78 +510,62 @@ const PaymentForm = ({ record, tenantName, bankAccounts, onClose, onSuccess }) =
             </div>
           )}
 
-          {/* Amount */}
           <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Amount (₹) *
             </label>
             <input
               type="number"
-              name="amount"
-              value={formData.amount}
+              name="paidAmount"
+              value={formData.paidAmount}
               onChange={handleChange}
-              className="input-field"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="5000"
               min="0"
-              step="0.01"
+              step="1"
               required
             />
           </div>
 
-          {/* Payment Date */}
           <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Payment Date *
             </label>
             <input
               type="date"
-              name="paymentDate"
-              value={formData.paymentDate}
+              name="paidDate"
+              value={formData.paidDate}
               onChange={handleChange}
-              className="input-field"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               required
             />
           </div>
 
-          {/* UTR */}
           <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              UTR / Transaction ID
+              Payment Method
+            </label>
+            <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-semibold flex items-center gap-2">
+              <span className="text-xl">📱</span>
+              UPI
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              UTR / Transaction ID (Optional)
             </label>
             <input
               type="text"
               name="utr"
               value={formData.utr}
               onChange={handleChange}
-              className="input-field"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="Enter UTR number"
             />
           </div>
 
-          {/* Received Account */}
-          {bankAccounts.length > 0 && (
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Received in Account
-              </label>
-              <select
-                name="receivedAccountId"
-                value={formData.receivedAccountId}
-                onChange={handleChange}
-                className="input-field"
-              >
-                <option value="">Select account</option>
-                {bankAccounts.map(account => (
-                  <option key={account.id} value={account.id}>
-                    {account.upiId} {account.nickname ? `(${account.nickname})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Notes */}
-          <div className="mb-4">
+          <div className="mb-6">
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Notes (Optional)
             </label>
@@ -458,39 +573,33 @@ const PaymentForm = ({ record, tenantName, bankAccounts, onClose, onSuccess }) =
               name="notes"
               value={formData.notes}
               onChange={handleChange}
-              className="input-field"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               rows="2"
               placeholder="Any additional notes..."
             />
           </div>
 
-          {/* Buttons */}
           <div className="flex gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="btn-secondary flex-1"
+              className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
               disabled={saving}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="btn-primary flex-1"
+              className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition font-semibold disabled:opacity-50"
               disabled={saving}
             >
-              {saving ? 'Saving...' : '💾 Record Payment'}
+              {saving ? 'Saving...' : '💾 Save Payment'}
             </button>
           </div>
         </form>
       </div>
     </div>
   );
-};
-
-const getMonthName = (monthNum) => {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return months[monthNum - 1] || monthNum;
 };
 
 export default Payments;

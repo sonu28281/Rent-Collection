@@ -10,6 +10,7 @@ import TenantPortal from './components/TenantPortal';
 import Settings from './components/Settings';
 import Electricity from './components/Electricity';
 import Payments from './components/Payments';
+import VerifyPayments from './components/VerifyPayments';
 import Maintenance from './components/Maintenance';
 import ImportCSV from './components/ImportCSV';
 import BankAccounts from './components/BankAccounts';
@@ -27,7 +28,8 @@ function App() {
       <Router>
         <Routes>
           
-          {/* Public Tenant Portal Route */}
+          {/* Public Tenant Portal Routes */}
+          <Route path="/tenant-portal" element={<TenantPortal />} />
           <Route path="/t/:token" element={<TenantPortal />} />
           
           <Route path="/login" element={<Login />} />
@@ -76,6 +78,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><Payments /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/verify-payments" 
+            element={
+              <ProtectedRoute>
+                <Layout><VerifyPayments /></Layout>
               </ProtectedRoute>
             } 
           />

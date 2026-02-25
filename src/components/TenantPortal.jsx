@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
+import SubmitPayment from './SubmitPayment';
 
 /**
  * Tenant Portal - Username/Password Login
@@ -29,6 +30,7 @@ const TenantPortal = () => {
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [activeUPI, setActiveUPI] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [pendingSubmissions, setPendingSubmissions] = useState([]);
   
   // UI state for collapsible cards
   const [expandedCard, setExpandedCard] = useState(null);
@@ -37,6 +39,9 @@ const TenantPortal = () => {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [meterReading, setMeterReading] = useState('');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  
+  // Submit payment modal state
+  const [showSubmitPayment, setShowSubmitPayment] = useState(false);
 
   // Handle login
   const handleLogin = async (e) => {
@@ -125,29 +130,118 @@ const TenantPortal = () => {
         console.log('❌ Room not found!');
       }
 
-      // Fetch payment records - Filter by room AND tenant name
-      // This ensures tenant only sees their own payment history, not previous tenants
+      // Fetch payment records - Try multiple approaches
       const paymentsRef = collection(db, 'payments');
-      const paymentsQuery = query(
+      
+      console.log('🔍 Fetching payments for tenant:', {
+        tenantId: tenantData.id,
+        tenantName: tenantData.name,
+        roomNumber: roomNumberAsNumber
+      });
+      
+      // Fetch BOTH number AND string roomNumber types (merge results)
+      // This handles historical payments (number) AND new payments (string)
+      const numberQuery = query(
         paymentsRef, 
         where('roomNumber', '==', roomNumberAsNumber)
       );
+      const stringQuery = query(
+        paymentsRef, 
+        where('roomNumber', '==', roomNumberAsString)
+      );
       
-      console.log('🔍 Fetching payments for room:', roomNumberAsNumber);
-      console.log('👤 Filtering for tenant:', tenantData.name);
-      const paymentsSnapshot = await getDocs(paymentsQuery);
-      console.log('📊 Total payments fetched from DB:', paymentsSnapshot.size);
+      const [numberSnapshot, stringSnapshot] = await Promise.all([
+        getDocs(numberQuery),
+        getDocs(stringQuery)
+      ]);
       
-      // Collect records and filter by tenant name
+      console.log('📊 Payments with roomNumber as NUMBER:', numberSnapshot.size);
+      console.log('📊 Payments with roomNumber as STRING:', stringSnapshot.size);
+      
+      // Merge both results, avoid duplicates by tracking IDs
+      const paymentDocs = new Map();
+      numberSnapshot.forEach(doc => paymentDocs.set(doc.id, doc));
+      stringSnapshot.forEach(doc => paymentDocs.set(doc.id, doc));
+      
+      console.log('📊 Total unique payments:', paymentDocs.size);
+      
+      // Collect records - be more lenient with tenant matching
       const records = [];
-      paymentsSnapshot.forEach((doc) => {
-        const data = doc.data();
-        // Only include payments made by current tenant
-        // Match by tenantNameSnapshot field
-        if (data.tenantNameSnapshot === tenantData.name || data.tenantName === tenantData.name) {
-          records.push({ id: doc.id, ...data });
+      const allRoomPayments = [];
+      
+      paymentDocs.forEach((doc) => {
+        const data = { id: doc.id, ...doc.data() };
+        allRoomPayments.push(data);
+        
+        // Match by tenant - check multiple criteria
+        // Accept payment if ANY of these match:
+        // 1. tenantId matches (if present)
+        // 2. tenantName matches
+        // 3. tenantNameSnapshot matches
+        const matchesTenant = 
+          (data.tenantId && data.tenantId === tenantData.id) ||
+          (!data.tenantId && (data.tenantName === tenantData.name || data.tenantNameSnapshot === tenantData.name));
+        
+        if (matchesTenant) {
+          records.push(data);
+          console.log('✅ Payment matched for tenant:', {
+            month: data.month,
+            year: data.year,
+            status: data.status,
+            paidAmount: data.paidAmount,
+            hasTenantId: !!data.tenantId,
+            matchedBy: data.tenantId ? 'tenantId' : 'name'
+          });
+        } else {
+          console.log('⏭️  Payment skipped (tenant mismatch):', {
+            month: data.month,
+            year: data.year,
+            paymentTenantId: data.tenantId,
+            paymentTenantName: data.tenantName || data.tenantNameSnapshot,
+            currentTenantId: tenantData.id,
+            currentTenantName: tenantData.name
+          });
         }
       });
+      
+      console.log('📊 Total payments for this room:', allRoomPayments.length);
+      console.log('📊 Payments matched to current tenant:', records.length);
+      
+      // If still no records found for current tenant, try by tenantId directly
+      if (records.length === 0) {
+        console.log('⚠️ No payments found by room+tenant match, trying direct tenantId query...');
+        const tenantIdQuery = query(
+          paymentsRef,
+          where('tenantId', '==', tenantData.id)
+        );
+        const tenantIdSnapshot = await getDocs(tenantIdQuery);
+        console.log('📊 Payments found by tenantId query:', tenantIdSnapshot.size);
+        
+        tenantIdSnapshot.forEach((doc) => {
+          const data = { id: doc.id, ...doc.data() };
+          records.push(data);
+          console.log('✅ Payment added:', {
+            month: data.month,
+            year: data.year,
+            status: data.status,
+            paidAmount: data.paidAmount
+          });
+        });
+      }
+      
+      // If STILL no records, show what we have for debugging
+      if (records.length === 0 && allRoomPayments.length > 0) {
+        console.log('⚠️ No tenant match! Room has payments but none matched tenant.');
+        console.log('💡 Room payments tenantIds:', allRoomPayments.map(p => ({
+          id: p.id,
+          tenantId: p.tenantId,
+          tenantName: p.tenantNameSnapshot || p.tenantName,
+          month: p.month,
+          year: p.year
+        })));
+        console.log('💡 Looking for tenantId:', tenantData.id);
+        console.log('💡 Looking for tenantName:', tenantData.name);
+      }
       
       console.log('📋 Records for current tenant:', records.length);
       console.log('🔍 Tenant name match filter:', tenantData.name);
@@ -176,6 +270,22 @@ const TenantPortal = () => {
       // Show all records, not just 12
       setPaymentRecords(records);
 
+      // Fetch pending submissions for current tenant and month
+      const submissionsRef = collection(db, 'paymentSubmissions');
+      const currentDate = new Date();
+      const submissionsQuery = query(
+        submissionsRef,
+        where('tenantId', '==', tenantData.id),
+        where('year', '==', currentDate.getFullYear()),
+        where('month', '==', currentDate.getMonth() + 1)
+      );
+      const submissionsSnapshot = await getDocs(submissionsQuery);
+      const submissions = [];
+      submissionsSnapshot.forEach((doc) => {
+        submissions.push({ id: doc.id, ...doc.data() });
+      });
+      setPendingSubmissions(submissions.filter(s => s.status === 'pending'));
+
       // Fetch active UPI
       const upiRef = collection(db, 'bankAccounts');
       const upiQuery = query(upiRef, where('isActive', '==', true), limit(1));
@@ -197,6 +307,7 @@ const TenantPortal = () => {
     setTenant(null);
     setRoom(null);
     setPaymentRecords([]);
+    setPendingSubmissions([]);
     setActiveUPI(null);
     setUsername('');
     setPassword('');
@@ -204,28 +315,34 @@ const TenantPortal = () => {
 
   // Calculate next due date and payment status
   const getNextDueDate = () => {
-    // If payment records not loaded yet, show loading state
-    if (!paymentRecords || paymentRecords.length === 0) {
-      return {
-        dueDateStr: 'Loading...',
-        status: 'due',
-        dueDay: tenant?.dueDate || 20,
-        statusText: 'Loading payment status...'
-      };
-    }
-    
     const today = new Date();
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth() + 1; // 1-12
     const currentDay = today.getDate();
     const dueDay = tenant?.dueDate || 20;
     
+    // If payment records not loaded yet, show loading state
+    if (!paymentRecords || paymentRecords.length === 0) {
+      console.log('⚠️ No payment records loaded yet');
+      return {
+        dueDateStr: 'Loading...',
+        status: 'due',
+        dueDay: dueDay,
+        statusText: 'Loading payment status...'
+      };
+    }
+    
     // Check if current month payment exists and is paid
+    // Handle both number and string types for year/month
     const currentMonthPayment = paymentRecords.find(
-      p => p.year === currentYear && p.month === currentMonth
+      p => {
+        const pYear = typeof p.year === 'string' ? parseInt(p.year) : p.year;
+        const pMonth = typeof p.month === 'string' ? parseInt(p.month) : p.month;
+        return pYear === currentYear && pMonth === currentMonth;
+      }
     );
     
-    // Debug logging
+    // Enhanced Debug logging
     console.log('🔍 Due Date Check:', {
       currentYear,
       currentMonth,
@@ -233,20 +350,48 @@ const TenantPortal = () => {
       dueDay,
       paymentRecordsCount: paymentRecords.length,
       currentMonthPayment: currentMonthPayment ? {
+        id: currentMonthPayment.id,
         year: currentMonthPayment.year,
+        yearType: typeof currentMonthPayment.year,
         month: currentMonthPayment.month,
-        status: currentMonthPayment.status
-      } : 'Not found'
+        monthType: typeof currentMonthPayment.month,
+        status: currentMonthPayment.status,
+        paidAmount: currentMonthPayment.paidAmount,
+        tenantId: currentMonthPayment.tenantId,
+        roomNumber: currentMonthPayment.roomNumber
+      } : 'NOT FOUND'
     });
+    
+    // Log all payment records for debugging
+    if (paymentRecords.length > 0) {
+      console.log('📋 All Payment Records:', paymentRecords.map(p => ({
+        month: p.month,
+        year: p.year,
+        status: p.status,
+        paidAmount: p.paidAmount
+      })));
+    }
     
     let nextDueMonth, nextDueYear;
     let status = 'pending';
     let statusText = 'Payment Pending';
     
     // Check if current month is already paid (check both status AND paidAmount)
+    // For paidAmount: Accept if rent field exists when paidAmount is missing
     const isPaid = currentMonthPayment && 
                    currentMonthPayment.status === 'paid' && 
-                   (currentMonthPayment.paidAmount || 0) > 0;
+                   ((currentMonthPayment.paidAmount || 0) > 0 || (currentMonthPayment.rent || 0) > 0);
+
+    const hasPendingSubmission = pendingSubmissions.length > 0;
+    
+    console.log('💰 Payment Status Check:', {
+      hasPayment: !!currentMonthPayment,
+      status: currentMonthPayment?.status,
+      paidAmount: currentMonthPayment?.paidAmount,
+      rent: currentMonthPayment?.rent,
+      hasPendingSubmission,
+      isPaid: isPaid
+    });
     
     if (isPaid) {
       // ✅ Current month paid - Show NEXT month's due date
@@ -259,18 +404,27 @@ const TenantPortal = () => {
       }
       status = 'paid';
       statusText = 'Current Month Paid ✅';
+      console.log('✅ Status: PAID - Next due:', `${nextDueMonth}/${nextDueYear}`);
+    } else if (hasPendingSubmission) {
+      nextDueMonth = currentMonth;
+      nextDueYear = currentYear;
+      status = 'pending';
+      statusText = 'Payment Verification Pending ⏳';
+      console.log('⏳ Status: PENDING VERIFICATION');
     } else if (currentDay <= dueDay) {
       // Payment due this month, still within due date
       nextDueMonth = currentMonth;
       nextDueYear = currentYear;
       status = 'due';
       statusText = 'Payment Due This Month';
+      console.log('📅 Status: DUE - Within due date');
     } else {
       // After due date and not paid - OVERDUE
       nextDueMonth = currentMonth;
       nextDueYear = currentYear;
       status = 'overdue';
       statusText = 'Payment Overdue!';
+      console.log('⚠️ Status: OVERDUE - Past due date');
     }
     
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -301,22 +455,57 @@ const TenantPortal = () => {
       return;
     }
     
+    // Just validate, don't show alert yet
+    // The UI will show the calculated amount
+  };
+  
+  // Copy UPI ID to clipboard
+  const copyUPIId = () => {
+    if (activeUPI?.upiId) {
+      navigator.clipboard.writeText(activeUPI.upiId).then(() => {
+        alert('✅ UPI ID copied to clipboard!');
+      }).catch(() => {
+        alert('❌ Failed to copy. Please copy manually.');
+      });
+    }
+  };
+  
+  // Open UPI payment link
+  const openUPIPayment = () => {
+    const reading = parseFloat(meterReading);
+    if (!reading || reading <= (room?.currentReading || 0)) {
+      alert('⚠️ Please enter a valid meter reading first');
+      return;
+    }
+    
     const { units, electricityAmount } = calculateElectricity(reading);
     const rentAmount = tenant?.currentRent || room?.rent || 0;
     const totalAmount = rentAmount + electricityAmount;
     
-    setPaymentProcessing(true);
+    if (!activeUPI?.upiId) {
+      alert('❌ UPI ID not available');
+      return;
+    }
     
-    // Show payment details
-    const confirmMsg = `📊 Payment Summary:\n\n` +
-      `Rent: ₹${rentAmount}\n` +
-      `Electricity: ${units} units × ₹8.5 = ₹${electricityAmount.toFixed(2)}\n` +
-      `Total: ₹${totalAmount.toFixed(2)}\n\n` +
-      `After payment, share screenshot with property manager.\n` +
-      `Meter reading: ${reading} units`;
+    // Create UPI payment link
+    const upiLink = `upi://pay?pa=${activeUPI.upiId}&pn=${encodeURIComponent(activeUPI.nickname || 'Property Owner')}&am=${totalAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Room ${tenant.roomNumber} - Rent+Electricity`)}`;
     
-    alert(confirmMsg);
-    setPaymentProcessing(false);
+    // Try to open UPI app
+    window.location.href = upiLink;
+    
+    // Show confirmation
+    setTimeout(() => {
+      alert(
+        `📊 Payment Details:\n\n` +
+        `Rent: ₹${rentAmount}\n` +
+        `Electricity: ${units} units × ₹8.5 = ₹${electricityAmount.toFixed(2)}\n` +
+        `Total: ₹${totalAmount.toFixed(2)}\n\n` +
+        `✅ UPI app opened. After payment:\n` +
+        `1. Take screenshot of payment confirmation\n` +
+        `2. Share with property manager\n` +
+        `3. Your payment will be verified within 24 hours`
+      );
+    }, 500);
   };
 
   // Get status badge
@@ -457,11 +646,13 @@ const TenantPortal = () => {
               const dueInfo = getNextDueDate();
               const statusColors = {
                 paid: 'from-green-500 to-emerald-600',
+                pending: 'from-amber-500 to-orange-600',
                 due: 'from-blue-500 to-indigo-600',
                 overdue: 'from-orange-500 to-red-600'
               };
               const statusIcons = {
                 paid: '✅',
+                pending: '⏳',
                 due: '📅',
                 overdue: '⚠️'
               };
@@ -496,27 +687,88 @@ const TenantPortal = () => {
             })()}
 
             {/* Quick Payment Action - NEW */}
-            {!showPaymentForm && (
-              <button
-                onClick={() => setShowPaymentForm(true)}
-                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 touch-manipulation"
-              >
-                💳 Make Payment Now
-              </button>
-            )}
+            {!showPaymentForm && (() => {
+              const dueInfo = getNextDueDate();
+              const isCurrentMonthPaid = dueInfo.status === 'paid';
+              const isVerificationPending = dueInfo.status === 'pending';
+              const shouldDisablePayment = isCurrentMonthPaid || isVerificationPending;
+              
+              return (
+                <>
+                  {/* Make Payment Button - Only show if current month NOT paid */}
+                  {!shouldDisablePayment && (
+                    <button
+                      onClick={() => {
+                        console.log('Make Payment clicked!');
+                        console.log('Active UPI:', activeUPI);
+                        console.log('Room:', room);
+                        if (!activeUPI) {
+                          alert('⚠️ Payment setup not available. Please contact property manager.');
+                          return;
+                        }
+                        setShowPaymentForm(true);
+                      }}
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 touch-manipulation mb-3"
+                    >
+                      💳 Make Payment Now
+                    </button>
+                  )}
+                  
+                  {/* Already Paid Message */}
+                  {isCurrentMonthPaid && (
+                    <div className="w-full bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg p-4 mb-3 text-center">
+                      <div className="text-3xl mb-2">✅</div>
+                      <p className="text-green-800 font-bold text-lg mb-1">Payment Already Done!</p>
+                      <p className="text-green-700 text-sm">Your current month payment is complete. Thank you!</p>
+                    </div>
+                  )}
+
+                  {/* Pending Verification Message */}
+                  {isVerificationPending && (
+                    <div className="w-full bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-lg p-4 mb-3 text-center">
+                      <div className="text-3xl mb-2">⏳</div>
+                      <p className="text-amber-800 font-bold text-lg mb-1">Verification in Progress</p>
+                      <p className="text-amber-700 text-sm">You already submitted payment details. Please wait for admin verification.</p>
+                    </div>
+                  )}
+                  
+                  {/* Submit Payment Proof Button - Always available */}
+                  <button
+                    onClick={() => setShowSubmitPayment(true)}
+                    className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 touch-manipulation"
+                  >
+                    📝 Submit Payment for Verification
+                  </button>
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    💡 Already paid outside? Submit details here for verification
+                  </p>
+                </>
+              );
+            })()}
 
             {/* Payment Form with Meter Reading - NEW */}
-            {showPaymentForm && activeUPI && (
+            {showPaymentForm && (
               <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 border-2 border-green-500">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl sm:text-2xl font-bold text-gray-800">💳 Make Payment</h2>
                   <button
-                    onClick={() => setShowPaymentForm(false)}
+                    onClick={() => {
+                      setShowPaymentForm(false);
+                      setMeterReading('');
+                    }}
                     className="text-gray-500 hover:text-gray-700 font-bold text-xl"
                   >
                     ✕
                   </button>
                 </div>
+
+                {!activeUPI ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-red-700 font-semibold mb-2">❌ Payment Setup Not Available</p>
+                    <p className="text-sm text-red-600">Please contact the property manager to set up UPI payment details.</p>
+                  </div>
+                ) : (
+                  <>
 
                 {/* Meter Reading Input */}
                 <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -532,21 +784,14 @@ const TenantPortal = () => {
                       className="flex-1 px-4 py-3 text-lg font-mono border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                       min={room?.currentReading || 0}
                     />
-                    <button
-                      onClick={handleMeterReadingSubmit}
-                      disabled={!meterReading || paymentProcessing}
-                      className="bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-bold px-6 py-3 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
-                    >
-                      Calculate
-                    </button>
                   </div>
                   <p className="text-xs text-gray-600 mt-2">
                     Previous reading: {room?.currentReading || 0} | Rate: ₹8.5/unit
                   </p>
                 </div>
 
-                {/* Payment Amount Summary */}
-                {meterReading && parseFloat(meterReading) > (room?.currentReading || 0) && (
+                {/* Payment Amount Summary - Always show when meter reading entered */}
+                {meterReading && parseFloat(meterReading) >= (room?.currentReading || 0) && (
                   <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <h3 className="font-semibold text-blue-900 mb-2">Payment Amount:</h3>
                     <div className="space-y-2 text-sm">
@@ -571,7 +816,7 @@ const TenantPortal = () => {
                 {/* QR Code */}
                 {activeUPI.qrCode && (
                   <div className="text-center mb-4">
-                    <p className="text-sm font-semibold text-gray-700 mb-3">Scan to Pay:</p>
+                    <p className="text-sm font-semibold text-gray-700 mb-3">Or Scan QR Code:</p>
                     <div className="bg-white p-3 sm:p-4 rounded-xl border-2 border-gray-300 inline-block">
                       <img 
                         src={activeUPI.qrCode} 
@@ -579,7 +824,19 @@ const TenantPortal = () => {
                         className="w-48 h-48 sm:w-56 sm:h-56 rounded-lg"
                       />
                     </div>
+                    <p className="text-xs text-gray-500 mt-2">Open any UPI app and scan this code</p>
                   </div>
+                )}
+
+                {/* Pay Now Button - Opens UPI App */}
+                {meterReading && parseFloat(meterReading) >= (room?.currentReading || 0) && (
+                  <button
+                    onClick={openUPIPayment}
+                    disabled={paymentProcessing}
+                    className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+                  >
+                    🚀 Open UPI App & Pay ₹{((tenant?.currentRent || room?.rent || 0) + calculateElectricity(parseFloat(meterReading)).electricityAmount).toFixed(2)}
+                  </button>
                 )}
 
                 {/* UPI ID */}
@@ -588,10 +845,7 @@ const TenantPortal = () => {
                   <div className="flex items-center gap-2">
                     <p className="font-mono font-bold text-sm flex-1 break-all">{activeUPI.upiId}</p>
                     <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(activeUPI.upiId);
-                        alert('✅ UPI ID copied!');
-                      }}
+                      onClick={copyUPIId}
                       className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-3 rounded text-xs whitespace-nowrap"
                     >
                       Copy
@@ -609,6 +863,8 @@ const TenantPortal = () => {
                     <li>✓ Payment will be updated within 24 hours</li>
                   </ul>
                 </div>
+                </>
+                )}
               </div>
             )}
 
@@ -812,12 +1068,12 @@ const TenantPortal = () => {
               <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-4">
                 <h3 className="font-bold mb-3 text-sm">📋 Payment Instructions:</h3>
                 <ul className="text-xs sm:text-sm text-white/90 space-y-2">
-                  <li>✓ Click "Make Payment Now" button above</li>
-                  <li>✓ Enter your current meter reading</li>
-                  <li>✓ Calculate total amount</li>
+                  <li>✓ "Make Payment Now" button shows only when payment is due</li>
+                  <li>✓ Once paid, button is hidden and shows ✅ confirmation</li>
+                  <li>✓ Enter current meter reading before payment</li>
                   <li>✓ Scan QR code or use UPI ID to pay</li>
-                  <li>✓ Share payment screenshot with manager</li>
-                  <li>✓ Payment will be updated within 24 hours</li>
+                  <li>✓ After payment, click "Submit Payment for Verification"</li>
+                  <li>✓ Admin will verify within 24 hours</li>
                 </ul>
               </div>
 
@@ -828,6 +1084,20 @@ const TenantPortal = () => {
               </div>
             </div>
           </div>
+        )}
+        
+        {/* Submit Payment Modal */}
+        {showSubmitPayment && (
+          <SubmitPayment
+            tenant={tenant}
+            room={room}
+            onClose={() => setShowSubmitPayment(false)}
+            onSuccess={() => {
+              // Reload tenant data after successful submission
+              setShowSubmitPayment(false);
+              // Optionally refresh data here
+            }}
+          />
         )}
       </div>
     </div>

@@ -684,9 +684,10 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
   
   // Copy credentials to clipboard
   const copyCredentials = () => {
-    const text = `Room: ${tenant.roomNumber}\nUsername: ${tenant.username}\nPassword: ${tenant.password}`;
+    const portalUrl = `${window.location.origin}/tenant-portal`;
+    const text = `🏠 Tenant Portal Access\n\nPortal URL: ${portalUrl}\n\nRoom: ${tenant.roomNumber}\nUsername: ${tenant.username}\nPassword: ${tenant.password}\n\n📱 Login and check your payment status!`;
     navigator.clipboard.writeText(text)
-      .then(() => alert('✅ Credentials copied!\n\nShare these with the tenant.'))
+      .then(() => alert('✅ Credentials & Portal URL copied!\n\nShare these with the tenant.'))
       .catch(() => prompt('Copy these credentials:', text));
   };
   
@@ -759,54 +760,63 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
         )}
       </div>
 
-      {/* Login Credentials */}
-      <div className="bg-blue-50 border border-blue-300 rounded-lg p-3 mb-3">
-        <div className="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wide">🔐 Portal Login</div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <div className="text-xs text-blue-600 mb-1">Username</div>
-            <div className="font-mono font-bold text-sm text-blue-900 bg-white px-2 py-1 rounded">
-              {tenant.username || tenant.roomNumber}
-            </div>
+      {/* Quick Actions - Simplified */}
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <button
+          onClick={() => {
+            const portalUrl = `${window.location.origin}/tenant-portal`;
+            window.open(portalUrl, '_blank');
+          }}
+          className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-3 rounded-lg font-bold transition-all text-sm shadow-md"
+          title="Open Tenant Portal"
+        >
+          🚀 Tenant Portal
+        </button>
+        <button 
+          onClick={copyCredentials} 
+          className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 rounded-lg font-bold transition-all text-sm shadow-md"
+          title="Copy Login Details"
+        >
+          📋 Copy Login
+        </button>
+      </div>
+
+      {/* Login Credentials - Compact */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3">
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-blue-600 font-semibold">User:</span>
+            <span className="font-mono font-bold text-blue-900">{tenant.username || tenant.roomNumber}</span>
           </div>
-          <div>
-            <div className="text-xs text-blue-600 mb-1">Password</div>
-            <div className="font-mono font-bold text-sm text-blue-900 bg-white px-2 py-1 rounded">
-              {tenant.password || 'password'}
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="text-blue-600 font-semibold">Pass:</span>
+            <span className="font-mono font-bold text-blue-900">{tenant.password || 'password'}</span>
           </div>
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="grid grid-cols-4 gap-2">
+      {/* Action Buttons - Minimized */}
+      <div className="grid grid-cols-3 gap-2">
         <button 
           onClick={onViewHistory} 
-          className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg font-semibold transition text-sm"
+          className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg font-semibold transition text-xs border border-purple-300"
           title="View History"
         >
-          📊
-        </button>
-        <button 
-          onClick={copyCredentials} 
-          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg font-semibold transition text-sm"
-          title="Copy Credentials"
-        >
-          📋
+          📊 History
         </button>
         <button 
           onClick={onEdit} 
-          className="btn-primary px-3 py-2 text-sm rounded-lg"
+          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg font-semibold transition text-xs border border-blue-300"
           title="Edit Tenant"
         >
-          ✏️
+          ✏️ Edit
         </button>
         <button 
           onClick={onDelete} 
-          className="btn-secondary px-3 py-2 text-sm rounded-lg"
+          className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg font-semibold transition text-xs border border-red-300"
           title="Delete Tenant"
         >
-          🗑️
+          🗑️ Delete
         </button>
       </div>
     </div>
