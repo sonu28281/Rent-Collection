@@ -67,20 +67,33 @@ const TenantPortal = () => {
     setLoading(true);
 
     try {
-      // Fetch room details
+      // Convert roomNumber to appropriate type for queries
+      const roomNumberAsNumber = typeof tenantData.roomNumber === 'string' 
+        ? parseInt(tenantData.roomNumber, 10) 
+        : tenantData.roomNumber;
+      const roomNumberAsString = String(tenantData.roomNumber);
+      
+      // Fetch room details - try both number and string
       const roomsRef = collection(db, 'rooms');
-      const roomQuery = query(roomsRef, where('roomNumber', '==', tenantData.roomNumber));
-      const roomSnapshot = await getDocs(roomQuery);
+      let roomQuery = query(roomsRef, where('roomNumber', '==', roomNumberAsNumber));
+      let roomSnapshot = await getDocs(roomQuery);
+      
+      // If not found with number, try with string
+      if (roomSnapshot.empty) {
+        roomQuery = query(roomsRef, where('roomNumber', '==', roomNumberAsString));
+        roomSnapshot = await getDocs(roomQuery);
+      }
       
       if (!roomSnapshot.empty) {
         setRoom({ id: roomSnapshot.docs[0].id, ...roomSnapshot.docs[0].data() });
       }
 
       // Fetch payment records - Simplified query without year filter
+      // Convert roomNumber to number for matching with payments collection
       const paymentsRef = collection(db, 'payments');
       const paymentsQuery = query(
         paymentsRef, 
-        where('roomNumber', '==', tenantData.roomNumber)
+        where('roomNumber', '==', roomNumberAsNumber)
       );
       const paymentsSnapshot = await getDocs(paymentsQuery);
       
