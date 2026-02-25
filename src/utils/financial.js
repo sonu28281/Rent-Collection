@@ -89,6 +89,11 @@ export const getYearlyIncomeSummary = async () => {
       const electricity = Number(data.electricity || data.electricityAmount) || 0;
       const totalAmount = rent + electricity;
 
+      // ONLY count payments where money was actually collected
+      if (paidAmount <= 0) {
+        return; // Skip payments with no collected amount
+      }
+
       if (!yearlyData[year]) {
         yearlyData[year] = {
           year,
@@ -99,20 +104,17 @@ export const getYearlyIncomeSummary = async () => {
         };
       }
 
-      // Use paidAmount if available (actual received money), otherwise totalAmount
-      const amountToAdd = paidAmount > 0 ? paidAmount : totalAmount;
-      yearlyData[year].totalIncome += amountToAdd;
+      // Add actual collected amount
+      yearlyData[year].totalIncome += paidAmount;
       
-      // For rent and electricity, use proportional calculation based on what was actually paid
-      if (totalAmount > 0 && paidAmount > 0) {
-        // Proportionally allocate paid amount to rent and electricity
+      // Proportionally allocate paid amount to rent and electricity
+      if (totalAmount > 0) {
         const paidRatio = paidAmount / totalAmount;
         yearlyData[year].rentIncome += rent * paidRatio;
         yearlyData[year].electricityIncome += electricity * paidRatio;
       } else {
-        // If no paid amount, use full amounts (for backward compatibility)
-        yearlyData[year].rentIncome += rent;
-        yearlyData[year].electricityIncome += electricity;
+        // If totalAmount is 0, add full paidAmount to rent (edge case)
+        yearlyData[year].rentIncome += paidAmount;
       }
       
       yearlyData[year].paymentCount += 1;
@@ -157,23 +159,27 @@ export const getMonthlyIncomeByYear = async (year) => {
         // Use paidAmount for actual received money (handles partial payments)
         const paidAmount = Number(data.paidAmount) || 0;
         
+        // ONLY count payments where money was actually collected
+        if (paidAmount <= 0) {
+          return; // Skip payments with no collected amount
+        }
+        
         // Calculate total from rent + electricity (don't trust stored total field)
         const rent = Number(data.rent || data.rentAmount) || 0;
         const electricity = Number(data.electricity || data.electricityAmount) || 0;
         const totalAmount = rent + electricity;
         
-        const amountToAdd = paidAmount > 0 ? paidAmount : totalAmount;
+        // Add actual collected amount
+        monthlyData[monthIndex].totalIncome += paidAmount;
         
-        monthlyData[monthIndex].totalIncome += amountToAdd;
-        
-        // For rent and electricity, use proportional calculation
-        if (totalAmount > 0 && paidAmount > 0) {
+        // Proportionally allocate paid amount to rent and electricity
+        if (totalAmount > 0) {
           const paidRatio = paidAmount / totalAmount;
           monthlyData[monthIndex].rentIncome += rent * paidRatio;
           monthlyData[monthIndex].electricityIncome += electricity * paidRatio;
         } else {
-          monthlyData[monthIndex].rentIncome += rent;
-          monthlyData[monthIndex].electricityIncome += electricity;
+          // If totalAmount is 0, add full paidAmount to rent (edge case)
+          monthlyData[monthIndex].rentIncome += paidAmount;
         }
         
         monthlyData[monthIndex].paymentCount += 1;
