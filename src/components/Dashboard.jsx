@@ -231,7 +231,8 @@ const Dashboard = () => {
                               </thead>
                               <tbody>
                                 {floor1.map((tenant) => {
-                                  const isPaid = tenant.status === 'paid';
+                                  // Defensive check: Paid only if status='paid' AND actually collected money
+                                  const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                                   return (
                                     <tr 
                                       key={tenant.id} 
@@ -305,7 +306,8 @@ const Dashboard = () => {
                               </thead>
                               <tbody>
                                 {floor2.map((tenant) => {
-                                  const isPaid = tenant.status === 'paid';
+                                  // Defensive check: Paid only if status='paid' AND actually collected money
+                                  const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                                   return (
                                     <tr 
                                       key={tenant.id} 

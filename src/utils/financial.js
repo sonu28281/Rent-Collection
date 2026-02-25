@@ -394,8 +394,9 @@ export const getCurrentMonthDetailedSummary = async () => {
       const collectedAmount = payment ? (payment.paidAmount || 0) : 0;
       const dueAmount = expectedTotal - collectedAmount;
       
-      // Payment status
-      const status = payment ? payment.status : 'pending';
+      // Payment status - Check BOTH status field AND actual collected amount
+      // A payment is only considered 'paid' if status='paid' AND paidAmount > 0
+      const status = (payment && payment.status === 'paid' && collectedAmount > 0) ? 'paid' : 'pending';
       const paidDate = payment && payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('en-IN') : null;
       
       tenantList.push({
