@@ -24,6 +24,7 @@ const Sidebar = () => {
     { icon: '📊', label: 'Financial History', path: '/financial-history' },
     { icon: '🏠', label: 'Room History', path: '/room-history' },
     { icon: '👤', label: 'Tenant History', path: '/tenant-history' },
+    { icon: '📉', label: 'Vacancy Report', path: '/vacancy-report' },
   ];
 
   // Settings submenu items

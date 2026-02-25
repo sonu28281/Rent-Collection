@@ -23,6 +23,7 @@ import DatabaseCleanup from './components/DatabaseCleanup';
 import RoomHistory from './components/RoomHistory';
 import TenantHistory from './components/TenantHistory';
 import SetupTenants2026 from './components/SetupTenants2026';
+import VacancyReport from './components/VacancyReport';
 
 function App() {
   return (
@@ -167,6 +168,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><TenantHistory /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/vacancy-report" 
+            element={
+              <ProtectedRoute>
+                <Layout><VacancyReport /></Layout>
               </ProtectedRoute>
             } 
           />
