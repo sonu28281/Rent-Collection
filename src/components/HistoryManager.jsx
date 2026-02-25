@@ -31,10 +31,6 @@ const HistoryManager = () => {
   const [editData, setEditData] = useState({});
   const [selectedIds, setSelectedIds] = useState(new Set());
   
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(100);
-  
   // UI State
   const [showImportModal, setShowImportModal] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
@@ -137,26 +133,11 @@ const HistoryManager = () => {
       filtered = filtered.filter(p => p.month === selectedMonth);
     }
     
-    // Floor filter
-    if (selectedFloor !== 'all') {
-      const floorNum = Number(selectedFloor);
-      filtered = filtered.filter(p => {
-        // Auto-detect floor if not set
-        const floor = p.floor || (p.roomNumber < 200 ? 1 : 2);
-        return floor === floorNum;
-      });
-    }
+    // No floor filter here - we'll separate floors in the rendering
     
     setFilteredPayments(filtered);
-    setCurrentPage(1);
     setSelectedIds(new Set());
-  }, [selectedMonth, selectedFloor, payments]);
-
-  // Pagination
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredPayments.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
+  }, [selectedMonth, payments]);
 
   // Toast Helper
   const showToast = (message, type = 'success') => {
@@ -292,14 +273,6 @@ const HistoryManager = () => {
       newSelected.add(id);
     }
     setSelectedIds(newSelected);
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedIds.size === currentItems.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(currentItems.map(p => p.id)));
-    }
   };
 
   // CSV Export
@@ -530,65 +503,6 @@ const HistoryManager = () => {
         </div>
       </div>
 
-      {/* Floor Filter - Prominent Button Style */}
-      <div className="card mb-6">
-        <div className="flex items-center gap-3 mb-3">
-          <h4 className="font-semibold text-gray-700">🏢 Filter by Floor:</h4>
-          <span className="text-xs text-gray-500">
-            (Floor 1: Rooms 101-106 | Floor 2: Rooms 201-212)
-          </span>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setSelectedFloor('all')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-              selectedFloor === 'all'
-                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg scale-105'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            🏢 All Floors
-            {selectedFloor === 'all' && (
-              <span className="ml-2 text-xs bg-white text-blue-600 px-2 py-1 rounded-full">
-                Active
-              </span>
-            )}
-          </button>
-          
-          <button
-            onClick={() => setSelectedFloor('1')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-              selectedFloor === '1'
-                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg scale-105'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            🏠 Floor 1 <span className="text-sm opacity-80">(101-106)</span>
-            {selectedFloor === '1' && (
-              <span className="ml-2 text-xs bg-white text-green-600 px-2 py-1 rounded-full">
-                Active
-              </span>
-            )}
-          </button>
-          
-          <button
-            onClick={() => setSelectedFloor('2')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-              selectedFloor === '2'
-                ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg scale-105'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            🏠 Floor 2 <span className="text-sm opacity-80">(201-212)</span>
-            {selectedFloor === '2' && (
-              <span className="ml-2 text-xs bg-white text-purple-600 px-2 py-1 rounded-full">
-                Active
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
       {/* Month Tabs */}
       <div className="card mb-6 overflow-x-auto">
         <div className="flex gap-2 min-w-max pb-2">
@@ -622,87 +536,7 @@ const HistoryManager = () => {
         </div>
       </div>
 
-      {/* Summary Totals */}
-      {filteredPayments.length > 0 && (() => {
-        const totals = filteredPayments.reduce((acc, payment) => {
-          const rent = Number(payment.rent) || 0;
-          const electricity = Number(payment.electricity) || 0;
-          acc.rent += rent;
-          acc.electricity += electricity;
-          // Calculate total from rent + electricity (don't trust stored total field)
-          acc.total += (rent + electricity);
-          acc.paidAmount += Number(payment.paidAmount) || 0;
-          acc.balance += Number(payment.balance) || 0;
-          return acc;
-        }, { rent: 0, electricity: 0, total: 0, paidAmount: 0, balance: 0 });
-
-        const selectedPeriod = selectedMonth === 'all' 
-          ? `${selectedYear} (All Months)` 
-          : `${MONTHS.find(m => m.num === selectedMonth)?.name} ${selectedYear}`;
-
-        // Determine floor-specific styling
-        const floorInfo = selectedFloor === '1' 
-          ? { name: 'Floor 1', rooms: '(Rooms 101-106)', color: 'from-green-50 to-emerald-50', border: 'border-green-200' }
-          : selectedFloor === '2'
-          ? { name: 'Floor 2', rooms: '(Rooms 201-212)', color: 'from-purple-50 to-indigo-50', border: 'border-purple-200' }
-          : { name: 'All Floors', rooms: '(All Rooms)', color: 'from-blue-50 to-purple-50', border: 'border-blue-200' };
-
-        return (
-          <div className={`card mb-6 bg-gradient-to-r ${floorInfo.color} border-2 ${floorInfo.border}`}>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-gray-800">
-                  💰 Total Summary - {selectedPeriod}
-                </h3>
-                {selectedFloor !== 'all' && (
-                  <p className="text-sm font-semibold text-gray-600 mt-1">
-                    🏢 {floorInfo.name} {floorInfo.rooms}
-                  </p>
-                )}
-              </div>
-              <div className="text-right">
-                <div className="text-sm text-gray-600">
-                  {filteredPayments.length} record{filteredPayments.length !== 1 ? 's' : ''}
-                </div>
-                {selectedFloor !== 'all' && (
-                  <div className={`text-xs font-semibold mt-1 px-3 py-1 rounded-full inline-block ${
-                    selectedFloor === '1' ? 'bg-green-200 text-green-800' : 'bg-purple-200 text-purple-800'
-                  }`}>
-                    {floorInfo.name} Only
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="bg-white rounded-lg p-3 border border-blue-200">
-                <p className="text-xs text-gray-600 mb-1">Total Rent</p>
-                <p className="text-xl font-bold text-blue-600">₹{totals.rent.toLocaleString('en-IN')}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-purple-200">
-                <p className="text-xs text-gray-600 mb-1">Total Electricity</p>
-                <p className="text-xl font-bold text-purple-600">₹{totals.electricity.toLocaleString('en-IN')}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-green-200">
-                <p className="text-xs text-gray-600 mb-1">Grand Total</p>
-                <p className="text-xl font-bold text-green-600">₹{totals.total.toLocaleString('en-IN')}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-teal-200">
-                <p className="text-xs text-gray-600 mb-1">Total Paid</p>
-                <p className="text-xl font-bold text-teal-600">₹{totals.paidAmount.toLocaleString('en-IN')}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-orange-200">
-                <p className="text-xs text-gray-600 mb-1">Total Balance</p>
-                <p className={`text-xl font-bold ${totals.balance < 0 ? 'text-red-600' : 'text-orange-600'}`}>
-                  ₹{totals.balance.toLocaleString('en-IN')}
-                </p>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Payments Table */}
+      {/* Payments Tables by Floor */}
       {loading ? (
         <div className="card text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
@@ -715,37 +549,127 @@ const HistoryManager = () => {
         </div>
       ) : (
         <>
-          <div className="card overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 sticky top-0">
-                <tr>
-                  <th className="px-2 py-3 text-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.size === currentItems.length && currentItems.length > 0}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 cursor-pointer"
-                    />
-                  </th>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-700">Room</th>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-700">Floor</th>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-700">Status</th>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-700">Month</th>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-700">Tenant</th>
-                  <th className="px-3 py-3 text-right font-semibold text-gray-700">Rent</th>
-                  <th className="px-3 py-3 text-right font-semibold text-gray-700">Old Reading</th>
-                  <th className="px-3 py-3 text-right font-semibold text-gray-700">Current Reading</th>
-                  <th className="px-3 py-3 text-right font-semibold text-gray-700">Units</th>
-                  <th className="px-3 py-3 text-right font-semibold text-gray-700">Rate</th>
-                  <th className="px-3 py-3 text-right font-semibold text-gray-700">Electricity</th>
-                  <th className="px-3 py-3 text-right font-semibold text-gray-700">Total</th>
-                  <th className="px-3 py-3 text-right font-semibold text-gray-700">Paid</th>
-                  <th className="px-3 py-3 text-center font-semibold text-gray-700">Status</th>
-                  <th className="px-3 py-3 text-center font-semibold text-gray-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {currentItems.map((payment) => {
+          {/* Helper function to render floor section */}
+          {(() => {
+            const selectedPeriod = selectedMonth === 'all' 
+              ? `${selectedYear} (All Months)` 
+              : `${MONTHS.find(m => m.num === selectedMonth)?.name} ${selectedYear}`;
+
+            // Separate payments by floor
+            const floor1Payments = filteredPayments.filter(p => {
+              const floor = p.floor || (p.roomNumber < 200 ? 1 : 2);
+              return floor === 1;
+            });
+
+            const floor2Payments = filteredPayments.filter(p => {
+              const floor = p.floor || (p.roomNumber < 200 ? 1 : 2);
+              return floor === 2;
+            });
+
+            // Function to calculate totals for a floor
+            const calculateTotals = (payments) => {
+              return payments.reduce((acc, payment) => {
+                const rent = Number(payment.rent) || 0;
+                const electricity = Number(payment.electricity) || 0;
+                acc.rent += rent;
+                acc.electricity += electricity;
+                acc.total += (rent + electricity);
+                acc.paidAmount += Number(payment.paidAmount) || 0;
+                acc.balance += Number(payment.balance) || 0;
+                return acc;
+              }, { rent: 0, electricity: 0, total: 0, paidAmount: 0, balance: 0 });
+            };
+
+            // Function to render a floor section
+            const renderFloorSection = (floorNum, floorPayments, colorScheme) => {
+              if (floorPayments.length === 0) return null;
+
+              const totals = calculateTotals(floorPayments);
+              const roomRange = floorNum === 1 ? '101-106' : '201-212';
+
+              return (
+                <div key={`floor-${floorNum}`} className="mb-8">
+                  {/* Floor Summary Card */}
+                  <div className={`card mb-4 bg-gradient-to-r ${colorScheme.gradient} border-2 ${colorScheme.border}`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-800">
+                          🏠 Floor {floorNum} - {selectedPeriod}
+                        </h3>
+                        <p className="text-sm font-semibold text-gray-600 mt-1">
+                          📍 Rooms {roomRange}
+                        </p>
+                      </div>
+                      <div className={`text-sm font-semibold px-4 py-2 rounded-full ${colorScheme.badge}`}>
+                        {floorPayments.length} record{floorPayments.length !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="bg-white rounded-lg p-3 border border-blue-200">
+                        <p className="text-xs text-gray-600 mb-1">Total Rent</p>
+                        <p className="text-xl font-bold text-blue-600">₹{totals.rent.toLocaleString('en-IN')}</p>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-purple-200">
+                        <p className="text-xs text-gray-600 mb-1">Total Electricity</p>
+                        <p className="text-xl font-bold text-purple-600">₹{totals.electricity.toLocaleString('en-IN')}</p>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-green-200">
+                        <p className="text-xs text-gray-600 mb-1">Grand Total</p>
+                        <p className="text-xl font-bold text-green-600">₹{totals.total.toLocaleString('en-IN')}</p>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-teal-200">
+                        <p className="text-xs text-gray-600 mb-1">Total Paid</p>
+                        <p className="text-xl font-bold text-teal-600">₹{totals.paidAmount.toLocaleString('en-IN')}</p>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-orange-200">
+                        <p className="text-xs text-gray-600 mb-1">Total Balance</p>
+                        <p className={`text-xl font-bold ${totals.balance < 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                          ₹{totals.balance.toLocaleString('en-IN')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Floor Table */}
+                  <div className="card overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-2 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              onChange={(e) => {
+                                const floorPaymentIds = floorPayments.map(p => p.id);
+                                if (e.target.checked) {
+                                  setSelectedIds(new Set([...selectedIds, ...floorPaymentIds]));
+                                } else {
+                                  const newSelected = new Set(selectedIds);
+                                  floorPaymentIds.forEach(id => newSelected.delete(id));
+                                  setSelectedIds(newSelected);
+                                }
+                              }}
+                              className="w-4 h-4 cursor-pointer"
+                            />
+                          </th>
+                          <th className="px-3 py-3 text-left font-semibold text-gray-700">Room</th>
+                          <th className="px-3 py-3 text-left font-semibold text-gray-700">Status</th>
+                          <th className="px-3 py-3 text-left font-semibold text-gray-700">Month</th>
+                          <th className="px-3 py-3 text-left font-semibold text-gray-700">Tenant</th>
+                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Rent</th>
+                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Old Reading</th>
+                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Current Reading</th>
+                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Units</th>
+                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Rate</th>
+                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Electricity</th>
+                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Total</th>
+                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Paid</th>
+                          <th className="px-3 py-3 text-center font-semibold text-gray-700">Status</th>
+                          <th className="px-3 py-3 text-center font-semibold text-gray-700">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {floorPayments.map((payment) => {
                   const isEditing = editingId === payment.id;
                   
                   // Get values with fallbacks
@@ -774,8 +698,6 @@ const HistoryManager = () => {
                       </td>
                       
                       <td className="px-3 py-3 font-semibold">{payment.roomNumber}</td>
-                      
-                      <td className="px-3 py-3">{floor}</td>
                       
                       <td className="px-3 py-3">
                         {payment.roomStatus ? (
@@ -962,62 +884,31 @@ const HistoryManager = () => {
               </tbody>
             </table>
           </div>
+        </div>
+              );
+            };
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="card mt-4 flex items-center justify-between">
-              <div className="text-sm text-gray-600">
-                Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredPayments.length)} of {filteredPayments.length}
+            // Define color schemes for each floor
+            const floor1Colors = {
+              gradient: 'from-green-50 to-emerald-50',
+              border: 'border-green-200',
+              badge: 'bg-green-200 text-green-800'
+            };
+
+            const floor2Colors = {
+              gradient: 'from-purple-50 to-indigo-50',
+              border: 'border-purple-200',
+              badge: 'bg-purple-200 text-purple-800'
+            };
+
+            // Render both floor sections
+            return (
+              <div className="space-y-6">
+                {renderFloorSection(1, floor1Payments, floor1Colors)}
+                {renderFloorSection(2, floor2Payments, floor2Colors)}
               </div>
-              
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`px-3 py-1 rounded ${
-                          currentPage === pageNum
-                            ? 'bg-primary text-white'
-                            : 'border border-gray-300 hover:bg-gray-100'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
-                
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </>
       )}
 
