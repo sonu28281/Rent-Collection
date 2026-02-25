@@ -98,13 +98,30 @@ const ImportCSV = () => {
     return mapped;
   };
 
+  // Parse currency formatted numbers (Rs 5000, Rs. 5,000, ₹5000, etc.)
+  const parseCurrency = (value) => {
+    if (!value) return 0;
+    
+    // Convert to string and remove common currency formats
+    const cleaned = String(value)
+      .replace(/Rs\.?/gi, '')      // Remove Rs or Rs.
+      .replace(/₹/g, '')            // Remove rupee symbol
+      .replace(/INR/gi, '')         // Remove INR
+      .replace(/,/g, '')            // Remove commas
+      .replace(/\s+/g, '')          // Remove all spaces
+      .trim();
+    
+    const parsed = Number(cleaned);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
   const calculateRecordData = (row, rowIndex) => {
     const warnings = [];
     
     // Map columns
     const mappedRow = mapColumns(row);
     
-    // Parse roomNumber
+    // Parse roomNumber (no currency format expected)
     const roomNumber = Number(mappedRow.roomNumber);
     if (!roomNumber || isNaN(roomNumber)) {
       throw new Error('Invalid room number');
@@ -154,7 +171,7 @@ const ImportCSV = () => {
     }
     
     // Rent - if room status is vacant, force rent to 0
-    let rent = Number(mappedRow.rent) || 0;
+    let rent = parseCurrency(mappedRow.rent);
     if (roomStatus === 'vacant') {
       rent = 0;
       warnings.push('Room marked as vacant: rent forced to 0');
@@ -180,7 +197,7 @@ const ImportCSV = () => {
     }
     
     // Rate per unit
-    const ratePerUnit = Number(mappedRow.ratePerUnit) || 0;
+    const ratePerUnit = parseCurrency(mappedRow.ratePerUnit);
     if (ratePerUnit === 0 && roomStatus !== 'vacant') {
       warnings.push('Rate per unit is 0 or missing');
     }
@@ -201,7 +218,7 @@ const ImportCSV = () => {
     const total = rent + electricity;
     
     // Paid amount - if room status is vacant, force to 0
-    let paidAmount = Number(mappedRow.paidAmount) || 0;
+    let paidAmount = parseCurrency(mappedRow.paidAmount);
     if (roomStatus === 'vacant') {
       paidAmount = 0;
       warnings.push('Room marked as vacant: paid amount forced to 0');
@@ -578,6 +595,16 @@ const ImportCSV = () => {
               <li>• Perfect for old records where tenant names are unavailable</li>
               <li>• All other fields work normally</li>
               <li>• No validation errors for missing tenant information</li>
+            </ul>
+          </div>
+
+          <div className="bg-green-100 border border-green-300 rounded p-3 mt-3">
+            <strong className="text-green-900">💰 CURRENCY FORMAT SUPPORT:</strong>
+            <ul className="ml-4 mt-1 space-y-1">
+              <li>• <strong>All formats accepted:</strong> Rs 5000, Rs. 5,000, ₹5000, 5000</li>
+              <li>• Auto-removes: Rs, Rs., ₹, INR, commas, spaces</li>
+              <li>• Works for: Rent, Rate/Unit, Paid Amount fields</li>
+              <li>• Example: "Rs. 5,000" → parsed as 5000</li>
             </ul>
           </div>
         </div>
