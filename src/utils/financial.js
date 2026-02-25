@@ -83,7 +83,11 @@ export const getYearlyIncomeSummary = async () => {
       const year = data.year;
       // Use paidAmount for actual received money (handles partial payments correctly)
       const paidAmount = Number(data.paidAmount) || 0;
-      const totalAmount = Number(data.totalAmount) || Number(data.total) || 0;
+      
+      // Calculate total from rent + electricity (don't trust stored total field)
+      const rent = Number(data.rent || data.rentAmount) || 0;
+      const electricity = Number(data.electricity || data.electricityAmount) || 0;
+      const totalAmount = rent + electricity;
 
       if (!yearlyData[year]) {
         yearlyData[year] = {
@@ -100,9 +104,6 @@ export const getYearlyIncomeSummary = async () => {
       yearlyData[year].totalIncome += amountToAdd;
       
       // For rent and electricity, use proportional calculation based on what was actually paid
-      const rent = Number(data.rent || data.rentAmount) || 0;
-      const electricity = Number(data.electricity || data.electricityAmount) || 0;
-      
       if (totalAmount > 0 && paidAmount > 0) {
         // Proportionally allocate paid amount to rent and electricity
         const paidRatio = paidAmount / totalAmount;
@@ -155,15 +156,17 @@ export const getMonthlyIncomeByYear = async (year) => {
       if (monthIndex >= 0 && monthIndex < 12) {
         // Use paidAmount for actual received money (handles partial payments)
         const paidAmount = Number(data.paidAmount) || 0;
-        const totalAmount = Number(data.totalAmount) || Number(data.total) || 0;
+        
+        // Calculate total from rent + electricity (don't trust stored total field)
+        const rent = Number(data.rent || data.rentAmount) || 0;
+        const electricity = Number(data.electricity || data.electricityAmount) || 0;
+        const totalAmount = rent + electricity;
+        
         const amountToAdd = paidAmount > 0 ? paidAmount : totalAmount;
         
         monthlyData[monthIndex].totalIncome += amountToAdd;
         
         // For rent and electricity, use proportional calculation
-        const rent = Number(data.rent || data.rentAmount) || 0;
-        const electricity = Number(data.electricity || data.electricityAmount) || 0;
-        
         if (totalAmount > 0 && paidAmount > 0) {
           const paidRatio = paidAmount / totalAmount;
           monthlyData[monthIndex].rentIncome += rent * paidRatio;
@@ -198,7 +201,12 @@ export const getTotalLifetimeIncome = async () => {
       const data = doc.data();
       // Use paidAmount for actual received money (handles partial payments)
       const paidAmount = Number(data.paidAmount) || 0;
-      const totalAmount = Number(data.totalAmount) || Number(data.total) || 0;
+      
+      // Calculate total from rent + electricity (don't trust stored total field)
+      const rent = Number(data.rent || data.rentAmount) || 0;
+      const electricity = Number(data.electricity || data.electricityAmount) || 0;
+      const totalAmount = rent + electricity;
+      
       total += paidAmount > 0 ? paidAmount : totalAmount;
     });
 

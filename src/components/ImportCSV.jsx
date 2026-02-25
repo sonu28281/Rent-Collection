@@ -379,11 +379,12 @@ const ImportCSV = () => {
         // Aggregate with existing record (for partial payments)
         const existing = groupedRecords[key];
         
-        // Sum up monetary values
-        existing.rent += record.rent;
+        // For partial payments: only sum paidAmount
+        // Rent and electricity are base amounts (use MAX, don't sum)
+        existing.rent = Math.max(existing.rent, record.rent);
         existing.paidAmount += record.paidAmount;
-        existing.electricity += record.electricity;
-        existing.total += record.total;
+        existing.electricity = Math.max(existing.electricity, record.electricity);
+        // Don't sum total here - will recalculate below
         
         // Keep the latest meter readings (assume chronological order)
         if (record.currentReading > existing.currentReading) {

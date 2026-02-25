@@ -579,9 +579,12 @@ const HistoryManager = () => {
       {/* Summary Totals */}
       {filteredPayments.length > 0 && (() => {
         const totals = filteredPayments.reduce((acc, payment) => {
-          acc.rent += Number(payment.rent) || 0;
-          acc.electricity += Number(payment.electricity) || 0;
-          acc.total += Number(payment.total || payment.totalAmount) || 0;
+          const rent = Number(payment.rent) || 0;
+          const electricity = Number(payment.electricity) || 0;
+          acc.rent += rent;
+          acc.electricity += electricity;
+          // Calculate total from rent + electricity (don't trust stored total field)
+          acc.total += (rent + electricity);
           acc.paidAmount += Number(payment.paidAmount) || 0;
           acc.balance += Number(payment.balance) || 0;
           return acc;
