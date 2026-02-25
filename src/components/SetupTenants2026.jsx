@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { collection, query, where, getDocs, doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import { VALID_ROOM_NUMBERS, MAX_ROOMS, isValidRoomNumber } from '../utils/roomValidation';
 
 /**
  * Simple Tenant Setup for 2026
@@ -10,6 +11,7 @@ import { db } from '../firebase';
  * - Password = "password" (tenant can change later)
  * 
  * Prevents duplicates by deleting existing tenants before creating
+ * SECURITY: Only allows 12 valid rooms (101-106, 201-206)
  */
 const SetupTenants2026 = () => {
   const [loading, setLoading] = useState(false);
@@ -40,10 +42,39 @@ const SetupTenants2026 = () => {
     setResult(null);
 
     try {
+      // VALIDATION: Check total rooms count BEFORE creating
+      const roomsRef = collection(db, 'rooms');
+      const allRoomsSnapshot = await getDocs(roomsRef);
+      const currentRoomsCount = allRoomsSnapshot.size;
+      
+      // Count how many valid rooms already exist
+      const existingValidRooms = allRoomsSnapshot.docs.filter(doc => 
+        VALID_ROOM_NUMBERS.includes(doc.data().roomNumber)
+      );
+      
+      console.log(`Current total rooms: ${currentRoomsCount}`);
+      console.log(`Existing valid rooms: ${existingValidRooms.length}`);
+      
+      // If we already have MAX_ROOMS valid rooms, show warning
+      if (existingValidRooms.length >= MAX_ROOMS) {
+        setResult({
+          success: false,
+          error: `⚠️ ${MAX_ROOMS} rooms already exist! Use "Check Duplicates" tool to clean up first.`
+        });
+        setLoading(false);
+        return;
+      }
+
       const tenants = floorNumber === '1' ? floor1Tenants : floor2Tenants;
       const results = [];
 
       for (const tenantData of tenants) {
+        // VALIDATION: Only allow valid room numbers
+        if (!isValidRoomNumber(tenantData.roomNumber)) {
+          console.error(`Invalid room number: ${tenantData.roomNumber}`);
+          continue; // Skip invalid room numbers
+        }
+        
         // 1. Delete ANY existing tenant for this room (to prevent duplicates)
         const tenantsRef = collection(db, 'tenants');
         const existingQuery = query(tenantsRef, where('roomNumber', '==', tenantData.roomNumber));
@@ -82,10 +113,19 @@ const SetupTenants2026 = () => {
           updatedAt: serverTimestamp()
         });
 
-        // 3. Update/Create Room record
+        // 3. Update/Create Room record (with duplicate prevention)
         const roomsRef = collection(db, 'rooms');
         const roomQuery = query(roomsRef, where('roomNumber', '==', tenantData.roomNumber));
         const roomSnapshot = await getDocs(roomQuery);
+        
+        // Delete any duplicate room records FIRST
+        if (roomSnapshot.size > 1) {
+          console.log(`🧹 Found ${roomSnapshot.size} duplicate rooms for ${tenantData.roomNumber}, cleaning up...`);
+          // Keep first, delete rest
+          for (let i = 1; i < roomSnapshot.docs.length; i++) {
+            await deleteDoc(roomSnapshot.docs[i].ref);
+          }
+        }
 
         if (roomSnapshot.empty) {
           // Create new room

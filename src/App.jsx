@@ -20,11 +20,6 @@ import FinancialHistoryManager from './components/FinancialHistoryManager';
 import ImportLogsPage from './components/ImportLogsPage';
 import PaymentsReset from './components/PaymentsReset';
 import DatabaseCleanup from './components/DatabaseCleanup';
-import RoomHistory from './components/RoomHistory';
-import TenantHistory from './components/TenantHistory';
-import SetupTenants2026 from './components/SetupTenants2026';
-import VacancyReport from './components/VacancyReport';
-import SyncRoomMeters from './components/SyncRoomMeters';
 
 function App() {
   return (
@@ -32,8 +27,8 @@ function App() {
       <Router>
         <Routes>
           
-          {/* Public Tenant Portal Route - Username/Password Login */}
-          <Route path="/tenant-portal" element={<TenantPortal />} />
+          {/* Public Tenant Portal Route */}
+          <Route path="/t/:token" element={<TenantPortal />} />
           
           <Route path="/login" element={<Login />} />
           <Route 
@@ -153,46 +148,6 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><DatabaseCleanup /></Layout>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/room-history" 
-            element={
-              <ProtectedRoute>
-                <Layout><RoomHistory /></Layout>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/tenant-history" 
-            element={
-              <ProtectedRoute>
-                <Layout><TenantHistory /></Layout>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/vacancy-report" 
-            element={
-              <ProtectedRoute>
-                <Layout><VacancyReport /></Layout>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/sync-room-meters" 
-            element={
-              <ProtectedRoute>
-                <Layout><SyncRoomMeters /></Layout>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/setup-2026" 
-            element={
-              <ProtectedRoute>
-                <Layout><SetupTenants2026 /></Layout>
               </ProtectedRoute>
             } 
           />

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, doc, updateDoc, addDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
+import { validateRoomCount } from '../utils/roomValidation';
 
 const Rooms = () => {
   const [rooms, setRooms] = useState([]);
@@ -33,6 +34,15 @@ const Rooms = () => {
       });
       
       setRooms(roomsData);
+      
+      // VALIDATION: Check room count
+      const validation = validateRoomCount(roomsData.length);
+      if (!validation.isValid) {
+        console.warn(validation.message);
+        if (validation.hasExtra) {
+          setError(`⚠️ WARNING: ${validation.message}. Go to Settings → Check Duplicates to fix.`);
+        }
+      }
     } catch (err) {
       console.error('Error fetching rooms:', err);
       setError('Failed to load rooms. Please check Firestore rules.');

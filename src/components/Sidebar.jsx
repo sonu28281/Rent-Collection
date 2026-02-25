@@ -22,9 +22,6 @@ const Sidebar = () => {
     { icon: '📥', label: 'Import CSV', path: '/import' },
     { icon: '📚', label: 'History Manager', path: '/history' },
     { icon: '📊', label: 'Financial History', path: '/financial-history' },
-    { icon: '🏠', label: 'Room History', path: '/room-history' },
-    { icon: '👤', label: 'Tenant History', path: '/tenant-history' },
-    { icon: '📉', label: 'Vacancy Report', path: '/vacancy-report' },
   ];
 
   // Settings submenu items
@@ -33,7 +30,7 @@ const Sidebar = () => {
     { icon: '🏦', label: 'Bank Accounts', path: '/bank-accounts' },
     { icon: '💾', label: 'Backup & Export', path: '/backup' },
     { icon: '📋', label: 'Import Logs', path: '/import-logs' },
-    { icon: '�', label: 'Setup 2026 Tenants', path: '/setup-2026' },    { icon: '⚡', label: 'Sync Room Meters', path: '/sync-room-meters' },    { icon: '�🚨', label: 'Payments Reset', path: '/payments-reset' },
+    { icon: '🚨', label: 'Payments Reset', path: '/payments-reset' },
     { icon: '🗑️', label: 'Database Cleanup', path: '/database-cleanup' },
   ];
 

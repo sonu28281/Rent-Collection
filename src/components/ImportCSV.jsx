@@ -79,12 +79,6 @@ const ImportCSV = () => {
     'remarks': 'remark',
     'Notes': 'remark',
     'notes': 'remark',
-    
-    'Room Status': 'status',
-    'Status': 'status',
-    'status': 'status',
-    'Occupancy': 'status',
-    'occupancy': 'status',
   };
 
   const mapColumns = (csvRow) => {
@@ -98,30 +92,13 @@ const ImportCSV = () => {
     return mapped;
   };
 
-  // Parse currency formatted numbers (Rs 5000, Rs. 5,000, ₹5000, etc.)
-  const parseCurrency = (value) => {
-    if (!value) return 0;
-    
-    // Convert to string and remove common currency formats
-    const cleaned = String(value)
-      .replace(/Rs\.?/gi, '')      // Remove Rs or Rs.
-      .replace(/₹/g, '')            // Remove rupee symbol
-      .replace(/INR/gi, '')         // Remove INR
-      .replace(/,/g, '')            // Remove commas
-      .replace(/\s+/g, '')          // Remove all spaces
-      .trim();
-    
-    const parsed = Number(cleaned);
-    return isNaN(parsed) ? 0 : parsed;
-  };
-
   const calculateRecordData = (row, rowIndex) => {
     const warnings = [];
     
     // Map columns
     const mappedRow = mapColumns(row);
     
-    // Parse roomNumber (no currency format expected)
+    // Parse roomNumber
     const roomNumber = Number(mappedRow.roomNumber);
     if (!roomNumber || isNaN(roomNumber)) {
       throw new Error('Invalid room number');
@@ -131,11 +108,9 @@ const ImportCSV = () => {
     const floor = roomNumber < 200 ? 1 : 2;
     
     // Tenant name (stored as snapshot, NEVER validated)
-    // Allow empty tenant names for historical data (2017-2022)
-    let tenantName = (mappedRow.tenantName || '').trim();
+    const tenantName = (mappedRow.tenantName || '').trim();
     if (!tenantName) {
-      tenantName = 'Historical Record'; // Default for old data without tenant info
-      warnings.push('Tenant name missing - using "Historical Record"');
+      throw new Error('Tenant name is required');
     }
     
     // Year and month
@@ -158,71 +133,45 @@ const ImportCSV = () => {
     if (!date) {
       warnings.push('Date is missing');
     }
-
-    // Room Status (optional) - normalize to "filled" or "vacant"
-    let roomStatus = null;
-    if (mappedRow.status) {
-      const statusValue = String(mappedRow.status).toLowerCase().trim();
-      if (statusValue === 'filled' || statusValue === 'occupied' || statusValue === 'fill') {
-        roomStatus = 'filled';
-      } else if (statusValue === 'vacant' || statusValue === 'empty') {
-        roomStatus = 'vacant';
-      }
-    }
     
-    // Rent - if room status is vacant, force rent to 0
-    let rent = parseCurrency(mappedRow.rent);
-    if (roomStatus === 'vacant') {
-      rent = 0;
-      warnings.push('Room marked as vacant: rent forced to 0');
-    } else if (rent === 0) {
+    // Rent
+    const rent = Number(mappedRow.rent) || 0;
+    if (rent === 0) {
       warnings.push('Rent is 0 or missing');
     }
     
-    // Meter readings - if room status is vacant, force to 0
-    let oldReading = Number(mappedRow.oldReading) || 0;
-    let currentReading = Number(mappedRow.currentReading) || 0;
+    // Meter readings
+    const oldReading = Number(mappedRow.oldReading) || 0;
+    const currentReading = Number(mappedRow.currentReading) || 0;
     
-    if (roomStatus === 'vacant') {
-      oldReading = 0;
-      currentReading = 0;
-      warnings.push('Room marked as vacant: readings forced to 0');
-    } else {
-      if (oldReading === 0) {
-        warnings.push('Old reading is 0 or missing');
-      }
-      if (currentReading === 0) {
-        warnings.push('Current reading is 0 or missing');
-      }
+    if (oldReading === 0) {
+      warnings.push('Old reading is 0 or missing');
+    }
+    if (currentReading === 0) {
+      warnings.push('Current reading is 0 or missing');
     }
     
     // Rate per unit
-    const ratePerUnit = parseCurrency(mappedRow.ratePerUnit);
-    if (ratePerUnit === 0 && roomStatus !== 'vacant') {
+    const ratePerUnit = Number(mappedRow.ratePerUnit) || 0;
+    if (ratePerUnit === 0) {
       warnings.push('Rate per unit is 0 or missing');
     }
     
     // Calculate units (defensive check for negative)
     let units = currentReading - oldReading;
-    if (units < 0 && roomStatus !== 'vacant') {
+    if (units < 0) {
       warnings.push(`Negative units detected (${units}), setting to 0`);
-      units = 0;
-    } else if (roomStatus === 'vacant') {
       units = 0;
     }
     
     // Calculate electricity
-    const electricity = roomStatus === 'vacant' ? 0 : units * ratePerUnit;
+    const electricity = units * ratePerUnit;
     
     // Calculate total
     const total = rent + electricity;
     
-    // Paid amount - if room status is vacant, force to 0
-    let paidAmount = parseCurrency(mappedRow.paidAmount);
-    if (roomStatus === 'vacant') {
-      paidAmount = 0;
-      warnings.push('Room marked as vacant: paid amount forced to 0');
-    }
+    // Paid amount
+    const paidAmount = Number(mappedRow.paidAmount) || 0;
     
     // Payment mode
     const paymentMode = (mappedRow.paymentMode || 'cash').toLowerCase();
@@ -276,56 +225,12 @@ const ImportCSV = () => {
         paymentMode,
         status,
         floor,
-        roomStatus, // Add room status to payment record for reference
         source: 'csv_import',
         notes: null,
         tenantValidated: false, // Never validated
       },
       warnings
     };
-  };
-
-  // Auto-fill month column based on room sequence logic
-  // When room number sequence repeats (goes back to 101 or lower number), increment month
-  const autoFillMonths = (data) => {
-    let currentMonth = 1;
-    let lastRoomNumber = 0;
-    const autoFilledCount = { count: 0 };
-    
-    const filledData = data.map((row, index) => {
-      const mappedRow = mapColumns(row);
-      const roomNumber = Number(mappedRow.roomNumber);
-      
-      // If room number is valid
-      if (roomNumber && !isNaN(roomNumber)) {
-        // Detect if we've started a new cycle (room number decreased)
-        if (index > 0 && roomNumber < lastRoomNumber) {
-          currentMonth++;
-        }
-        lastRoomNumber = roomNumber;
-      }
-      
-      // Check if month is missing or empty
-      const existingMonth = mappedRow.month;
-      const monthIsEmpty = !existingMonth || String(existingMonth).trim() === '' || existingMonth === '0';
-      
-      if (monthIsEmpty) {
-        // Auto-fill month - update the original row object with mapped column name
-        const monthColumnName = Object.keys(row).find(key => COLUMN_MAPPING[key] === 'month');
-        if (monthColumnName) {
-          row[monthColumnName] = String(currentMonth);
-          autoFilledCount.count++;
-        } else {
-          // If no month column exists, add a generic 'month' column
-          row['month'] = String(currentMonth);
-          autoFilledCount.count++;
-        }
-      }
-      
-      return row;
-    });
-    
-    return { data: filledData, autoFilledCount: autoFilledCount.count };
   };
 
   const handleFileChange = (e) => {
@@ -343,17 +248,12 @@ const ImportCSV = () => {
         skipEmptyLines: true,
         complete: (results) => {
           try {
-            let data = results.data;
+            const data = results.data;
             
             if (data.length === 0) {
               setError('CSV file is empty');
               return;
             }
-            
-            // Auto-fill month column if empty based on room sequence
-            const autoFillResult = autoFillMonths(data);
-            data = autoFillResult.data;
-            const autoFilledMonthCount = autoFillResult.autoFilledCount;
             
             // Check required columns
             const headers = Object.keys(data[0]);
@@ -371,11 +271,6 @@ const ImportCSV = () => {
             // Process all rows for preview
             const processedRows = [];
             const allWarnings = [];
-            
-            // Add info message about auto-filled months
-            if (autoFilledMonthCount > 0) {
-              allWarnings.push(`✨ Auto-filled ${autoFilledMonthCount} empty month values based on room sequence`);
-            }
             
             for (let i = 0; i < data.length; i++) {
               try {
@@ -420,80 +315,7 @@ const ImportCSV = () => {
       return;
     }
 
-    // Group records by room + year + month to aggregate partial payments
-    const groupedRecords = {};
-    parsedData.forEach(record => {
-      const key = `${record.roomNumber}_${record.year}_${record.month}`;
-      
-      if (!groupedRecords[key]) {
-        // First record for this room+year+month
-        groupedRecords[key] = { ...record };
-      } else {
-        // Aggregate with existing record (for partial payments)
-        const existing = groupedRecords[key];
-        
-        // For partial payments: only sum paidAmount
-        // Rent and electricity are base amounts (use MAX, don't sum)
-        existing.rent = Math.max(existing.rent, record.rent);
-        existing.paidAmount += record.paidAmount;
-        // Use highest rate per unit (in case it changed)
-        existing.ratePerUnit = Math.max(existing.ratePerUnit, record.ratePerUnit);
-        
-        // Keep the latest meter readings (assume chronological order)
-        if (record.currentReading > existing.currentReading) {
-          existing.currentReading = record.currentReading;
-        }
-        if (record.oldReading < existing.oldReading || existing.oldReading === 0) {
-          existing.oldReading = record.oldReading;
-        }
-        
-        // Recalculate units and electricity based on final readings and rate
-        existing.units = existing.currentReading - existing.oldReading;
-        if (existing.units < 0) existing.units = 0;
-        existing.electricity = existing.units * existing.ratePerUnit;
-        
-        // Recalculate total
-        existing.total = existing.rent + existing.electricity;
-        
-        // Recalculate balance
-        existing.balance = Number((existing.total - existing.paidAmount).toFixed(2));
-        
-        // Update balance type
-        if (existing.balance > 0) {
-          existing.balanceType = 'due';
-        } else if (existing.balance < 0) {
-          existing.balanceType = 'advance';
-        } else {
-          existing.balanceType = 'settled';
-        }
-        
-        // Update status
-        if (existing.paidAmount === 0) {
-          existing.status = 'unpaid';
-        } else if (existing.paidAmount >= existing.total) {
-          existing.status = existing.balance < 0 ? 'advance' : 'paid';
-        } else {
-          existing.status = 'partial';
-        }
-        
-        // Append remarks if multiple
-        if (record.remark && existing.remark !== record.remark) {
-          existing.remark = existing.remark ? `${existing.remark}; ${record.remark}` : record.remark;
-        }
-        
-        // Keep latest date
-        if (record.date && (!existing.date || record.date > existing.date)) {
-          existing.date = record.date;
-        }
-      }
-    });
-
-    const aggregatedData = Object.values(groupedRecords);
-    const aggregationInfo = parsedData.length !== aggregatedData.length 
-      ? `\n\n${parsedData.length} rows aggregated into ${aggregatedData.length} unique records.\n(Multiple payments per room/month were summed together)`
-      : '';
-
-    if (!window.confirm(`Import ${aggregatedData.length} records?${aggregationInfo}\n\n${warnings.length} warnings detected.\n\nExisting records (same room + year + month) will be UPDATED.`)) {
+    if (!window.confirm(`Import ${parsedData.length} records?\n\n${warnings.length} warnings detected.\n\nExisting records (same room + year + month) will be UPDATED.`)) {
       return;
     }
 
@@ -510,7 +332,6 @@ const ImportCSV = () => {
         timestamp: new Date().toISOString(),
         fileName: file.name,
         totalRows: parsedData.length,
-        aggregatedRecords: aggregatedData.length,
         successCount: 0,
         updatedCount: 0,
         errorCount: 0,
@@ -519,15 +340,15 @@ const ImportCSV = () => {
         errors: []
       };
 
-      // Import aggregated records
-      for (let i = 0; i < aggregatedData.length; i++) {
+      // Import records
+      for (let i = 0; i < parsedData.length; i++) {
         try {
-          const record = aggregatedData[i];
+          const record = parsedData[i];
           
           // Create payment ID: roomNumber_year_month
           const paymentId = `${record.roomNumber}_${record.year}_${record.month}`;
           
-          // Check for existing record
+          // Check for duplicates
           const existingDoc = await getDocs(
             query(
               collection(db, 'payments'),
@@ -559,7 +380,6 @@ const ImportCSV = () => {
             paymentMode: record.paymentMode,
             status: record.status,
             floor: record.floor,
-            roomStatus: record.roomStatus,
             source: record.source,
             notes: record.notes,
             tenantValidated: false,
@@ -577,27 +397,6 @@ const ImportCSV = () => {
             paymentData.importedAt = now;
             await setDoc(doc(db, 'payments', paymentId), paymentData);
             successCount++;
-          }
-
-          // Update room status if roomStatus is specified in CSV
-          if (record.roomStatus) {
-            try {
-              const roomQuery = query(
-                collection(db, 'rooms'),
-                where('roomNumber', '==', record.roomNumber)
-              );
-              const roomSnapshot = await getDocs(roomQuery);
-              
-              if (!roomSnapshot.empty) {
-                const roomDoc = roomSnapshot.docs[0];
-                await updateDoc(doc(db, 'rooms', roomDoc.id), {
-                  status: record.roomStatus
-                });
-              }
-            } catch (roomErr) {
-              console.error('Error updating room status:', roomErr);
-              // Don't fail the import if room status update fails
-            }
           }
           
           // Progress update every 50 records
@@ -659,7 +458,6 @@ const ImportCSV = () => {
                   <li>• "Year" → year</li>
                   <li>• "Month" → month (1-12)</li>
                   <li>• "Date" → date</li>
-                  <li>• "Room Status" → status (optional)</li>
                 </ul>
               </div>
               <div>
@@ -675,44 +473,14 @@ const ImportCSV = () => {
             </div>
           </div>
           
-          <div className="bg-purple-100 border border-purple-300 rounded p-3 mt-3">
-            <strong className="text-purple-900">🏠 ROOM STATUS (Optional Column):</strong>
-            <ul className="ml-4 mt-1 space-y-1">
-              <li>• <strong>Values:</strong> "filled" or "vacant"</li>
-              <li>• If missing: existing room status unchanged</li>
-              <li>• <strong className="text-red-700">If status = "vacant":</strong></li>
-              <li className="ml-6">→ rent forced to 0</li>
-              <li className="ml-6">→ oldReading forced to 0</li>
-              <li className="ml-6">→ currentReading forced to 0</li>
-              <li className="ml-6">→ paidAmount forced to 0</li>
-            </ul>
-          </div>
-          
           <div className="bg-green-100 border border-green-300 rounded p-3 mt-3">
             <strong className="text-green-900">🔧 AUTO-CALCULATIONS (No Manual Input Needed):</strong>
             <ul className="ml-4 mt-1 space-y-1">
               <li>• <strong>floor</strong> = roomNumber &lt; 200 ? 1 : 2</li>
               <li>• <strong>units</strong> = max(0, currentReading - oldReading)</li>
-              <li>• <strong>electricity</strong> = units × ratePerUnit (Price/Unit in ₹)</li>
+              <li>• <strong>electricity</strong> = units × ratePerUnit</li>
               <li>• <strong>total</strong> = rent + electricity</li>
               <li>• <strong>status</strong> = auto-determined from paidAmount vs total</li>
-              <li className="mt-2 text-green-900">
-                <strong>📌 Example:</strong> 100 units × ₹8/unit = ₹800 electricity charge
-              </li>
-              <li className="text-green-900">
-                Then final payable: Rent (₹5000) + Electricity (₹800) = ₹5800 total
-              </li>
-            </ul>
-          </div>
-          
-          <div className="bg-indigo-100 border border-indigo-300 rounded p-3 mt-3">
-            <strong className="text-indigo-900">💰 PRICE/UNIT COLUMN (Rate per Unit):</strong>
-            <ul className="ml-4 mt-1 space-y-1">
-              <li>• <strong>Must be in Indian Rupees (₹/Rs)</strong></li>
-              <li>• Supported formats: "Rs 8", "Rs. 8", "₹8", "8", "INR 8"</li>
-              <li>• Can include commas: "Rs 8.50", "₹ 8.5"</li>
-              <li>• System removes currency symbols and calculates: units × rate</li>
-              <li>• For aggregated records: uses MAX rate if multiple values</li>
             </ul>
           </div>
           
@@ -725,64 +493,8 @@ const ImportCSV = () => {
               <li>• Missing ratePerUnit → defaults to 0</li>
               <li>• Missing paidAmount → defaults to 0</li>
               <li>• Missing date → allowed (stored as null)</li>
-              <li>• <strong>Missing tenant name → replaced with "Historical Record"</strong></li>
-              <li>• <strong>Room status = vacant → all amounts forced to 0</strong></li>
               <li>• Tenant names stored as snapshots - NEVER validated</li>
-              <li>• <strong>Same room+year+month → Amounts SUMMED (aggregated)</strong></li>
-            </ul>
-          </div>
-
-          <div className="bg-cyan-100 border border-cyan-300 rounded p-3 mt-3">
-            <strong className="text-cyan-900">✨ AUTO-FILL MONTH (Smart Detection):</strong>
-            <ul className="ml-4 mt-1 space-y-1">
-              <li>• <strong>Leave Month column empty - System fills automatically!</strong></li>
-              <li>• Logic: Detects when room sequence repeats (new month cycle)</li>
-              <li>• <strong className="text-cyan-900">How it works:</strong></li>
-              <li className="ml-6">→ First cycle (101→106, 201→212): Month = 1 (January)</li>
-              <li className="ml-6">→ Second cycle (101 appears again): Month = 2 (February)</li>
-              <li className="ml-6">→ Third cycle (101 appears again): Month = 3 (March)</li>
-              <li className="ml-6">→ And so on...</li>
-              <li>• <strong>Example CSV rows:</strong></li>
-              <li className="ml-6 text-xs font-mono">101, tenant1, 2024, <span className="text-red-600">[empty]</span>, ... → Auto-filled: Jan (1)</li>
-              <li className="ml-6 text-xs font-mono">102, tenant2, 2024, <span className="text-red-600">[empty]</span>, ... → Jan (1)</li>
-              <li className="ml-6 text-xs font-mono">206, tenant3, 2024, <span className="text-red-600">[empty]</span>, ... → Jan (1)</li>
-              <li className="ml-6 text-xs font-mono">101, tenant1, 2024, <span className="text-red-600">[empty]</span>, ... → Auto-filled: Feb (2) 🔄</li>
-              <li className="ml-6 text-xs font-mono">103, tenant2, 2024, <span className="text-red-600">[empty]</span>, ... → Feb (2)</li>
-              <li>• Perfect for sequential CSV exports from Excel sheets!</li>
-            </ul>
-          </div>
-
-          <div className="bg-purple-100 border border-purple-300 rounded p-3 mt-3">
-            <strong className="text-purple-900">🔄 PARTIAL PAYMENTS AGGREGATION:</strong>
-            <ul className="ml-4 mt-1 space-y-1">
-              <li>• <strong>Multiple CSV rows for same room+month = AUTO-SUMMED</strong></li>
-              <li>• Perfect for partial payments (tenant pays in installments)</li>
-              <li>• Example: Room 101, Jan 2017:</li>
-              <li className="ml-6">→ CSV Row 1: Rs 10,000</li>
-              <li className="ml-6">→ CSV Row 2: Rs 7,000</li>
-              <li className="ml-6">→ CSV Row 3: Rs 20,608</li>
-              <li className="ml-6">→ <strong>Result: ONE record with Rs 37,608 total</strong></li>
-              <li>• Different months create separate records (as expected)</li>
-            </ul>
-          </div>
-
-          <div className="bg-blue-100 border border-blue-300 rounded p-3 mt-3">
-            <strong className="text-blue-900">📅 HISTORICAL DATA IMPORT (2017-2022):</strong>
-            <ul className="ml-4 mt-1 space-y-1">
-              <li>• <strong>Tenant Name field can be empty</strong> - System uses "Historical Record"</li>
-              <li>• Perfect for old records where tenant names are unavailable</li>
-              <li>• All other fields work normally</li>
-              <li>• No validation errors for missing tenant information</li>
-            </ul>
-          </div>
-
-          <div className="bg-green-100 border border-green-300 rounded p-3 mt-3">
-            <strong className="text-green-900">💰 CURRENCY FORMAT SUPPORT:</strong>
-            <ul className="ml-4 mt-1 space-y-1">
-              <li>• <strong>All formats accepted:</strong> Rs 5000, Rs. 5,000, ₹5000, 5000</li>
-              <li>• Auto-removes: Rs, Rs., ₹, INR, commas, spaces</li>
-              <li>• Works for: Rent, Rate/Unit, Paid Amount fields</li>
-              <li>• Example: "Rs. 5,000" → parsed as 5000</li>
+              <li>• Duplicates (room + year + month) → UPDATED, not rejected</li>
             </ul>
           </div>
         </div>
