@@ -251,127 +251,269 @@ const TenantPortal = () => {
           </div>
         ) : (
           <div className="space-y-6">
+            {/* Due Date Alert - Prominent */}
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg shadow-lg p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="text-5xl">📅</div>
+                  <div>
+                    <h3 className="text-xl font-bold mb-1">Your Next Payment Due</h3>
+                    <p className="text-white/90 text-sm">Monthly rent payment schedule</p>
+                  </div>
+                </div>
+                <div className="text-center bg-white/20 backdrop-blur-sm rounded-lg px-6 py-4">
+                  <p className="text-white/80 text-sm mb-1">Due Date</p>
+                  <p className="text-4xl font-bold">{tenant?.dueDate || room?.dueDate || 'N/A'}</p>
+                  <p className="text-white/80 text-xs mt-1">of every month</p>
+                </div>
+              </div>
+            </div>
+
             {/* Room Info Card */}
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">📍 Your Room</h2>
-              <div className="grid md:grid-cols-3 gap-4">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">📍 Room Information</h2>
+              <div className="grid md:grid-cols-2 gap-4">
                 <div className="bg-blue-50 rounded-lg p-4">
                   <p className="text-sm text-blue-700 mb-1">Room Number</p>
                   <p className="text-2xl font-bold text-blue-900">{room?.roomNumber || tenant?.roomNumber}</p>
                 </div>
                 <div className="bg-green-50 rounded-lg p-4">
                   <p className="text-sm text-green-700 mb-1">Monthly Rent</p>
-                  <p className="text-2xl font-bold text-green-900">₹{tenant?.currentRent || room?.rent || 0}</p>
-                </div>
-                <div className="bg-purple-50 rounded-lg p-4">
-                  <p className="text-sm text-purple-700 mb-1">Due Date</p>
-                  <p className="text-2xl font-bold text-purple-900">{tenant?.dueDate || room?.dueDate || 'N/A'}</p>
+                  <p className="text-2xl font-bold text-green-900">₹{(tenant?.currentRent || room?.rent || 0).toLocaleString('en-IN')}</p>
                 </div>
               </div>
 
               {/* Electricity Info */}
               {room && (
                 <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-yellow-900 mb-2">⚡ Electricity Meter</h3>
-                  <div className="grid grid-cols-3 gap-4 text-sm">
+                  <h3 className="font-semibold text-yellow-900 mb-3">⚡ Electricity Meter Details</h3>
+                  <div className="grid grid-cols-3 gap-3 text-sm">
                     <div>
-                      <p className="text-yellow-700">Meter Number</p>
+                      <p className="text-yellow-700 mb-1">Meter Number</p>
                       <p className="font-mono font-bold text-yellow-900">{room.electricityMeterNo || 'N/A'}</p>
                     </div>
                     <div>
-                      <p className="text-yellow-700">Current Reading</p>
+                      <p className="text-yellow-700 mb-1">Current Reading</p>
                       <p className="font-mono font-bold text-yellow-900">{room.currentReading || 0} units</p>
                     </div>
                     <div>
-                      <p className="text-yellow-700">Previous Reading</p>
+                      <p className="text-yellow-700 mb-1">Previous Reading</p>
                       <p className="font-mono font-bold text-yellow-900">{room.previousReading || 0} units</p>
                     </div>
                   </div>
+                  {room.currentReading > 0 && room.previousReading >= 0 && (
+                    <div className="mt-3 pt-3 border-t border-yellow-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-yellow-700">Units Consumed This Month:</span>
+                        <span className="text-lg font-bold text-yellow-900">
+                          {room.currentReading - room.previousReading} units
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
             {/* Payment Records */}
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">💰 Payment History</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">💰 Complete Payment History</h2>
+                <span className="text-sm text-gray-600">
+                  {paymentRecords.length} record{paymentRecords.length !== 1 ? 's' : ''}
+                </span>
+              </div>
               
               {paymentRecords.length === 0 ? (
                 <div className="text-center py-8 bg-gray-50 rounded-lg">
-                  <p className="text-gray-600">No payment records found</p>
+                  <div className="text-5xl mb-3">📋</div>
+                  <p className="text-gray-600 font-semibold">No payment records yet</p>
+                  <p className="text-sm text-gray-500 mt-1">Your payment history will appear here</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Month</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Rent</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Electricity</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Total</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {paymentRecords.map((record) => (
-                        <tr key={record.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                            {getMonthName(record.month)} {record.year}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-700">₹{record.rent || 0}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">
-                            ₹{record.electricity || 0}
-                            {record.units > 0 && (
-                              <span className="text-xs text-gray-500 ml-1">({record.units} units)</span>
+                <div className="space-y-3">
+                  {paymentRecords.map((record) => {
+                    const total = (record.rent || 0) + (record.electricity || 0);
+                    const isPaid = record.status === 'paid';
+                    const isPending = record.status === 'pending';
+                    const isOverdue = record.status === 'overdue';
+                    
+                    return (
+                      <div 
+                        key={record.id} 
+                        className={`border-2 rounded-lg p-4 transition-all ${
+                          isPaid ? 'border-green-300 bg-green-50' :
+                          isPending ? 'border-yellow-300 bg-yellow-50' :
+                          isOverdue ? 'border-red-300 bg-red-50' :
+                          'border-gray-300 bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h3 className="text-lg font-bold text-gray-800">
+                                {getMonthName(record.month)} {record.year}
+                              </h3>
+                              {getStatusBadge(record.status)}
+                            </div>
+                            
+                            {/* Payment Date */}
+                            {record.paidAt && isPaid && (
+                              <p className="text-sm text-green-700 mb-1">
+                                ✅ Paid on: <span className="font-semibold">
+                                  {new Date(record.paidAt).toLocaleDateString('en-IN', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    year: 'numeric'
+                                  })}
+                                </span>
+                              </p>
                             )}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-semibold text-gray-900">
-                            ₹{(record.rent || 0) + (record.electricity || 0)}
-                          </td>
-                          <td className="px-4 py-3 text-sm">{getStatusBadge(record.status)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            
+                            {/* Payment Method */}
+                            {record.paymentMethod && isPaid && (
+                              <p className="text-sm text-gray-600">
+                                💳 Method: <span className="font-semibold">{record.paymentMethod}</span>
+                              </p>
+                            )}
+                          </div>
+                          
+                          <div className="text-right">
+                            <p className="text-2xl font-bold text-gray-900">₹{total.toLocaleString('en-IN')}</p>
+                            <p className="text-xs text-gray-500">Total Amount</p>
+                          </div>
+                        </div>
+                        
+                        {/* Breakdown */}
+                        <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-200">
+                          <div className="bg-white/50 rounded p-2">
+                            <p className="text-xs text-gray-600 mb-1">Rent Amount</p>
+                            <p className="font-bold text-gray-800">₹{(record.rent || 0).toLocaleString('en-IN')}</p>
+                          </div>
+                          <div className="bg-white/50 rounded p-2">
+                            <p className="text-xs text-gray-600 mb-1">Electricity</p>
+                            <p className="font-bold text-gray-800">
+                              ₹{(record.electricity || 0).toLocaleString('en-IN')}
+                              {record.units > 0 && (
+                                <span className="text-xs text-gray-500 ml-1">({record.units} units)</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Notes */}
+                        {record.notes && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <p className="text-xs text-gray-600 mb-1">📝 Note:</p>
+                            <p className="text-sm text-gray-700 italic">{record.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
 
-            {/* Payment Info */}
+            {/* Make Payment Section - Prominent */}
             {activeUPI && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">💳 Payment Information</h2>
+              <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-lg shadow-lg p-6">
+                <div className="text-center mb-6">
+                  <div className="text-5xl mb-3">💳</div>
+                  <h2 className="text-3xl font-bold mb-2">Make a Payment</h2>
+                  <p className="text-white/90">Use any of the following methods to pay your rent</p>
+                </div>
+
                 <div className="grid md:grid-cols-2 gap-6">
-                  {/* UPI Details */}
-                  <div className="bg-blue-50 rounded-lg p-4">
-                    <h3 className="font-semibold text-blue-900 mb-3">UPI Payment</h3>
-                    <div className="space-y-2">
-                      <div>
-                        <p className="text-sm text-blue-700">UPI ID</p>
-                        <p className="font-mono font-bold text-blue-900">{activeUPI.upiId}</p>
+                  {/* UPI Payment Details */}
+                  <div className="bg-white/10 backdrop-blur-sm rounded-lg p-5 border-2 border-white/20">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="bg-white/20 rounded-full p-3">
+                        <span className="text-2xl">📱</span>
                       </div>
+                      <h3 className="text-xl font-bold">UPI Payment</h3>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="bg-white/10 rounded-lg p-3">
+                        <p className="text-white/70 text-sm mb-1">UPI ID</p>
+                        <p className="font-mono font-bold text-lg break-all">{activeUPI.upiId}</p>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(activeUPI.upiId);
+                            alert('✅ UPI ID copied to clipboard!');
+                          }}
+                          className="mt-2 w-full bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded transition-colors text-sm"
+                        >
+                          📋 Copy UPI ID
+                        </button>
+                      </div>
+                      
                       {activeUPI.accountName && (
-                        <div>
-                          <p className="text-sm text-blue-700">Account Name</p>
-                          <p className="font-semibold text-blue-900">{activeUPI.accountName}</p>
+                        <div className="bg-white/10 rounded-lg p-3">
+                          <p className="text-white/70 text-sm mb-1">Account Name</p>
+                          <p className="font-semibold">{activeUPI.accountName}</p>
                         </div>
                       )}
+                      
+                      <div className="bg-white/10 rounded-lg p-3">
+                        <p className="text-white/70 text-sm mb-2">💡 How to pay:</p>
+                        <ol className="text-sm space-y-1 text-white/90 list-decimal list-inside">
+                          <li>Open any UPI app (PhonePe, GPay, Paytm)</li>
+                          <li>Enter the UPI ID above</li>
+                          <li>Enter amount and pay</li>
+                          <li>Share payment screenshot with manager</li>
+                        </ol>
+                      </div>
                     </div>
                   </div>
 
-                  {/* QR Code */}
+                  {/* QR Code Payment */}
                   {activeUPI.qrCode && (
-                    <div className="bg-gray-50 rounded-lg p-4 flex flex-col items-center">
-                      <h3 className="font-semibold text-gray-800 mb-3">Scan to Pay</h3>
-                      <img 
-                        src={activeUPI.qrCode} 
-                        alt="UPI QR Code" 
-                        className="w-48 h-48 border-4 border-white shadow-lg rounded-lg"
-                      />
-                      <p className="text-xs text-gray-500 mt-2 text-center">
-                        Use any UPI app to scan and pay
-                      </p>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-5 border-2 border-white/20">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="bg-white/20 rounded-full p-3">
+                          <span className="text-2xl">📷</span>
+                        </div>
+                        <h3 className="text-xl font-bold">Scan QR Code</h3>
+                      </div>
+                      
+                      <div className="flex flex-col items-center">
+                        <div className="bg-white p-4 rounded-xl shadow-xl mb-4">
+                          <img 
+                            src={activeUPI.qrCode} 
+                            alt="UPI QR Code" 
+                            className="w-56 h-56 rounded-lg"
+                          />
+                        </div>
+                        <div className="bg-white/10 rounded-lg p-3 w-full">
+                          <p className="text-white/70 text-sm mb-2">📷 How to scan:</p>
+                          <ol className="text-sm space-y-1 text-white/90 list-decimal list-inside">
+                            <li>Open any UPI app scanner</li>
+                            <li>Scan this QR code</li>
+                            <li>Amount will auto-fill (or enter manually)</li>
+                            <li>Complete payment</li>
+                          </ol>
+                        </div>
+                      </div>
                     </div>
                   )}
+                </div>
+
+                {/* Important Note */}
+                <div className="mt-6 bg-white/10 backdrop-blur-sm border-2 border-white/30 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">⚠️</span>
+                    <div className="flex-1">
+                      <h4 className="font-bold mb-1">Important Note</h4>
+                      <ul className="text-sm text-white/90 space-y-1">
+                        <li>• Please pay on or before the {tenant?.dueDate || 'due date'} of every month</li>
+                        <li>• After payment, take a screenshot and send it to the property manager</li>
+                        <li>• Your payment will be updated within 24 hours</li>
+                        <li>• Keep payment receipts for your records</li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
