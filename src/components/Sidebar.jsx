@@ -21,7 +21,6 @@ const Sidebar = () => {
     { icon: '🔧', label: 'Maintenance', path: '/maintenance' },
     { icon: '📥', label: 'Import CSV', path: '/import' },
     { icon: '📚', label: 'History Manager', path: '/history' },
-    { icon: '📊', label: 'Financial History', path: '/financial-history' },
   ];
 
   // Settings submenu items
@@ -30,6 +29,7 @@ const Sidebar = () => {
     { icon: '🏦', label: 'Bank Accounts', path: '/bank-accounts' },
     { icon: '💾', label: 'Backup & Export', path: '/backup' },
     { icon: '📋', label: 'Import Logs', path: '/import-logs' },
+    { icon: '📅', label: 'Update Check-In Dates', path: '/update-checkin-dates' },
     { icon: '🚨', label: 'Payments Reset', path: '/payments-reset' },
     { icon: '🗑️', label: 'Database Cleanup', path: '/database-cleanup' },
   ];

@@ -220,17 +220,36 @@ const Payments = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {payments.slice(0, 10).map((payment) => (
-                  <tr key={payment.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      {payment.tenantNameSnapshot || getTenantName(payment.tenantId) || 'Unknown'}
-                    </td>
-                    <td className="px-4 py-3 font-semibold">₹{(payment.totalAmount || payment.amount || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{payment.utr || 'N/A'}</td>
-                    <td className="px-4 py-3">
-                      {new Date(payment.paymentDate).toLocaleDateString('en-IN')}
-                    </td>
-                    <td className="px-4 py-3">
+                {payments.slice(0, 10).map((payment) => {
+                  // Format date properly with fallback
+                  let displayDate = '-';
+                  try {
+                    if (payment.paymentDate) {
+                      const date = new Date(payment.paymentDate);
+                      if (!isNaN(date.getTime())) {
+                        displayDate = date.toLocaleDateString('en-IN');
+                      }
+                    } else if (payment.createdAt) {
+                      const date = new Date(payment.createdAt);
+                      if (!isNaN(date.getTime())) {
+                        displayDate = date.toLocaleDateString('en-IN');
+                      }
+                    }
+                  } catch (e) {
+                    displayDate = '-';
+                  }
+
+                  return (
+                    <tr key={payment.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        {payment.tenantNameSnapshot || getTenantName(payment.tenantId) || 'Unknown'}
+                      </td>
+                      <td className="px-4 py-3 font-semibold">₹{(payment.totalAmount || payment.amount || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{payment.utr || 'N/A'}</td>
+                      <td className="px-4 py-3">
+                        {displayDate}
+                      </td>
+                      <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                         payment.status === 'verified' || payment.status === 'paid'
                           ? 'bg-green-100 text-green-800' 
@@ -243,7 +262,8 @@ const Payments = () => {
                       </span>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

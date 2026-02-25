@@ -281,7 +281,7 @@ const Tenants = () => {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {filteredTenants.map(tenant => (
             <TenantCard
               key={tenant.id}
@@ -447,6 +447,38 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
 const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
   const isActive = tenant.isActive;
   
+  // Calculate living duration
+  const calculateDuration = () => {
+    if (!tenant.checkInDate) return null;
+    
+    try {
+      const checkIn = new Date(tenant.checkInDate);
+      const now = new Date();
+      
+      let years = now.getFullYear() - checkIn.getFullYear();
+      let months = now.getMonth() - checkIn.getMonth();
+      
+      if (months < 0) {
+        years--;
+        months += 12;
+      }
+      
+      if (years === 0 && months === 0) {
+        return 'New tenant';
+      } else if (years === 0) {
+        return `${months} month${months > 1 ? 's' : ''}`;
+      } else if (months === 0) {
+        return `${years} year${years > 1 ? 's' : ''}`;
+      } else {
+        return `${years}y ${months}m`;
+      }
+    } catch (e) {
+      return null;
+    }
+  };
+  
+  const duration = calculateDuration();
+  
   // Copy credentials to clipboard
   const copyCredentials = () => {
     const text = `Room: ${tenant.roomNumber}\nUsername: ${tenant.username}\nPassword: ${tenant.password}`;
@@ -456,18 +488,19 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
   };
   
   return (
-    <div className={`card border-2 transition-all ${
+    <div className={`card p-3 border-2 transition-all ${
       isActive 
         ? 'border-green-300 bg-green-50' 
         : 'border-gray-300 bg-gray-50'
     }`}>
-      <div className="flex items-start justify-between mb-4">
+      {/* Header - Name & Status */}
+      <div className="flex items-start justify-between mb-2">
         <div className="flex-1">
-          <h3 className="text-xl font-bold text-gray-800 mb-1">
+          <h3 className="text-base font-bold text-gray-800 mb-1">
             {tenant.name}
           </h3>
-          <div className="flex items-center gap-2 mb-2">
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
               isActive
                 ? 'bg-green-500 text-white'
                 : 'bg-gray-500 text-white'
@@ -475,23 +508,29 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
               {isActive ? '✅ Active' : '📋 Inactive'}
             </span>
             {tenant.roomNumber && (
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-500 text-white">
-                🏠 Room {tenant.roomNumber}
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500 text-white">
+                🏠 {tenant.roomNumber}
+              </span>
+            )}
+            {duration && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500 text-white">
+                🕐 {duration}
               </span>
             )}
           </div>
         </div>
       </div>
 
-      <div className="space-y-2 mb-4">
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-600">📱 Phone:</span>
+      {/* Compact Info Grid */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-2">
+        <div className="flex justify-between">
+          <span className="text-gray-600">📱</span>
           <span className="font-semibold text-gray-800">{tenant.phone || '-'}</span>
         </div>
         
         {tenant.currentRent && (
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">💵 Rent:</span>
+          <div className="flex justify-between">
+            <span className="text-gray-600">💵</span>
             <span className="font-semibold text-gray-800">
               ₹{tenant.currentRent.toLocaleString('en-IN')}
             </span>
@@ -499,7 +538,7 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
         )}
         
         {tenant.checkInDate && (
-          <div className="flex justify-between text-sm">
+          <div className="flex justify-between col-span-2">
             <span className="text-gray-600">📅 Check-in:</span>
             <span className="font-semibold text-gray-800">
               {new Date(tenant.checkInDate).toLocaleDateString('en-IN')}
@@ -508,33 +547,50 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
         )}
       </div>
 
-      {/* Login Credentials */}
-      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-3 mb-4">
-        <h4 className="text-xs font-bold text-blue-800 mb-2">🔐 Portal Login</h4>
-        <div className="space-y-1">
-          <div className="flex justify-between text-sm">
-            <span className="text-blue-700">Username:</span>
+      {/* Login Credentials - Compact */}
+      <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
+        <div className="text-[10px] font-bold text-blue-800 mb-1">🔐 PORTAL LOGIN</div>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+          <div className="flex items-center gap-1">
+            <span className="text-blue-600 text-[10px]">User:</span>
             <span className="font-mono font-bold text-blue-900">{tenant.username || tenant.roomNumber}</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-blue-700">Password:</span>
+          <div className="flex items-center gap-1">
+            <span className="text-blue-600 text-[10px]">Pass:</span>
             <span className="font-mono font-bold text-blue-900">{tenant.password || 'password'}</span>
           </div>
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <button onClick={onViewHistory} className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold transition flex-1 text-sm">
-          📊 History
+      {/* Action Buttons - Compact */}
+      <div className="grid grid-cols-4 gap-1">
+        <button 
+          onClick={onViewHistory} 
+          className="bg-purple-500 hover:bg-purple-600 text-white px-2 py-1.5 rounded font-semibold transition text-xs"
+          title="View History"
+        >
+          📊
         </button>
-        <button onClick={copyCredentials} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition flex-1 text-sm">
-          📋 Copy
+        <button 
+          onClick={copyCredentials} 
+          className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1.5 rounded font-semibold transition text-xs"
+          title="Copy Credentials"
+        >
+          📋
         </button>
-        <button onClick={onEdit} className="btn-primary flex-1 text-sm">
-          ✏️ Edit
+        <button 
+          onClick={onEdit} 
+          className="btn-primary px-2 py-1.5 text-xs rounded"
+          title="Edit Tenant"
+        >
+          ✏️
         </button>
-        <button onClick={onDelete} className="btn-secondary flex-1 text-sm">
-          🗑️ Delete
+        <button 
+          onClick={onDelete} 
+          className="btn-secondary px-2 py-1.5 text-xs rounded"
+          title="Delete Tenant"
+        >
+          🗑️
         </button>
       </div>
     </div>

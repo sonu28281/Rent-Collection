@@ -397,7 +397,32 @@ export const getCurrentMonthDetailedSummary = async () => {
       // Payment status - Check BOTH status field AND actual collected amount
       // A payment is only considered 'paid' if status='paid' AND paidAmount > 0
       const status = (payment && payment.status === 'paid' && collectedAmount > 0) ? 'paid' : 'pending';
+      
+      // Due Date Calculation (default to 5th of current month if not set)
+      const dueDateOfMonth = tenant.dueDate || 5; // Default: 5th of each month
+      const dueDate = new Date(currentYear, currentMonth - 1, dueDateOfMonth);
+      const dueDateFormatted = dueDate.toLocaleDateString('en-IN');
+      
+      // Payment Date (actual date when payment was made)
       const paidDate = payment && payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('en-IN') : null;
+      const paidDateObj = payment && payment.paidAt ? new Date(payment.paidAt) : null;
+      
+      // Delayed Status Detection
+      let isDelayed = false;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      dueDate.setHours(0, 0, 0, 0);
+      
+      if (status === 'paid') {
+        // If paid, check if payment was made after due date
+        if (paidDateObj) {
+          paidDateObj.setHours(0, 0, 0, 0);
+          isDelayed = paidDateObj > dueDate;
+        }
+      } else {
+        // If pending, check if due date has passed
+        isDelayed = today > dueDate;
+      }
       
       tenantList.push({
         id: doc.id,
@@ -409,7 +434,9 @@ export const getCurrentMonthDetailedSummary = async () => {
         collectedAmount,
         dueAmount,
         status,
+        dueDate: dueDateFormatted,
         paidDate,
+        isDelayed,
         paymentMethod: payment ? payment.paymentMethod : null
       });
       

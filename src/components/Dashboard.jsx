@@ -226,6 +226,7 @@ const Dashboard = () => {
                                   <th className="px-3 py-2 text-right">Electricity</th>
                                   <th className="px-3 py-2 text-right">Expected</th>
                                   <th className="px-3 py-2 text-right">Collected</th>
+                                  <th className="px-3 py-2 text-left">Due Date</th>
                                   <th className="px-3 py-2 text-left">Payment Date</th>
                                   <th className="px-3 py-2 text-left">Method</th>
                                   <th className="px-3 py-2 text-center">Status</th>
@@ -260,7 +261,17 @@ const Dashboard = () => {
                                       }`}>
                                         ₹{tenant.collectedAmount.toLocaleString('en-IN')}
                                       </td>
-                                      <td className="px-3 py-2">{tenant.paidDate || '-'}</td>
+                                      <td className="px-3 py-2 text-gray-600">{tenant.dueDate || '-'}</td>
+                                      <td className="px-3 py-2">
+                                        <div className="flex items-center gap-2">
+                                          <span>{tenant.paidDate || '-'}</span>
+                                          {tenant.isDelayed && (
+                                            <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">
+                                              Delayed
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
                                       <td className="px-3 py-2">
                                         {tenant.paymentMethod ? (
                                           <span className="text-xs bg-gray-200 text-gray-800 px-2 py-1 rounded">
@@ -309,6 +320,7 @@ const Dashboard = () => {
                                   <th className="px-3 py-2 text-right">Electricity</th>
                                   <th className="px-3 py-2 text-right">Expected</th>
                                   <th className="px-3 py-2 text-right">Collected</th>
+                                  <th className="px-3 py-2 text-left">Due Date</th>
                                   <th className="px-3 py-2 text-left">Payment Date</th>
                                   <th className="px-3 py-2 text-left">Method</th>
                                   <th className="px-3 py-2 text-center">Status</th>
@@ -343,7 +355,17 @@ const Dashboard = () => {
                                       }`}>
                                         ₹{tenant.collectedAmount.toLocaleString('en-IN')}
                                       </td>
-                                      <td className="px-3 py-2">{tenant.paidDate || '-'}</td>
+                                      <td className="px-3 py-2 text-gray-600">{tenant.dueDate || '-'}</td>
+                                      <td className="px-3 py-2">
+                                        <div className="flex items-center gap-2">
+                                          <span>{tenant.paidDate || '-'}</span>
+                                          {tenant.isDelayed && (
+                                            <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">
+                                              Delayed
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
                                       <td className="px-3 py-2">
                                         {tenant.paymentMethod ? (
                                           <span className="text-xs bg-gray-200 text-gray-800 px-2 py-1 rounded">
