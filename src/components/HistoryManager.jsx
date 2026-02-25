@@ -494,19 +494,6 @@ const HistoryManager = () => {
                 </select>
               </div>
               
-              <div className="flex items-center gap-2">
-                <label className="font-semibold text-gray-700">Floor:</label>
-                <select
-                  value={selectedFloor}
-                  onChange={(e) => setSelectedFloor(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                >
-                  <option value="all">All Floors</option>
-                  <option value="1">Floor 1</option>
-                  <option value="2">Floor 2</option>
-                </select>
-              </div>
-              
               <div className="text-sm text-gray-600">
                 {filteredPayments.length} payment{filteredPayments.length !== 1 ? 's' : ''}
               </div>
@@ -540,6 +527,65 @@ const HistoryManager = () => {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Floor Filter - Prominent Button Style */}
+      <div className="card mb-6">
+        <div className="flex items-center gap-3 mb-3">
+          <h4 className="font-semibold text-gray-700">🏢 Filter by Floor:</h4>
+          <span className="text-xs text-gray-500">
+            (Floor 1: Rooms 101-106 | Floor 2: Rooms 201-212)
+          </span>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setSelectedFloor('all')}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+              selectedFloor === 'all'
+                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg scale-105'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            🏢 All Floors
+            {selectedFloor === 'all' && (
+              <span className="ml-2 text-xs bg-white text-blue-600 px-2 py-1 rounded-full">
+                Active
+              </span>
+            )}
+          </button>
+          
+          <button
+            onClick={() => setSelectedFloor('1')}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+              selectedFloor === '1'
+                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg scale-105'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            🏠 Floor 1 <span className="text-sm opacity-80">(101-106)</span>
+            {selectedFloor === '1' && (
+              <span className="ml-2 text-xs bg-white text-green-600 px-2 py-1 rounded-full">
+                Active
+              </span>
+            )}
+          </button>
+          
+          <button
+            onClick={() => setSelectedFloor('2')}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+              selectedFloor === '2'
+                ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg scale-105'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            🏠 Floor 2 <span className="text-sm opacity-80">(201-212)</span>
+            {selectedFloor === '2' && (
+              <span className="ml-2 text-xs bg-white text-purple-600 px-2 py-1 rounded-full">
+                Active
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -594,15 +640,37 @@ const HistoryManager = () => {
           ? `${selectedYear} (All Months)` 
           : `${MONTHS.find(m => m.num === selectedMonth)?.name} ${selectedYear}`;
 
+        // Determine floor-specific styling
+        const floorInfo = selectedFloor === '1' 
+          ? { name: 'Floor 1', rooms: '(Rooms 101-106)', color: 'from-green-50 to-emerald-50', border: 'border-green-200' }
+          : selectedFloor === '2'
+          ? { name: 'Floor 2', rooms: '(Rooms 201-212)', color: 'from-purple-50 to-indigo-50', border: 'border-purple-200' }
+          : { name: 'All Floors', rooms: '(All Rooms)', color: 'from-blue-50 to-purple-50', border: 'border-blue-200' };
+
         return (
-          <div className="card mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200">
+          <div className={`card mb-6 bg-gradient-to-r ${floorInfo.color} border-2 ${floorInfo.border}`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-800">
-                💰 Total Summary - {selectedPeriod}
-                {selectedFloor !== 'all' && ` (Floor ${selectedFloor})`}
-              </h3>
-              <div className="text-sm text-gray-600">
-                {filteredPayments.length} record{filteredPayments.length !== 1 ? 's' : ''}
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">
+                  💰 Total Summary - {selectedPeriod}
+                </h3>
+                {selectedFloor !== 'all' && (
+                  <p className="text-sm font-semibold text-gray-600 mt-1">
+                    🏢 {floorInfo.name} {floorInfo.rooms}
+                  </p>
+                )}
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-gray-600">
+                  {filteredPayments.length} record{filteredPayments.length !== 1 ? 's' : ''}
+                </div>
+                {selectedFloor !== 'all' && (
+                  <div className={`text-xs font-semibold mt-1 px-3 py-1 rounded-full inline-block ${
+                    selectedFloor === '1' ? 'bg-green-200 text-green-800' : 'bg-purple-200 text-purple-800'
+                  }`}>
+                    {floorInfo.name} Only
+                  </div>
+                )}
               </div>
             </div>
             
