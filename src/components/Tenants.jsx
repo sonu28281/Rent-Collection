@@ -11,6 +11,8 @@ const Tenants = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingTenant, setEditingTenant] = useState(null);
   const [filter, setFilter] = useState('all'); // all, active, inactive
+  const [floorFilter, setFloorFilter] = useState('all'); // all, floor1, floor2
+  const [viewMode, setViewMode] = useState('card'); // card, detail
   const [selectedTenantHistory, setSelectedTenantHistory] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -142,16 +144,37 @@ const Tenants = () => {
   };
 
   const filteredTenants = tenants.filter(tenant => {
-    if (filter === 'all') return true;
-    if (filter === 'active') return tenant.isActive;
-    if (filter === 'inactive') return !tenant.isActive;
-    return true;
+    // Active/Inactive filter
+    let matchesActiveFilter = true;
+    if (filter === 'active') matchesActiveFilter = tenant.isActive;
+    if (filter === 'inactive') matchesActiveFilter = !tenant.isActive;
+    
+    // Floor filter
+    let matchesFloorFilter = true;
+    if (floorFilter === 'floor1') {
+      const roomNum = parseInt(tenant.roomNumber);
+      matchesFloorFilter = roomNum >= 101 && roomNum <= 106;
+    }
+    if (floorFilter === 'floor2') {
+      const roomNum = parseInt(tenant.roomNumber);
+      matchesFloorFilter = roomNum >= 201 && roomNum <= 206;
+    }
+    
+    return matchesActiveFilter && matchesFloorFilter;
   });
 
   const stats = {
     total: tenants.length,
     active: tenants.filter(t => t.isActive).length,
-    inactive: tenants.filter(t => !t.isActive).length
+    inactive: tenants.filter(t => !t.isActive).length,
+    floor1: tenants.filter(t => {
+      const roomNum = parseInt(t.roomNumber);
+      return roomNum >= 101 && roomNum <= 106;
+    }).length,
+    floor2: tenants.filter(t => {
+      const roomNum = parseInt(t.roomNumber);
+      return roomNum >= 201 && roomNum <= 206;
+    }).length
   };
 
   if (loading) {
@@ -227,38 +250,106 @@ const Tenants = () => {
       </div>
 
       {/* Filter Buttons */}
-      <div className="card mb-6">
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
-              filter === 'all'
-                ? 'bg-primary text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            All Tenants ({stats.total})
-          </button>
-          <button
-            onClick={() => setFilter('active')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
-              filter === 'active'
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Active ({stats.active})
-          </button>
-          <button
-            onClick={() => setFilter('inactive')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
-              filter === 'inactive'
-                ? 'bg-gray-500 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Inactive ({stats.inactive})
-          </button>
+      <div className="card mb-6 space-y-4">
+        {/* Active/Inactive Filters */}
+        <div>
+          <label className="text-sm font-semibold text-gray-700 mb-2 block">Status Filter</label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                filter === 'all'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              All Tenants ({stats.total})
+            </button>
+            <button
+              onClick={() => setFilter('active')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                filter === 'active'
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Active ({stats.active})
+            </button>
+            <button
+              onClick={() => setFilter('inactive')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                filter === 'inactive'
+                  ? 'bg-gray-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Inactive ({stats.inactive})
+            </button>
+          </div>
+        </div>
+
+        {/* Floor Filters */}
+        <div>
+          <label className="text-sm font-semibold text-gray-700 mb-2 block">Floor Filter</label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFloorFilter('all')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                floorFilter === 'all'
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              All Floors
+            </button>
+            <button
+              onClick={() => setFloorFilter('floor1')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                floorFilter === 'floor1'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Floor 1 (Ground) ({stats.floor1})
+            </button>
+            <button
+              onClick={() => setFloorFilter('floor2')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                floorFilter === 'floor2'
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Floor 2 (First) ({stats.floor2})
+            </button>
+          </div>
+        </div>
+
+        {/* View Mode Toggle */}
+        <div>
+          <label className="text-sm font-semibold text-gray-700 mb-2 block">View Mode</label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setViewMode('card')}
+              className={`px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 ${
+                viewMode === 'card'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              <span>🎴</span> Card View
+            </button>
+            <button
+              onClick={() => setViewMode('detail')}
+              className={`px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 ${
+                viewMode === 'detail'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              <span>📋</span> Detail View
+            </button>
+          </div>
         </div>
       </div>
 
@@ -280,8 +371,8 @@ const Tenants = () => {
             </button>
           )}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      ) : viewMode === 'card' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredTenants.map(tenant => (
             <TenantCard
               key={tenant.id}
@@ -291,6 +382,118 @@ const Tenants = () => {
               onViewHistory={() => handleViewHistory(tenant)}
             />
           ))}
+        </div>
+      ) : (
+        <div className="card overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tenant</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rent</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-In</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Password</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredTenants.map(tenant => {
+                // Calculate duration
+                const calculateDuration = () => {
+                  if (!tenant.checkInDate) return '-';
+                  try {
+                    const checkIn = new Date(tenant.checkInDate);
+                    const now = new Date();
+                    let years = now.getFullYear() - checkIn.getFullYear();
+                    let months = now.getMonth() - checkIn.getMonth();
+                    if (months < 0) {
+                      years--;
+                      months += 12;
+                    }
+                    if (years === 0 && months === 0) return 'New';
+                    if (years === 0) return `${months}m`;
+                    if (months === 0) return `${years}y`;
+                    return `${years}y ${months}m`;
+                  } catch (e) {
+                    return '-';
+                  }
+                };
+
+                return (
+                  <tr key={tenant.id} className={tenant.isActive ? 'bg-green-50' : 'bg-gray-50'}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-bold text-gray-900">{tenant.name}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                        🏠 {tenant.roomNumber || '-'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {tenant.phone || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                      {tenant.currentRent ? `₹${tenant.currentRent.toLocaleString('en-IN')}` : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {tenant.checkInDate ? new Date(tenant.checkInDate).toLocaleDateString('en-IN') : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+                        🕐 {calculateDuration()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <code className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">
+                        {tenant.username || tenant.roomNumber}
+                      </code>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <code className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">
+                        {tenant.password || 'password'}
+                      </code>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        tenant.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {tenant.isActive ? '✅ Active' : '📋 Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleViewHistory(tenant)}
+                          className="text-purple-600 hover:text-purple-900 font-medium"
+                          title="View History"
+                        >
+                          📊
+                        </button>
+                        <button 
+                          onClick={() => handleEditTenant(tenant)}
+                          className="text-blue-600 hover:text-blue-900 font-medium"
+                          title="Edit"
+                        >
+                          ✏️
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteTenant(tenant.id, tenant.roomNumber)}
+                          className="text-red-600 hover:text-red-900 font-medium"
+                          title="Delete"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -488,19 +691,19 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
   };
   
   return (
-    <div className={`card p-3 border-2 transition-all ${
+    <div className={`card p-4 border-2 transition-all ${
       isActive 
         ? 'border-green-300 bg-green-50' 
         : 'border-gray-300 bg-gray-50'
     }`}>
       {/* Header - Name & Status */}
-      <div className="flex items-start justify-between mb-2">
+      <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
-          <h3 className="text-base font-bold text-gray-800 mb-1">
+          <h3 className="text-lg font-bold text-gray-800 mb-2">
             {tenant.name}
           </h3>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
               isActive
                 ? 'bg-green-500 text-white'
                 : 'bg-gray-500 text-white'
@@ -508,12 +711,12 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
               {isActive ? '✅ Active' : '📋 Inactive'}
             </span>
             {tenant.roomNumber && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500 text-white">
-                🏠 {tenant.roomNumber}
+              <span className="px-3 py-1 rounded-full text-sm font-semibold bg-blue-500 text-white">
+                🏠 Room {tenant.roomNumber}
               </span>
             )}
             {duration && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500 text-white">
+              <span className="px-3 py-1 rounded-full text-sm font-semibold bg-purple-500 text-white">
                 🕐 {duration}
               </span>
             )}
@@ -521,73 +724,86 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
         </div>
       </div>
 
-      {/* Compact Info Grid */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-2">
-        <div className="flex justify-between">
-          <span className="text-gray-600">📱</span>
-          <span className="font-semibold text-gray-800">{tenant.phone || '-'}</span>
+      {/* Tenant Information */}
+      <div className="space-y-2 mb-3">
+        <div className="flex items-center justify-between py-2 border-b border-gray-300">
+          <span className="text-sm font-medium text-gray-600">📱 Phone</span>
+          <span className="text-sm font-semibold text-gray-800">{tenant.phone || '-'}</span>
         </div>
         
         {tenant.currentRent && (
-          <div className="flex justify-between">
-            <span className="text-gray-600">💵</span>
-            <span className="font-semibold text-gray-800">
+          <div className="flex items-center justify-between py-2 border-b border-gray-300">
+            <span className="text-sm font-medium text-gray-600">💵 Monthly Rent</span>
+            <span className="text-sm font-semibold text-gray-800">
               ₹{tenant.currentRent.toLocaleString('en-IN')}
             </span>
           </div>
         )}
         
+        {tenant.dueDate && (
+          <div className="flex items-center justify-between py-2 border-b border-gray-300">
+            <span className="text-sm font-medium text-gray-600">📅 Due Date</span>
+            <span className="text-sm font-semibold text-orange-700">
+              {tenant.dueDate} of every month
+            </span>
+          </div>
+        )}
+        
         {tenant.checkInDate && (
-          <div className="flex justify-between col-span-2">
-            <span className="text-gray-600">📅 Check-in:</span>
-            <span className="font-semibold text-gray-800">
+          <div className="flex items-center justify-between py-2 border-b border-gray-300">
+            <span className="text-sm font-medium text-gray-600">📅 Check-in Date</span>
+            <span className="text-sm font-semibold text-gray-800">
               {new Date(tenant.checkInDate).toLocaleDateString('en-IN')}
             </span>
           </div>
         )}
       </div>
 
-      {/* Login Credentials - Compact */}
-      <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
-        <div className="text-[10px] font-bold text-blue-800 mb-1">🔐 PORTAL LOGIN</div>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-          <div className="flex items-center gap-1">
-            <span className="text-blue-600 text-[10px]">User:</span>
-            <span className="font-mono font-bold text-blue-900">{tenant.username || tenant.roomNumber}</span>
+      {/* Login Credentials */}
+      <div className="bg-blue-50 border border-blue-300 rounded-lg p-3 mb-3">
+        <div className="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wide">🔐 Portal Login</div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className="text-xs text-blue-600 mb-1">Username</div>
+            <div className="font-mono font-bold text-sm text-blue-900 bg-white px-2 py-1 rounded">
+              {tenant.username || tenant.roomNumber}
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <span className="text-blue-600 text-[10px]">Pass:</span>
-            <span className="font-mono font-bold text-blue-900">{tenant.password || 'password'}</span>
+          <div>
+            <div className="text-xs text-blue-600 mb-1">Password</div>
+            <div className="font-mono font-bold text-sm text-blue-900 bg-white px-2 py-1 rounded">
+              {tenant.password || 'password'}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Action Buttons - Compact */}
-      <div className="grid grid-cols-4 gap-1">
+      {/* Action Buttons */}
+      <div className="grid grid-cols-4 gap-2">
         <button 
           onClick={onViewHistory} 
-          className="bg-purple-500 hover:bg-purple-600 text-white px-2 py-1.5 rounded font-semibold transition text-xs"
+          className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg font-semibold transition text-sm"
           title="View History"
         >
           📊
         </button>
         <button 
           onClick={copyCredentials} 
-          className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1.5 rounded font-semibold transition text-xs"
+          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg font-semibold transition text-sm"
           title="Copy Credentials"
         >
           📋
         </button>
         <button 
           onClick={onEdit} 
-          className="btn-primary px-2 py-1.5 text-xs rounded"
+          className="btn-primary px-3 py-2 text-sm rounded-lg"
           title="Edit Tenant"
         >
           ✏️
         </button>
         <button 
           onClick={onDelete} 
-          className="btn-secondary px-2 py-1.5 text-xs rounded"
+          className="btn-secondary px-3 py-2 text-sm rounded-lg"
           title="Delete Tenant"
         >
           🗑️

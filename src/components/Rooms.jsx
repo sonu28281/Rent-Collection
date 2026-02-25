@@ -7,7 +7,8 @@ const Rooms = () => {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState('all'); // all, vacant, filled
+  const [filter, setFilter] = useState('all'); // all, vacant, occupied
+  const [floorFilter, setFloorFilter] = useState('all'); // all, floor1, floor2
   const [selectedRooms, setSelectedRooms] = useState(new Set());
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [modalRoom, setModalRoom] = useState(null);
@@ -189,15 +190,30 @@ const Rooms = () => {
   };
 
   const filteredRooms = rooms.filter(room => {
-    if (filter === 'all') return true;
-    const roomStatus = room.status || 'vacant';
-    return roomStatus === filter;
+    // Status filter
+    let matchesStatusFilter = true;
+    if (filter !== 'all') {
+      const roomStatus = room.status || 'vacant';
+      matchesStatusFilter = roomStatus === filter;
+    }
+    
+    // Floor filter
+    let matchesFloorFilter = true;
+    if (floorFilter === 'floor1') {
+      matchesFloorFilter = room.roomNumber >= 101 && room.roomNumber <= 106;
+    } else if (floorFilter === 'floor2') {
+      matchesFloorFilter = room.roomNumber >= 201 && room.roomNumber <= 206;
+    }
+    
+    return matchesStatusFilter && matchesFloorFilter;
   });
 
   const stats = {
     total: rooms.length,
     vacant: rooms.filter(r => (r.status || 'vacant') === 'vacant').length,
-    filled: rooms.filter(r => r.status === 'filled').length
+    occupied: rooms.filter(r => r.status === 'occupied').length,
+    floor1: rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106).length,
+    floor2: rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206).length
   };
 
   if (loading) {
@@ -255,8 +271,8 @@ const Rooms = () => {
         <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-sm">Filled Rooms</p>
-              <p className="text-3xl font-bold mt-1">{stats.filled}</p>
+              <p className="text-green-100 text-sm">Occupied Rooms</p>
+              <p className="text-3xl font-bold mt-1">{stats.occupied}</p>
             </div>
             <div className="text-4xl">✅</div>
           </div>
@@ -265,38 +281,78 @@ const Rooms = () => {
 
       {/* Filter and Bulk Actions */}
       <div className="card mb-6 space-y-4">
-        {/* Filters */}
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
-              filter === 'all'
-                ? 'bg-primary text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            All Rooms ({stats.total})
-          </button>
-          <button
-            onClick={() => setFilter('vacant')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
-              filter === 'vacant'
-                ? 'bg-gray-500 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Vacant ({stats.vacant})
-          </button>
-          <button
-            onClick={() => setFilter('filled')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
-              filter === 'filled'
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Filled ({stats.filled})
-          </button>
+        {/* Status Filters */}
+        <div>
+          <label className="text-sm font-semibold text-gray-700 mb-2 block">Status Filter</label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                filter === 'all'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              All Rooms ({stats.total})
+            </button>
+            <button
+              onClick={() => setFilter('vacant')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                filter === 'vacant'
+                  ? 'bg-gray-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Vacant ({stats.vacant})
+            </button>
+            <button
+              onClick={() => setFilter('occupied')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                filter === 'occupied'
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Occupied ({stats.occupied})
+            </button>
+          </div>
+        </div>
+
+        {/* Floor Filters */}
+        <div>
+          <label className="text-sm font-semibold text-gray-700 mb-2 block">Floor Filter</label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFloorFilter('all')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                floorFilter === 'all'
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              All Floors
+            </button>
+            <button
+              onClick={() => setFloorFilter('floor1')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                floorFilter === 'floor1'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Floor 1 (Ground) ({stats.floor1})
+            </button>
+            <button
+              onClick={() => setFloorFilter('floor2')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                floorFilter === 'floor2'
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Floor 2 (First) ({stats.floor2})
+            </button>
+          </div>
         </div>
 
         {/* Bulk Actions */}
@@ -314,17 +370,11 @@ const Rooms = () => {
                 Mark as Vacant
               </button>
               <button
-                onClick={() => handleBulkUpdate('filled')}
+                onClick={() => handleBulkUpdate('occupied')}
                 disabled={updating}
                 className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition disabled:opacity-50"
               >
-                Mark as Filled
-              </button>
-              <button
-                onClick={() => setSelectedRooms(new Set())}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
-              >
-                Clear Selection
+                Mark as Occupied
               </button>
             </div>
           </div>
@@ -368,9 +418,6 @@ const Rooms = () => {
                   Room
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Floor
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -406,15 +453,12 @@ const Rooms = () => {
                       <div className="text-sm font-bold text-gray-900">Room {room.roomNumber}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">Floor {room.floor}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         isVacant
                           ? 'bg-gray-100 text-gray-800'
                           : 'bg-green-100 text-green-800'
                       }`}>
-                        {isVacant ? '⬜ Vacant' : '✅ Filled'}
+                        {isVacant ? '⬜ Vacant' : '✅ Occupied'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -466,7 +510,7 @@ const Rooms = () => {
                   disabled={updating}
                 >
                   <option value="vacant">Vacant</option>
-                  <option value="filled">Filled</option>
+                  <option value="occupied">Occupied</option>
                 </select>
               </div>
 

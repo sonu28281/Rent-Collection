@@ -313,9 +313,7 @@ const Dashboard = () => {
                                   <th className="px-3 py-2 text-right">Electricity</th>
                                   <th className="px-3 py-2 text-right">Expected</th>
                                   <th className="px-3 py-2 text-right">Collected</th>
-                                  <th className="px-3 py-2 text-left">Due Date</th>
                                   <th className="px-3 py-2 text-left">Payment Date</th>
-                                  <th className="px-3 py-2 text-left">Method</th>
                                   <th className="px-3 py-2 text-center">Status</th>
                                 </tr>
                               </thead>
@@ -348,7 +346,6 @@ const Dashboard = () => {
                                       }`}>
                                         ₹{tenant.collectedAmount.toLocaleString('en-IN')}
                                       </td>
-                                      <td className="px-3 py-2 text-gray-600">{tenant.dueDate || '-'}</td>
                                       <td className="px-3 py-2">
                                         <div className="flex items-center gap-2">
                                           <span>{tenant.paidDate || '-'}</span>
@@ -358,13 +355,6 @@ const Dashboard = () => {
                                             </span>
                                           )}
                                         </div>
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        {tenant.paymentMethod ? (
-                                          <span className="text-xs bg-gray-200 text-gray-800 px-2 py-1 rounded">
-                                            {tenant.paymentMethod}
-                                          </span>
-                                        ) : '-'}
                                       </td>
                                       <td className="px-3 py-2 text-center">
                                         <span className={`text-xs px-2 py-1 rounded font-semibold ${
@@ -407,9 +397,7 @@ const Dashboard = () => {
                                   <th className="px-3 py-2 text-right">Electricity</th>
                                   <th className="px-3 py-2 text-right">Expected</th>
                                   <th className="px-3 py-2 text-right">Collected</th>
-                                  <th className="px-3 py-2 text-left">Due Date</th>
                                   <th className="px-3 py-2 text-left">Payment Date</th>
-                                  <th className="px-3 py-2 text-left">Method</th>
                                   <th className="px-3 py-2 text-center">Status</th>
                                 </tr>
                               </thead>
@@ -442,7 +430,6 @@ const Dashboard = () => {
                                       }`}>
                                         ₹{tenant.collectedAmount.toLocaleString('en-IN')}
                                       </td>
-                                      <td className="px-3 py-2 text-gray-600">{tenant.dueDate || '-'}</td>
                                       <td className="px-3 py-2">
                                         <div className="flex items-center gap-2">
                                           <span>{tenant.paidDate || '-'}</span>
@@ -452,13 +439,6 @@ const Dashboard = () => {
                                             </span>
                                           )}
                                         </div>
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        {tenant.paymentMethod ? (
-                                          <span className="text-xs bg-gray-200 text-gray-800 px-2 py-1 rounded">
-                                            {tenant.paymentMethod}
-                                          </span>
-                                        ) : '-'}
                                       </td>
                                       <td className="px-3 py-2 text-center">
                                         <span className={`text-xs px-2 py-1 rounded font-semibold ${
@@ -485,62 +465,6 @@ const Dashboard = () => {
           </div>
         </div>
       )}
-      {/* Quick Stats - Essential Info + Vacant Rooms */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="card bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-700 text-sm font-semibold">Property Overview</p>
-              <div className="flex items-baseline gap-3 mt-2">
-                <div>
-                  <p className="text-3xl font-bold text-blue-900">12</p>
-                  <p className="text-blue-600 text-xs">Total Rooms</p>
-                </div>
-                <div className="text-2xl text-blue-400">|</div>
-                <div>
-                  <p className="text-3xl font-bold text-blue-900">{loading ? '...' : stats.occupancy.occupied}</p>
-                  <p className="text-blue-600 text-xs">Occupied</p>
-                </div>
-              </div>
-            </div>
-            <div className="text-5xl">🏠</div>
-          </div>
-        </div>
-
-        <div className="card bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-700 text-sm font-semibold">Active Tenants</p>
-              <div className="mt-2">
-                <p className="text-4xl font-bold text-green-900">
-                  {loading ? '...' : stats.activeTenants}
-                </p>
-                <p className="text-green-600 text-xs mt-1">
-                  {loading ? '...' : `${stats.occupancy.rate}% occupancy rate`}
-                </p>
-              </div>
-            </div>
-            <div className="text-5xl">👥</div>
-          </div>
-        </div>
-
-        <div className="card bg-gradient-to-br from-orange-50 to-orange-100 border-2 border-orange-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-orange-700 text-sm font-semibold">Vacant Rooms</p>
-              <div className="mt-2">
-                <p className="text-4xl font-bold text-orange-900">
-                  {loading ? '...' : stats.occupancy.vacant}
-                </p>
-                <p className="text-orange-600 text-xs mt-1">
-                  {stats.occupancy.vacant > 0 ? 'Ready for new tenants' : 'All rooms occupied'}
-                </p>
-              </div>
-            </div>
-            <div className="text-5xl">🚪</div>
-          </div>
-        </div>
-      </div>
 
       {/* Financial Summary */}
       <div className="mb-6">
