@@ -26,6 +26,7 @@ import SetupTenants2026 from './components/SetupTenants2026';
 import VacancyReport from './components/VacancyReport';
 import SyncRoomMeters from './components/SyncRoomMeters';
 import TenantSetupCheck from './components/TenantSetupCheck';
+import QuickDatabaseCheck from './components/QuickDatabaseCheck';
 
 function App() {
   return (
@@ -202,6 +203,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><TenantSetupCheck /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/db-check" 
+            element={
+              <ProtectedRoute>
+                <QuickDatabaseCheck />
               </ProtectedRoute>
             } 
           />
