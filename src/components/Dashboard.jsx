@@ -222,6 +222,8 @@ const Dashboard = () => {
                                 <tr>
                                   <th className="px-3 py-2 text-left">Room</th>
                                   <th className="px-3 py-2 text-left">Tenant</th>
+                                  <th className="px-3 py-2 text-right">Rent</th>
+                                  <th className="px-3 py-2 text-right">Electricity</th>
                                   <th className="px-3 py-2 text-right">Expected</th>
                                   <th className="px-3 py-2 text-right">Collected</th>
                                   <th className="px-3 py-2 text-left">Payment Date</th>
@@ -244,7 +246,13 @@ const Dashboard = () => {
                                     >
                                       <td className="px-3 py-2 font-semibold">{tenant.roomNumber}</td>
                                       <td className="px-3 py-2">{tenant.name}</td>
-                                      <td className="px-3 py-2 text-right">
+                                      <td className="px-3 py-2 text-right text-gray-700">
+                                        ₹{tenant.expectedRent.toLocaleString('en-IN')}
+                                      </td>
+                                      <td className="px-3 py-2 text-right text-blue-700">
+                                        ₹{tenant.expectedElectricity.toLocaleString('en-IN')}
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-semibold">
                                         ₹{tenant.expectedTotal.toLocaleString('en-IN')}
                                       </td>
                                       <td className={`px-3 py-2 text-right font-semibold ${
@@ -297,6 +305,8 @@ const Dashboard = () => {
                                 <tr>
                                   <th className="px-3 py-2 text-left">Room</th>
                                   <th className="px-3 py-2 text-left">Tenant</th>
+                                  <th className="px-3 py-2 text-right">Rent</th>
+                                  <th className="px-3 py-2 text-right">Electricity</th>
                                   <th className="px-3 py-2 text-right">Expected</th>
                                   <th className="px-3 py-2 text-right">Collected</th>
                                   <th className="px-3 py-2 text-left">Payment Date</th>
@@ -319,7 +329,13 @@ const Dashboard = () => {
                                     >
                                       <td className="px-3 py-2 font-semibold">{tenant.roomNumber}</td>
                                       <td className="px-3 py-2">{tenant.name}</td>
-                                      <td className="px-3 py-2 text-right">
+                                      <td className="px-3 py-2 text-right text-gray-700">
+                                        ₹{tenant.expectedRent.toLocaleString('en-IN')}
+                                      </td>
+                                      <td className="px-3 py-2 text-right text-blue-700">
+                                        ₹{tenant.expectedElectricity.toLocaleString('en-IN')}
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-semibold">
                                         ₹{tenant.expectedTotal.toLocaleString('en-IN')}
                                       </td>
                                       <td className={`px-3 py-2 text-right font-semibold ${
