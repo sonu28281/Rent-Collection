@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, query } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const Settings = () => {
@@ -9,9 +9,17 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
+  
+  // Database Cleanup States
+  const [showCleanupConfirm, setShowCleanupConfirm] = useState(false);
+  const [cleanupText, setCleanupText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [recordCounts, setRecordCounts] = useState({ payments: 0, importLogs: 0, roomStatusLogs: 0 });
+  const [cleanupProgress, setCleanupProgress] = useState('');
 
   useEffect(() => {
     fetchSettings();
+    fetchRecordCounts();
   }, []);
 
   const fetchSettings = async () => {
@@ -79,6 +87,133 @@ const Settings = () => {
       setError('Failed to save settings. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Fetch record counts for cleanup confirmation
+  const fetchRecordCounts = async () => {
+    try {
+      const paymentsSnapshot = await getDocs(collection(db, 'payments'));
+      const importLogsSnapshot = await getDocs(collection(db, 'importLogs'));
+      const roomStatusLogsSnapshot = await getDocs(collection(db, 'roomStatusLogs'));
+      
+      setRecordCounts({
+        payments: paymentsSnapshot.size,
+        importLogs: importLogsSnapshot.size,
+        roomStatusLogs: roomStatusLogsSnapshot.size
+      });
+    } catch (err) {
+      console.error('Error fetching record counts:', err);
+    }
+  };
+
+  // Handle database cleanup
+  const handleCleanupDatabase = async () => {
+    if (cleanupText !== 'DELETE') {
+      setError('Please type DELETE to confirm cleanup');
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      setError(null);
+      setSuccessMessage('');
+      setCleanupProgress('Starting cleanup...');
+
+      // Delete all payments
+      setCleanupProgress(`Deleting ${recordCounts.payments} payment records...`);
+      const paymentsSnapshot = await getDocs(collection(db, 'payments'));
+      
+      let deletedCount = 0;
+      const batchSize = 500; // Firestore batch limit
+      let batch = writeBatch(db);
+      let operationCount = 0;
+
+      for (const docSnapshot of paymentsSnapshot.docs) {
+        batch.delete(docSnapshot.ref);
+        operationCount++;
+        deletedCount++;
+
+        if (operationCount === batchSize) {
+          await batch.commit();
+          setCleanupProgress(`Deleted ${deletedCount} of ${recordCounts.payments} payment records...`);
+          batch = writeBatch(db);
+          operationCount = 0;
+        }
+      }
+
+      if (operationCount > 0) {
+        await batch.commit();
+      }
+      setCleanupProgress(`✅ Deleted ${deletedCount} payment records`);
+
+      // Delete all import logs
+      setCleanupProgress(`Deleting ${recordCounts.importLogs} import logs...`);
+      const importLogsSnapshot = await getDocs(collection(db, 'importLogs'));
+      
+      deletedCount = 0;
+      batch = writeBatch(db);
+      operationCount = 0;
+
+      for (const docSnapshot of importLogsSnapshot.docs) {
+        batch.delete(docSnapshot.ref);
+        operationCount++;
+        deletedCount++;
+
+        if (operationCount === batchSize) {
+          await batch.commit();
+          setCleanupProgress(`Deleted ${deletedCount} of ${recordCounts.importLogs} import logs...`);
+          batch = writeBatch(db);
+          operationCount = 0;
+        }
+      }
+
+      if (operationCount > 0) {
+        await batch.commit();
+      }
+      setCleanupProgress(`✅ Deleted ${deletedCount} import logs`);
+
+      // Delete all room status logs
+      setCleanupProgress(`Deleting ${recordCounts.roomStatusLogs} room status logs...`);
+      const roomStatusLogsSnapshot = await getDocs(collection(db, 'roomStatusLogs'));
+      
+      deletedCount = 0;
+      batch = writeBatch(db);
+      operationCount = 0;
+
+      for (const docSnapshot of roomStatusLogsSnapshot.docs) {
+        batch.delete(docSnapshot.ref);
+        operationCount++;
+        deletedCount++;
+
+        if (operationCount === batchSize) {
+          await batch.commit();
+          setCleanupProgress(`Deleted ${deletedCount} of ${recordCounts.roomStatusLogs} room status logs...`);
+          batch = writeBatch(db);
+          operationCount = 0;
+        }
+      }
+
+      if (operationCount > 0) {
+        await batch.commit();
+      }
+
+      setCleanupProgress('');
+      setSuccessMessage('✅ Database cleanup completed successfully! All payment records, import logs, and room status logs have been deleted.');
+      setShowCleanupConfirm(false);
+      setCleanupText('');
+      
+      // Refresh counts
+      await fetchRecordCounts();
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      console.error('Error cleaning up database:', err);
+      setError('Failed to cleanup database. Please try again.');
+      setCleanupProgress('');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -195,6 +330,112 @@ const Settings = () => {
               Last updated: {settings?.updatedAt ? new Date(settings.updatedAt).toLocaleString('en-IN') : 'Never'}
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Danger Zone - Database Cleanup */}
+      <div className="card max-w-2xl mt-6 border-2 border-red-300 bg-red-50">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="text-4xl">⚠️</div>
+          <div>
+            <h3 className="text-xl font-bold text-red-800">Danger Zone</h3>
+            <p className="text-sm text-red-700">Irreversible actions that will permanently delete data</p>
+          </div>
+        </div>
+
+        <div className="bg-white border border-red-200 rounded-lg p-4 mb-4">
+          <h4 className="font-semibold text-gray-800 mb-3">🗑️ Database Cleanup</h4>
+          <p className="text-sm text-gray-700 mb-3">
+            Delete all payment records, import logs, and room status logs from the database. 
+            This will allow you to start fresh with a new CSV import.
+          </p>
+          
+          <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3 mb-4">
+            <p className="font-semibold text-yellow-900 mb-2">⚠️ Warning:</p>
+            <ul className="text-sm text-yellow-800 space-y-1">
+              <li>• This action cannot be undone</li>
+              <li>• All payment history will be permanently deleted</li>
+              <li>• Import logs will be removed</li>
+              <li>• Room status change history will be erased</li>
+              <li>• Rooms and Tenants data will be preserved</li>
+            </ul>
+          </div>
+
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+            <h5 className="font-semibold text-gray-800 mb-2">📊 Current Database Status:</h5>
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="bg-white rounded p-2 border border-gray-200">
+                <p className="text-gray-600">Payment Records</p>
+                <p className="text-2xl font-bold text-blue-600">{recordCounts.payments}</p>
+              </div>
+              <div className="bg-white rounded p-2 border border-gray-200">
+                <p className="text-gray-600">Import Logs</p>
+                <p className="text-2xl font-bold text-green-600">{recordCounts.importLogs}</p>
+              </div>
+              <div className="bg-white rounded p-2 border border-gray-200">
+                <p className="text-gray-600">Status Logs</p>
+                <p className="text-2xl font-bold text-purple-600">{recordCounts.roomStatusLogs}</p>
+              </div>
+            </div>
+          </div>
+
+          {!showCleanupConfirm ? (
+            <button
+              onClick={() => setShowCleanupConfirm(true)}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
+              disabled={deleting}
+            >
+              🗑️ Cleanup Database
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <div className="bg-red-100 border-2 border-red-400 rounded-lg p-4">
+                <p className="font-bold text-red-900 mb-2">⚠️ FINAL CONFIRMATION</p>
+                <p className="text-sm text-red-800 mb-3">
+                  You are about to permanently delete <strong>{recordCounts.payments + recordCounts.importLogs + recordCounts.roomStatusLogs}</strong> records.
+                  This action cannot be undone.
+                </p>
+                <p className="text-sm font-semibold text-red-900 mb-2">
+                  Type <span className="bg-red-200 px-2 py-1 rounded font-mono">DELETE</span> to confirm:
+                </p>
+                <input
+                  type="text"
+                  value={cleanupText}
+                  onChange={(e) => setCleanupText(e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 font-mono"
+                  placeholder="Type DELETE here"
+                  disabled={deleting}
+                />
+              </div>
+
+              {cleanupProgress && (
+                <div className="bg-blue-50 border border-blue-300 rounded-lg p-3">
+                  <p className="text-sm text-blue-800 font-semibold">{cleanupProgress}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCleanupDatabase}
+                  className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={deleting || cleanupText !== 'DELETE'}
+                >
+                  {deleting ? '🗑️ Deleting...' : '✅ Confirm Cleanup'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCleanupConfirm(false);
+                    setCleanupText('');
+                    setError(null);
+                  }}
+                  className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
+                  disabled={deleting}
+                >
+                  ❌ Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
