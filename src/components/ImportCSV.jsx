@@ -367,7 +367,79 @@ const ImportCSV = () => {
       return;
     }
 
-    if (!window.confirm(`Import ${parsedData.length} records?\n\n${warnings.length} warnings detected.\n\nExisting records (same room + year + month) will be UPDATED.`)) {
+    // Group records by room + year + month to aggregate partial payments
+    const groupedRecords = {};
+    parsedData.forEach(record => {
+      const key = `${record.roomNumber}_${record.year}_${record.month}`;
+      
+      if (!groupedRecords[key]) {
+        // First record for this room+year+month
+        groupedRecords[key] = { ...record };
+      } else {
+        // Aggregate with existing record (for partial payments)
+        const existing = groupedRecords[key];
+        
+        // Sum up monetary values
+        existing.rent += record.rent;
+        existing.paidAmount += record.paidAmount;
+        existing.electricity += record.electricity;
+        existing.total += record.total;
+        
+        // Keep the latest meter readings (assume chronological order)
+        if (record.currentReading > existing.currentReading) {
+          existing.currentReading = record.currentReading;
+        }
+        if (record.oldReading < existing.oldReading || existing.oldReading === 0) {
+          existing.oldReading = record.oldReading;
+        }
+        
+        // Recalculate units and electricity based on final readings
+        existing.units = existing.currentReading - existing.oldReading;
+        if (existing.units < 0) existing.units = 0;
+        existing.electricity = existing.units * existing.ratePerUnit;
+        
+        // Recalculate total
+        existing.total = existing.rent + existing.electricity;
+        
+        // Recalculate balance
+        existing.balance = Number((existing.total - existing.paidAmount).toFixed(2));
+        
+        // Update balance type
+        if (existing.balance > 0) {
+          existing.balanceType = 'due';
+        } else if (existing.balance < 0) {
+          existing.balanceType = 'advance';
+        } else {
+          existing.balanceType = 'settled';
+        }
+        
+        // Update status
+        if (existing.paidAmount === 0) {
+          existing.status = 'unpaid';
+        } else if (existing.paidAmount >= existing.total) {
+          existing.status = existing.balance < 0 ? 'advance' : 'paid';
+        } else {
+          existing.status = 'partial';
+        }
+        
+        // Append remarks if multiple
+        if (record.remark && existing.remark !== record.remark) {
+          existing.remark = existing.remark ? `${existing.remark}; ${record.remark}` : record.remark;
+        }
+        
+        // Keep latest date
+        if (record.date && (!existing.date || record.date > existing.date)) {
+          existing.date = record.date;
+        }
+      }
+    });
+
+    const aggregatedData = Object.values(groupedRecords);
+    const aggregationInfo = parsedData.length !== aggregatedData.length 
+      ? `\n\n${parsedData.length} rows aggregated into ${aggregatedData.length} unique records.\n(Multiple payments per room/month were summed together)`
+      : '';
+
+    if (!window.confirm(`Import ${aggregatedData.length} records?${aggregationInfo}\n\n${warnings.length} warnings detected.\n\nExisting records (same room + year + month) will be UPDATED.`)) {
       return;
     }
 
@@ -384,6 +456,7 @@ const ImportCSV = () => {
         timestamp: new Date().toISOString(),
         fileName: file.name,
         totalRows: parsedData.length,
+        aggregatedRecords: aggregatedData.length,
         successCount: 0,
         updatedCount: 0,
         errorCount: 0,
@@ -392,15 +465,15 @@ const ImportCSV = () => {
         errors: []
       };
 
-      // Import records
-      for (let i = 0; i < parsedData.length; i++) {
+      // Import aggregated records
+      for (let i = 0; i < aggregatedData.length; i++) {
         try {
-          const record = parsedData[i];
+          const record = aggregatedData[i];
           
           // Create payment ID: roomNumber_year_month
           const paymentId = `${record.roomNumber}_${record.year}_${record.month}`;
           
-          // Check for duplicates
+          // Check for existing record
           const existingDoc = await getDocs(
             query(
               collection(db, 'payments'),
@@ -432,7 +505,7 @@ const ImportCSV = () => {
             paymentMode: record.paymentMode,
             status: record.status,
             floor: record.floor,
-            roomStatus: record.roomStatus, // Include room status in payment record
+            roomStatus: record.roomStatus,
             source: record.source,
             notes: record.notes,
             tenantValidated: false,
@@ -584,7 +657,21 @@ const ImportCSV = () => {
               <li>• <strong>Missing tenant name → replaced with "Historical Record"</strong></li>
               <li>• <strong>Room status = vacant → all amounts forced to 0</strong></li>
               <li>• Tenant names stored as snapshots - NEVER validated</li>
-              <li>• Duplicates (room + year + month) → UPDATED, not rejected</li>
+              <li>• <strong>Same room+year+month → Amounts SUMMED (aggregated)</strong></li>
+            </ul>
+          </div>
+
+          <div className="bg-purple-100 border border-purple-300 rounded p-3 mt-3">
+            <strong className="text-purple-900">🔄 PARTIAL PAYMENTS AGGREGATION:</strong>
+            <ul className="ml-4 mt-1 space-y-1">
+              <li>• <strong>Multiple CSV rows for same room+month = AUTO-SUMMED</strong></li>
+              <li>• Perfect for partial payments (tenant pays in installments)</li>
+              <li>• Example: Room 101, Jan 2017:</li>
+              <li className="ml-6">→ CSV Row 1: Rs 10,000</li>
+              <li className="ml-6">→ CSV Row 2: Rs 7,000</li>
+              <li className="ml-6">→ CSV Row 3: Rs 20,608</li>
+              <li className="ml-6">→ <strong>Result: ONE record with Rs 37,608 total</strong></li>
+              <li>• Different months create separate records (as expected)</li>
             </ul>
           </div>
 
