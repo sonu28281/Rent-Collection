@@ -32,7 +32,8 @@ const Sidebar = () => {
     { icon: '🏦', label: 'Bank Accounts', path: '/bank-accounts' },
     { icon: '💾', label: 'Backup & Export', path: '/backup' },
     { icon: '📋', label: 'Import Logs', path: '/import-logs' },
-    { icon: '🚨', label: 'Payments Reset', path: '/payments-reset' },
+    { icon: '�', label: 'Setup 2026 Tenants', path: '/setup-2026' },
+    { icon: '�🚨', label: 'Payments Reset', path: '/payments-reset' },
     { icon: '🗑️', label: 'Database Cleanup', path: '/database-cleanup' },
   ];
 

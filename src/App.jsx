@@ -22,6 +22,7 @@ import PaymentsReset from './components/PaymentsReset';
 import DatabaseCleanup from './components/DatabaseCleanup';
 import RoomHistory from './components/RoomHistory';
 import TenantHistory from './components/TenantHistory';
+import SetupTenants2026 from './components/SetupTenants2026';
 
 function App() {
   return (
@@ -166,6 +167,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><TenantHistory /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/setup-2026" 
+            element={
+              <ProtectedRoute>
+                <Layout><SetupTenants2026 /></Layout>
               </ProtectedRoute>
             } 
           />

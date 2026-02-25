@@ -8,7 +8,7 @@ const TenantPortal = () => {
   const navigate = useNavigate();
   const [tenant, setTenant] = useState(null);
   const [room, setRoom] = useState(null);
-  const [monthlyRecords, setMonthlyRecords] = useState([]);
+  const [paymentRecords, setPaymentRecords] = useState([]);
   const [activeUPI, setActiveUPI] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -57,21 +57,23 @@ const TenantPortal = () => {
         }
       }
 
-      // Fetch monthly records
-      const recordsRef = collection(db, 'monthlyRecords');
-      const recordsQuery = query(
-        recordsRef, 
-        where('tenantId', '==', tenantSnapshot.docs[0].id),
+      // Fetch payment records from payments collection
+      const paymentsRef = collection(db, 'payments');
+      const paymentsQuery = query(
+        paymentsRef, 
+        where('roomNumber', '==', tenantData.roomNumber),
+        where('year', '>=', 2024), // Only show recent records
         orderBy('year', 'desc'),
-        orderBy('month', 'desc')
+        orderBy('month', 'desc'),
+        limit(12) // Last 12 months
       );
-      const recordsSnapshot = await getDocs(recordsQuery);
+      const paymentsSnapshot = await getDocs(paymentsQuery);
       
       const records = [];
-      recordsSnapshot.forEach((doc) => {
+      paymentsSnapshot.forEach((doc) => {
         records.push({ id: doc.id, ...doc.data() });
       });
-      setMonthlyRecords(records);
+      setPaymentRecords(records);
 
       // Fetch active UPI
       const upiRef = collection(db, 'bankAccounts');
@@ -91,9 +93,15 @@ const TenantPortal = () => {
   };
 
   const calculateTotalDues = () => {
-    return monthlyRecords
-      .filter(record => record.status === 'pending' || record.status === 'overdue')
-      .reduce((total, record) => total + (record.total || 0), 0);
+    return paymentRecords
+      .filter(record => record.status !== 'paid')
+      .reduce((total, record) => {
+        const rent = Number(record.rent) || 0;
+        const electricity = Number(record.electricity) || 0;
+        const paidAmount = Number(record.paidAmount) || 0;
+        const totalAmount = rent + electricity;
+        return total + (totalAmount - paidAmount);
+      }, 0);
   };
 
   const getStatusBadge = (status) => {
@@ -228,6 +236,36 @@ const TenantPortal = () => {
           </div>
         </div>
 
+        {/* Meter Reading Card */}
+        {room && (
+          <div className="card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              ⚡ Electricity Meter
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white bg-opacity-20 rounded-lg p-3">
+                <p className="text-purple-100 text-xs mb-1">Current Reading</p>
+                <p className="text-2xl font-bold">{room.currentReading || 0}</p>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-3">
+                <p className="text-purple-100 text-xs mb-1">Previous Reading</p>
+                <p className="text-2xl font-bold">{room.previousReading || 0}</p>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-3">
+                <p className="text-purple-100 text-xs mb-1">Units Used</p>
+                <p className="text-2xl font-bold">{(room.currentReading || 0) - (room.previousReading || 0)}</p>
+              </div>
+              <div className="bg-white bg-opacity-20 rounded-lg p-3">
+                <p className="text-purple-100 text-xs mb-1">Rate per Unit</p>
+                <p className="text-2xl font-bold">₹{room.ratePerUnit || 0}</p>
+              </div>
+            </div>
+            <p className="text-purple-100 text-sm mt-4">
+              💡 Electricity charges are calculated based on units consumed
+            </p>
+          </div>
+        )}
+
         {/* Active UPI for Payment */}
         {activeUPI && (
           <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
@@ -268,64 +306,75 @@ const TenantPortal = () => {
             📊 Payment History
           </h3>
           
-          {monthlyRecords.length === 0 ? (
+          {paymentRecords.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <div className="text-5xl mb-2">📋</div>
               <p>No payment records yet</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {monthlyRecords.map((record) => (
-                <div 
-                  key={record.id}
-                  className={`border rounded-lg p-4 transition hover:shadow-md ${
-                    record.status === 'paid' ? 'bg-green-50 border-green-200' :
-                    record.status === 'overdue' ? 'bg-red-50 border-red-200' :
-                    'bg-yellow-50 border-yellow-200'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-bold text-gray-800">
-                        {getMonthName(record.month)} {record.year}
-                      </p>
-                      {record.dueDate && (
-                        <p className="text-sm text-gray-600">
-                          Due: {new Date(record.dueDate).toLocaleDateString('en-IN')}
+              {paymentRecords.map((record) => {
+                const rent = Number(record.rent) || 0;
+                const electricity = Number(record.electricity) || 0;
+                const total = rent + electricity;
+                const paid = Number(record.paidAmount) || 0;
+                const balance = total - paid;
+                const units = record.units || 0;
+                
+                return (
+                  <div 
+                    key={record.id}
+                    className={`border rounded-lg p-4 transition hover:shadow-md ${
+                      record.status === 'paid' ? 'bg-green-50 border-green-200' :
+                      record.status === 'partial' ? 'bg-yellow-50 border-yellow-200' :
+                      'bg-red-50 border-red-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="font-bold text-gray-800">
+                          {getMonthName(record.month)} {record.year}
                         </p>
+                        {record.date && (
+                          <p className="text-sm text-gray-600">
+                            Date: {record.date}
+                          </p>
+                        )}
+                      </div>
+                      {getStatusBadge(record.status)}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-600">Rent:</span>
+                        <span className="font-semibold ml-2">₹{rent.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Units:</span>
+                        <span className="font-semibold ml-2">{units}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Electricity:</span>
+                        <span className="font-semibold ml-2">₹{electricity.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Paid:</span>
+                        <span className="font-semibold ml-2">₹{paid.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="col-span-2 mt-2 pt-2 border-t border-gray-300">
+                        <span className="text-gray-700 font-semibold">Total:</span>
+                        <span className="font-bold text-lg ml-2">₹{total.toLocaleString('en-IN')}</span>
+                      </div>
+                      {balance > 0 && (
+                        <div className="col-span-2">
+                          <span className="text-red-600 font-semibold">Balance Due:</span>
+                          <span className="font-bold text-lg ml-2 text-red-600">₹{balance.toLocaleString('en-IN')}</span>
+                        </div>
                       )}
                     </div>
-                    {getStatusBadge(record.status)}
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-gray-600">Rent:</span>
-                      <span className="font-semibold ml-2">₹{(record.rent || 0).toLocaleString('en-IN')}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Electricity:</span>
-                      <span className="font-semibold ml-2">₹{(record.electricity || 0).toLocaleString('en-IN')}</span>
-                    </div>
-                    {record.extraCharges > 0 && (
-                      <div>
-                        <span className="text-gray-600">Extra:</span>
-                        <span className="font-semibold ml-2">₹{record.extraCharges.toLocaleString('en-IN')}</span>
-                      </div>
-                    )}
-                    {record.lateFee > 0 && (
-                      <div>
-                        <span className="text-gray-600">Late Fee:</span>
-                        <span className="font-semibold ml-2 text-red-600">₹{record.lateFee.toLocaleString('en-IN')}</span>
-                      </div>
-                    )}
-                    <div className="col-span-2 mt-2 pt-2 border-t border-gray-300">
-                      <span className="text-gray-700 font-semibold">Total:</span>
-                      <span className="font-bold text-lg ml-2">₹{(record.total || 0).toLocaleString('en-IN')}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
