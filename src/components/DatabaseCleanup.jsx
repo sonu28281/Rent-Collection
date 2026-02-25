@@ -17,6 +17,9 @@ function DatabaseCleanup() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [roomCleanupLoading, setRoomCleanupLoading] = useState(false);
   const [invalidRooms, setInvalidRooms] = useState([]);
+  const [allRooms, setAllRooms] = useState([]);
+  const [selectedRooms, setSelectedRooms] = useState([]);
+  const [showManualDelete, setShowManualDelete] = useState(false);
 
   /**
    * Get document counts from collections
@@ -113,6 +116,111 @@ function DatabaseCleanup() {
     } catch (err) {
       console.error('Error removing invalid rooms:', err);
       setError('Failed to remove rooms: ' + err.message);
+    } finally {
+      setRoomCleanupLoading(false);
+    }
+  };
+
+  /**
+   * Load all rooms for manual deletion
+   */
+  const loadAllRooms = async () => {
+    try {
+      setRoomCleanupLoading(true);
+      const roomsRef = collection(db, 'rooms');
+      const snapshot = await getDocs(roomsRef);
+      
+      const rooms = [];
+      snapshot.forEach((docSnap) => {
+        const roomData = docSnap.data();
+        rooms.push({
+          id: docSnap.id,
+          roomNumber: Number(roomData.roomNumber) || roomData.roomNumber,
+          status: roomData.status || 'unknown',
+          tenantName: roomData.tenantName || 'N/A',
+          rent: roomData.rent || 0,
+          floor: roomData.floor || 'N/A'
+        });
+      });
+      
+      // Sort by room number
+      rooms.sort((a, b) => {
+        const numA = Number(a.roomNumber) || 0;
+        const numB = Number(b.roomNumber) || 0;
+        return numA - numB;
+      });
+      
+      setAllRooms(rooms);
+      setShowManualDelete(true);
+    } catch (err) {
+      console.error('Error loading rooms:', err);
+      setError('Failed to load rooms: ' + err.message);
+    } finally {
+      setRoomCleanupLoading(false);
+    }
+  };
+
+  /**
+   * Toggle room selection
+   */
+  const toggleRoomSelection = (roomId) => {
+    setSelectedRooms(prev => {
+      if (prev.includes(roomId)) {
+        return prev.filter(id => id !== roomId);
+      } else {
+        return [...prev, roomId];
+      }
+    });
+  };
+
+  /**
+   * Select/Deselect all rooms
+   */
+  const toggleSelectAll = () => {
+    if (selectedRooms.length === allRooms.length) {
+      setSelectedRooms([]);
+    } else {
+      setSelectedRooms(allRooms.map(room => room.id));
+    }
+  };
+
+  /**
+   * Delete selected rooms
+   */
+  const deleteSelectedRooms = async () => {
+    if (selectedRooms.length === 0) {
+      alert('⚠️ Please select at least one room to delete');
+      return;
+    }
+
+    if (!window.confirm(`⚠️ Delete ${selectedRooms.length} room(s)?\\n\\nThis cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setRoomCleanupLoading(true);
+      const batch = writeBatch(db);
+      
+      selectedRooms.forEach((roomId) => {
+        batch.delete(doc(db, 'rooms', roomId));
+      });
+      
+      await batch.commit();
+      
+      alert(`✅ Successfully deleted ${selectedRooms.length} room(s)!`);
+      
+      // Reload rooms list
+      setSelectedRooms([]);
+      await loadAllRooms();
+      
+      // Refresh stats
+      if (stats) {
+        const newStats = await getStats();
+        setStats(newStats);
+      }
+    } catch (err) {
+      console.error('Error deleting rooms:', err);
+      setError('Failed to delete rooms: ' + err.message);
     } finally {
       setRoomCleanupLoading(false);
     }
@@ -257,13 +365,22 @@ function DatabaseCleanup() {
                 Remove rooms that don't belong to your property (only 101-106 and 201-206 are valid)
               </p>
               
-              <button
-                onClick={findInvalidRooms}
-                disabled={roomCleanupLoading}
-                className="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-              >
-                {roomCleanupLoading ? '⏳ Scanning...' : '🔍 Scan for Invalid Rooms'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={findInvalidRooms}
+                  disabled={roomCleanupLoading}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+                >
+                  {roomCleanupLoading ? '⏳ Scanning...' : '🔍 Scan for Invalid Rooms'}
+                </button>
+                <button
+                  onClick={loadAllRooms}
+                  disabled={roomCleanupLoading}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+                >
+                  {roomCleanupLoading ? '⏳ Loading...' : '📋 Manual Delete'}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -301,6 +418,125 @@ function DatabaseCleanup() {
             </div>
           )}
         </div>
+
+        {/* Manual Room Deletion Modal */}
+        {showManualDelete && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">🗑️ Manual Room Deletion</h3>
+                  <p className="text-sm text-gray-600 mt-1">Select rooms to delete from database</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowManualDelete(false);
+                    setSelectedRooms([]);
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {allRooms.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <div className="text-5xl mb-2">🏠</div>
+                  <p>No rooms found in database</p>
+                </div>
+              ) : (
+                <>
+                  {/* Select All */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedRooms.length === allRooms.length && allRooms.length > 0}
+                        onChange={toggleSelectAll}
+                        className="w-5 h-5"
+                      />
+                      <span className="font-semibold text-gray-800">
+                        Select All ({selectedRooms.length} of {allRooms.length} selected)
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Room List */}
+                  <div className="space-y-2 mb-4 max-h-96 overflow-y-auto">
+                    {allRooms.map((room) => (
+                      <div
+                        key={room.id}
+                        className={`border rounded-lg p-3 transition-all ${
+                          selectedRooms.includes(room.id)
+                            ? 'bg-red-50 border-red-300'
+                            : 'bg-white border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedRooms.includes(room.id)}
+                            onChange={() => toggleRoomSelection(room.id)}
+                            className="w-5 h-5 mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-bold text-lg text-gray-800">
+                                Room {room.roomNumber}
+                              </span>
+                              <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                room.status === 'filled'
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {room.status}
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-600 space-y-1">
+                              <div className="flex gap-4">
+                                <span>👤 Tenant: {room.tenantName}</span>
+                                <span>🏢 Floor: {room.floor}</span>
+                              </div>
+                              {room.rent > 0 && (
+                                <div>💰 Rent: ₹{room.rent.toLocaleString('en-IN')}</div>
+                              )}
+                            </div>
+                          </div>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setShowManualDelete(false);
+                        setSelectedRooms([]);
+                      }}
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={deleteSelectedRooms}
+                      disabled={selectedRooms.length === 0 || roomCleanupLoading}
+                      className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      {roomCleanupLoading ? '⏳ Deleting...' : `🗑️ Delete ${selectedRooms.length} Room(s)`}
+                    </button>
+                  </div>
+
+                  <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <p className="text-yellow-800 text-sm">
+                      ⚠️ <strong>Warning:</strong> Deleted rooms cannot be recovered. Make sure you want to remove these rooms permanently.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Error Display */}
         {error && (
