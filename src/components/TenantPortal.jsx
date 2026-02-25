@@ -342,7 +342,8 @@ const TenantPortal = () => {
         dueDateStr: 'Loading...',
         status: 'due',
         dueDay: dueDay,
-        statusText: 'Loading payment status...'
+        statusText: 'Loading payment status...',
+        overdueDays: 0
       };
     }
     
@@ -389,6 +390,7 @@ const TenantPortal = () => {
     let nextDueMonth, nextDueYear;
     let status = 'pending';
     let statusText = 'Payment Pending';
+    let overdueDays = 0;
     
     // Check if current month is already paid (check both status AND paidAmount)
     // For paidAmount: Accept if rent field exists when paidAmount is missing
@@ -438,13 +440,21 @@ const TenantPortal = () => {
       nextDueYear = currentYear;
       status = 'overdue';
       statusText = 'Payment Overdue!';
+
+      const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+      const safeDueDay = Math.min(dueDay, daysInMonth);
+      const dueDate = new Date(currentYear, currentMonth - 1, safeDueDay);
+      const todayStart = new Date(currentYear, currentMonth - 1, currentDay);
+      const diffMs = todayStart.getTime() - dueDate.getTime();
+      overdueDays = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+
       console.log('⚠️ Status: OVERDUE - Past due date');
     }
     
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const dueDateStr = `${dueDay} ${monthNames[nextDueMonth - 1]} ${nextDueYear}`;
     
-    return { dueDateStr, status, dueDay, statusText };
+    return { dueDateStr, status, dueDay, statusText, overdueDays };
   };
 
   // Toggle card expansion
@@ -731,7 +741,12 @@ const TenantPortal = () => {
                       </p>
                       <p className="text-xl sm:text-2xl font-bold">{dueInfo.dueDateStr}</p>
                       {dueInfo.status === 'overdue' && (
-                        <p className="text-white/90 text-xs mt-1 font-semibold">Please pay soon!</p>
+                        <>
+                          <p className="text-white/95 text-xs mt-1 font-semibold">
+                            Overdue by {dueInfo.overdueDays} day{dueInfo.overdueDays > 1 ? 's' : ''}
+                          </p>
+                          <p className="text-white/90 text-xs mt-1 font-semibold">Please pay soon!</p>
+                        </>
                       )}
                       {dueInfo.status === 'paid' && (
                         <p className="text-white/90 text-xs mt-1 font-semibold">Thank you! 🎉</p>
