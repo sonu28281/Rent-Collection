@@ -333,6 +333,112 @@ const Settings = () => {
         </div>
       </div>
 
+      {/* Admin Tools Section */}
+      <div className="card max-w-2xl mt-6 bg-blue-50 border border-blue-200">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="text-4xl">🛠️</div>
+          <div>
+            <h3 className="text-xl font-bold text-blue-800">Admin Tools</h3>
+            <p className="text-sm text-blue-700">Quick access to administration and diagnostic tools</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3">
+          {/* Setup 2026 Tenants */}
+          <div className="bg-white border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h4 className="font-bold text-gray-800 mb-1">🚀 Setup 2026 Tenants</h4>
+                <p className="text-sm text-gray-600 mb-2">
+                  Create tenant accounts for 2026 and generate portal links for Floor 1 and Floor 2
+                </p>
+                <ul className="text-xs text-gray-500 space-y-1 mb-3">
+                  <li>✓ Creates tenant database records</li>
+                  <li>✓ Generates unique portal tokens</li>
+                  <li>✓ Ready-to-share portal links</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => window.location.href = '/setup-2026'}
+                className="ml-4 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
+              >
+                Open Setup →
+              </button>
+            </div>
+          </div>
+
+          {/* Tenant Setup Diagnostic */}
+          <div className="bg-white border border-green-200 rounded-lg p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h4 className="font-bold text-gray-800 mb-1">🔍 Tenant Setup Diagnostic</h4>
+                <p className="text-sm text-gray-600 mb-2">
+                  Verify tenant portal configuration and troubleshoot "Access Denied" errors
+                </p>
+                <ul className="text-xs text-gray-500 space-y-1 mb-3">
+                  <li>✓ Check which tenants have portal links</li>
+                  <li>✓ Identify missing tokens</li>
+                  <li>✓ Test portal access directly</li>
+                  <li>✓ Copy and share links easily</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => window.location.href = '/tenant-setup-check'}
+                className="ml-4 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
+              >
+                Run Diagnostic →
+              </button>
+            </div>
+          </div>
+
+          {/* Sync Room Meters */}
+          <div className="bg-white border border-purple-200 rounded-lg p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h4 className="font-bold text-gray-800 mb-1">⚡ Sync Room Meters</h4>
+                <p className="text-sm text-gray-600 mb-2">
+                  Update meter numbers and readings from historical payment data
+                </p>
+                <ul className="text-xs text-gray-500 space-y-1 mb-3">
+                  <li>✓ Sets meter numbers to MTR{'{roomNumber}'}</li>
+                  <li>✓ Populates latest readings from history</li>
+                  <li>✓ Updates current and previous readings</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => window.location.href = '/sync-room-meters'}
+                className="ml-4 bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
+              >
+                Sync Meters →
+              </button>
+            </div>
+          </div>
+
+          {/* Database Cleanup (Manual) */}
+          <div className="bg-white border border-orange-200 rounded-lg p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h4 className="font-bold text-gray-800 mb-1">🗑️ Manual Database Cleanup</h4>
+                <p className="text-sm text-gray-600 mb-2">
+                  Select and delete specific rooms, or scan for invalid room records
+                </p>
+                <ul className="text-xs text-gray-500 space-y-1 mb-3">
+                  <li>✓ Checkbox-based room deletion</li>
+                  <li>✓ Scan for invalid rooms</li>
+                  <li>✓ Batch delete with confirmation</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => window.location.href = '/database-cleanup'}
+                className="ml-4 bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
+              >
+                Open Cleanup →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Danger Zone - Database Cleanup */}
       <div className="card max-w-2xl mt-6 border-2 border-red-300 bg-red-50">
         <div className="flex items-center gap-3 mb-6">

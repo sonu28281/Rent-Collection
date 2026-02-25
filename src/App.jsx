@@ -25,6 +25,7 @@ import TenantHistory from './components/TenantHistory';
 import SetupTenants2026 from './components/SetupTenants2026';
 import VacancyReport from './components/VacancyReport';
 import SyncRoomMeters from './components/SyncRoomMeters';
+import TenantSetupCheck from './components/TenantSetupCheck';
 
 function App() {
   return (
@@ -193,6 +194,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><SetupTenants2026 /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/tenant-setup-check" 
+            element={
+              <ProtectedRoute>
+                <Layout><TenantSetupCheck /></Layout>
               </ProtectedRoute>
             } 
           />
