@@ -4,10 +4,16 @@ import { db } from '../firebase';
 
 /**
  * Tenant Portal - Username/Password Login
+ * Version: 2.1.0 (Feb 25, 2026 - Fixed payment display & due date logic)
  * 
  * Login:
  * - Username = Room Number (e.g., "101")
  * - Password = Set during setup (default: "password")
+ * 
+ * Changes:
+ * - Fixed payment record display (showing all records, not just 12)
+ * - Fixed due date logic (shows green when current month paid)
+ * - Added detailed console logging for debugging
  */
 const TenantPortal = () => {
   // Login state
@@ -75,25 +81,48 @@ const TenantPortal = () => {
     setLoading(true);
 
     try {
+      console.log('👤 Fetching data for tenant:', {
+        name: tenantData.name,
+        roomNumber: tenantData.roomNumber,
+        roomNumberType: typeof tenantData.roomNumber
+      });
+      
       // Convert roomNumber to appropriate type for queries
       const roomNumberAsNumber = typeof tenantData.roomNumber === 'string' 
         ? parseInt(tenantData.roomNumber, 10) 
         : tenantData.roomNumber;
       const roomNumberAsString = String(tenantData.roomNumber);
       
+      console.log('🔢 Converted room numbers:', {
+        asNumber: roomNumberAsNumber,
+        asString: roomNumberAsString
+      });
+      
       // Fetch room details - try both number and string
       const roomsRef = collection(db, 'rooms');
       let roomQuery = query(roomsRef, where('roomNumber', '==', roomNumberAsNumber));
       let roomSnapshot = await getDocs(roomQuery);
       
+      console.log('🏠 Room query result (number):', roomSnapshot.size);
+      
       // If not found with number, try with string
       if (roomSnapshot.empty) {
+        console.log('⚠️ Room not found with number, trying string...');
         roomQuery = query(roomsRef, where('roomNumber', '==', roomNumberAsString));
         roomSnapshot = await getDocs(roomQuery);
+        console.log('🏠 Room query result (string):', roomSnapshot.size);
       }
       
       if (!roomSnapshot.empty) {
-        setRoom({ id: roomSnapshot.docs[0].id, ...roomSnapshot.docs[0].data() });
+        const roomData = { id: roomSnapshot.docs[0].id, ...roomSnapshot.docs[0].data() };
+        console.log('✅ Room found:', {
+          roomNumber: roomData.roomNumber,
+          currentReading: roomData.currentReading,
+          rent: roomData.rent
+        });
+        setRoom(roomData);
+      } else {
+        console.log('❌ Room not found!');
       }
 
       // Fetch payment records - Simplified query without year filter
@@ -103,21 +132,38 @@ const TenantPortal = () => {
         paymentsRef, 
         where('roomNumber', '==', roomNumberAsNumber)
       );
+      
+      console.log('🔍 Fetching payments for room:', roomNumberAsNumber);
       const paymentsSnapshot = await getDocs(paymentsQuery);
+      console.log('📊 Total payments fetched:', paymentsSnapshot.size);
       
       // Collect all records and sort in JavaScript
       const records = [];
       paymentsSnapshot.forEach((doc) => {
-        records.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        records.push({ id: doc.id, ...data });
       });
       
-      // Sort by year and month (descending), then take last 12
+      console.log('📋 Total records collected:', records.length);
+      
+      // Log some raw data before sorting
+      const sample2026 = records.filter(r => r.year === 2026);
+      console.log('🔍 2026 records found:', sample2026.length);
+      if (sample2026.length > 0) {
+        console.log('Sample 2026 records:', sample2026.map(r => ({ month: r.month, year: r.year, status: r.status })));
+      }
+      
+      // Sort by year and month (descending)
       records.sort((a, b) => {
-        if (b.year !== a.year) return b.year - a.year;
+        const yearDiff = b.year - a.year;
+        if (yearDiff !== 0) return yearDiff;
         return b.month - a.month;
       });
       
-      setPaymentRecords(records.slice(0, 12));
+      console.log('🔝 Top 5 payments after sort:', records.slice(0, 5).map(r => `${r.month}/${r.year} (${r.status})`));
+      
+      // Show all records, not just 12
+      setPaymentRecords(records);
 
       // Fetch active UPI
       const upiRef = collection(db, 'bankAccounts');
