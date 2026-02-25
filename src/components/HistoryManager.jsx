@@ -9,6 +9,7 @@ import {
   updateDoc,
   writeBatch,
   getDocs,
+  deleteDoc,
   serverTimestamp 
 } from 'firebase/firestore';
 import { db, auth } from '../firebase';
@@ -35,6 +36,7 @@ const HistoryManager = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const ADMIN_EMAIL = 'sonu28281@gmail.com';
 
@@ -261,6 +263,38 @@ const HistoryManager = () => {
     } catch (error) {
       console.error('Error bulk marking paid:', error);
       showToast('Bulk update failed', 'error');
+    }
+  };
+
+  // Delete by Year/Month
+  const deleteByYearMonth = async () => {
+    try {
+      const recordsToDelete = filteredPayments;
+      
+      if (recordsToDelete.length === 0) {
+        showToast('No records to delete', 'error');
+        return;
+      }
+
+      const batch = writeBatch(db);
+      
+      recordsToDelete.forEach(payment => {
+        const docRef = doc(db, 'payments', payment.id);
+        batch.delete(docRef);
+      });
+
+      await batch.commit();
+      
+      const monthName = selectedMonth === 'all' 
+        ? 'All Months' 
+        : MONTHS.find(m => m.num === selectedMonth)?.name || `Month ${selectedMonth}`;
+      
+      showToast(`✅ Deleted ${recordsToDelete.length} records from ${monthName} ${selectedYear}`, 'success');
+      setShowDeleteConfirm(false);
+      setSelectedIds(new Set());
+    } catch (error) {
+      console.error('Error deleting records:', error);
+      showToast('Delete failed: ' + error.message, 'error');
     }
   };
 
@@ -497,6 +531,14 @@ const HistoryManager = () => {
                 className="btn-primary text-sm"
               >
                 ✅ Mark Paid ({selectedIds.size})
+              </button>
+              
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={filteredPayments.length === 0}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                🗑️ Delete {selectedMonth === 'all' ? selectedYear : MONTHS.find(m => m.num === selectedMonth)?.name + ' ' + selectedYear}
               </button>
             </div>
           </div>
@@ -972,6 +1014,52 @@ const HistoryManager = () => {
                 className="btn-primary"
               >
                 Confirm Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <span className="text-2xl">⚠️</span>
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-800">Confirm Delete</h3>
+                <p className="text-sm text-gray-600">This action cannot be undone</p>
+              </div>
+            </div>
+            
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <p className="text-red-800 font-semibold mb-2">
+                You are about to delete:
+              </p>
+              <ul className="text-red-700 space-y-1 ml-4">
+                <li>• <strong>{filteredPayments.length}</strong> payment record{filteredPayments.length !== 1 ? 's' : ''}</li>
+                <li>• Year: <strong>{selectedYear}</strong></li>
+                <li>• Month: <strong>{selectedMonth === 'all' ? 'All Months' : MONTHS.find(m => m.num === selectedMonth)?.name}</strong></li>
+              </ul>
+              <p className="text-red-800 font-bold mt-3">
+                ⚠️ This will permanently delete all matching records from the database!
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteByYearMonth}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+              >
+                🗑️ Delete {filteredPayments.length} Record{filteredPayments.length !== 1 ? 's' : ''}
               </button>
             </div>
           </div>
