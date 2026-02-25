@@ -181,6 +181,44 @@ const VacancyReport = () => {
     );
   }
 
+  // Check if no data available
+  if (allPayments.length === 0 || yearlyReport.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">📊 Vacancy Report</h1>
+          <p className="text-gray-600">
+            Historical vacancy analysis across all rooms and years
+          </p>
+        </div>
+
+        <div className="card text-center py-12">
+          <div className="text-6xl mb-4">📭</div>
+          <h3 className="text-2xl font-bold text-gray-800 mb-2">No Data Available</h3>
+          <p className="text-gray-600 mb-6">
+            No payment records found in the database.
+            <br />
+            Import historical data or check if payments collection has data.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => window.location.href = '/import'}
+              className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg"
+            >
+              📥 Import Data
+            </button>
+            <button
+              onClick={() => window.location.href = '/sync-room-meters'}
+              className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-6 rounded-lg"
+            >
+              ⚡ Sync Room Meters
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const coronaImpact = getCoronaImpact();
 
   return (

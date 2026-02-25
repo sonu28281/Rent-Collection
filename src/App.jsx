@@ -24,6 +24,7 @@ import RoomHistory from './components/RoomHistory';
 import TenantHistory from './components/TenantHistory';
 import SetupTenants2026 from './components/SetupTenants2026';
 import VacancyReport from './components/VacancyReport';
+import SyncRoomMeters from './components/SyncRoomMeters';
 
 function App() {
   return (
@@ -176,6 +177,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><VacancyReport /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/sync-room-meters" 
+            element={
+              <ProtectedRoute>
+                <Layout><SyncRoomMeters /></Layout>
               </ProtectedRoute>
             } 
           />
