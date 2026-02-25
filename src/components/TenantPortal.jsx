@@ -76,23 +76,27 @@ const TenantPortal = () => {
         setRoom({ id: roomSnapshot.docs[0].id, ...roomSnapshot.docs[0].data() });
       }
 
-      // Fetch payment records
+      // Fetch payment records - Simplified query without year filter
       const paymentsRef = collection(db, 'payments');
       const paymentsQuery = query(
         paymentsRef, 
-        where('roomNumber', '==', tenantData.roomNumber),
-        where('year', '>=', 2024),
-        orderBy('year', 'desc'),
-        orderBy('month', 'desc'),
-        limit(12)
+        where('roomNumber', '==', tenantData.roomNumber)
       );
       const paymentsSnapshot = await getDocs(paymentsQuery);
       
+      // Collect all records and sort in JavaScript
       const records = [];
       paymentsSnapshot.forEach((doc) => {
         records.push({ id: doc.id, ...doc.data() });
       });
-      setPaymentRecords(records);
+      
+      // Sort by year and month (descending), then take last 12
+      records.sort((a, b) => {
+        if (b.year !== a.year) return b.year - a.year;
+        return b.month - a.month;
+      });
+      
+      setPaymentRecords(records.slice(0, 12));
 
       // Fetch active UPI
       const upiRef = collection(db, 'bankAccounts');
