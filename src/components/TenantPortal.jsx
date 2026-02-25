@@ -147,6 +147,16 @@ const TenantPortal = () => {
 
   // Calculate next due date and payment status
   const getNextDueDate = () => {
+    // If payment records not loaded yet, show loading state
+    if (!paymentRecords || paymentRecords.length === 0) {
+      return {
+        dueDateStr: 'Loading...',
+        status: 'due',
+        dueDay: tenant?.dueDate || 20,
+        statusText: 'Loading payment status...'
+      };
+    }
+    
     const today = new Date();
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth() + 1; // 1-12
@@ -158,11 +168,27 @@ const TenantPortal = () => {
       p => p.year === currentYear && p.month === currentMonth
     );
     
+    // Debug logging
+    console.log('🔍 Due Date Check:', {
+      currentYear,
+      currentMonth,
+      currentDay,
+      dueDay,
+      paymentRecordsCount: paymentRecords.length,
+      currentMonthPayment: currentMonthPayment ? {
+        year: currentMonthPayment.year,
+        month: currentMonthPayment.month,
+        status: currentMonthPayment.status
+      } : 'Not found'
+    });
+    
     let nextDueMonth, nextDueYear;
     let status = 'pending';
+    let statusText = 'Payment Pending';
     
+    // Check if current month is already paid
     if (currentMonthPayment && currentMonthPayment.status === 'paid') {
-      // Current month paid, next due is next month
+      // ✅ Current month paid - Show NEXT month's due date
       if (currentMonth === 12) {
         nextDueMonth = 1;
         nextDueYear = currentYear + 1;
@@ -171,22 +197,25 @@ const TenantPortal = () => {
         nextDueYear = currentYear;
       }
       status = 'paid';
+      statusText = 'Current Month Paid ✅';
     } else if (currentDay <= dueDay) {
-      // Within current month, before due date
+      // Payment due this month, still within due date
       nextDueMonth = currentMonth;
       nextDueYear = currentYear;
       status = 'due';
+      statusText = 'Payment Due This Month';
     } else {
-      // After due date, not paid
+      // After due date and not paid - OVERDUE
       nextDueMonth = currentMonth;
       nextDueYear = currentYear;
       status = 'overdue';
+      statusText = 'Payment Overdue!';
     }
     
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const dueDateStr = `${dueDay} ${monthNames[nextDueMonth - 1]} ${nextDueYear}`;
     
-    return { dueDateStr, status, dueDay };
+    return { dueDateStr, status, dueDay, statusText };
   };
 
   // Toggle card expansion
@@ -375,11 +404,6 @@ const TenantPortal = () => {
                 due: '📅',
                 overdue: '⚠️'
               };
-              const statusTexts = {
-                paid: 'Current Month Paid',
-                due: 'Payment Due',
-                overdue: 'Payment Overdue'
-              };
               
               return (
                 <div className={`bg-gradient-to-r ${statusColors[dueInfo.status]} text-white rounded-lg shadow-lg p-4 sm:p-6`}>
@@ -387,9 +411,9 @@ const TenantPortal = () => {
                     <div className="flex items-center gap-3 sm:gap-4 flex-1 w-full">
                       <div className="text-3xl sm:text-5xl">{statusIcons[dueInfo.status]}</div>
                       <div className="flex-1">
-                        <h3 className="text-lg sm:text-xl font-bold mb-1">{statusTexts[dueInfo.status]}</h3>
+                        <h3 className="text-lg sm:text-xl font-bold mb-1">{dueInfo.statusText}</h3>
                         <p className="text-white/90 text-xs sm:text-sm">
-                          {dueInfo.status === 'paid' ? 'Next payment due' : 'Monthly rent payment'}
+                          {dueInfo.status === 'paid' ? 'Next payment due on' : 'Monthly rent payment'}
                         </p>
                       </div>
                     </div>
@@ -400,6 +424,9 @@ const TenantPortal = () => {
                       <p className="text-xl sm:text-2xl font-bold">{dueInfo.dueDateStr}</p>
                       {dueInfo.status === 'overdue' && (
                         <p className="text-white/90 text-xs mt-1 font-semibold">Please pay soon!</p>
+                      )}
+                      {dueInfo.status === 'paid' && (
+                        <p className="text-white/90 text-xs mt-1 font-semibold">Thank you! 🎉</p>
                       )}
                     </div>
                   </div>
