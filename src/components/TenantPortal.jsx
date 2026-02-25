@@ -30,7 +30,7 @@ const TenantPortal = () => {
       const tenantSnapshot = await getDocs(tenantQuery);
 
       if (tenantSnapshot.empty) {
-        setError('Invalid access token. Please contact admin.');
+        setError('Invalid access link. This could mean: 1) Your account has not been set up yet, 2) The link is incorrect or expired. Please contact your property manager for a valid portal link.');
         setLoading(false);
         return;
       }
@@ -39,7 +39,7 @@ const TenantPortal = () => {
       
       // Check if tenant is active
       if (!tenantData.isActive) {
-        setError('Your account is inactive. Please contact admin.');
+        setError('Your account is currently inactive. Please contact the property manager to reactivate your account.');
         setLoading(false);
         return;
       }
@@ -141,13 +141,18 @@ const TenantPortal = () => {
         <div className="card max-w-md w-full text-center bg-white">
           <div className="text-6xl mb-4">🔒</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
-          <p className="text-red-600 mb-4">{error}</p>
-          <button 
-            onClick={() => navigate('/')}
-            className="btn-primary"
-          >
-            Go to Homepage
-          </button>
+          <p className="text-red-600 mb-6">{error}</p>
+          
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+            <p className="text-sm text-blue-800 mb-2">
+              <strong>Need help?</strong>
+            </p>
+            <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
+              <li>Contact your property manager</li>
+              <li>Request a new portal link</li>
+              <li>Verify your link is correct</li>
+            </ul>
+          </div>
         </div>
       </div>
     );

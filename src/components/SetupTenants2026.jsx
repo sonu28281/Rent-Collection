@@ -153,6 +153,23 @@ const SetupTenants2026 = () => {
         </p>
       </div>
 
+      {/* Important Info */}
+      <div className="card bg-yellow-50 border-2 border-yellow-300 mb-6">
+        <div className="flex items-start gap-3">
+          <span className="text-3xl">⚠️</span>
+          <div className="flex-1">
+            <h3 className="font-bold text-yellow-900 mb-2">Important: Run Setup Before Sharing Links</h3>
+            <ul className="text-yellow-800 text-sm space-y-1 list-disc list-inside">
+              <li><strong>Step 1:</strong> Click Floor 1 or Floor 2 button below to create tenant accounts</li>
+              <li><strong>Step 2:</strong> Copy the generated portal links for each tenant</li>
+              <li><strong>Step 3:</strong> Share links via WhatsApp or SMS (use Tenants page for quick sharing)</li>
+              <li><strong>Step 4:</strong> Test links by clicking "Test" button to verify they work</li>
+              <li>⚠️ If tenants get "Invalid link" error = Setup not run yet!</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       {/* Floor Selection */}
       <div className="card mb-6">
         <h2 className="text-xl font-bold text-gray-800 mb-4">Select Floor to Setup</h2>
@@ -270,12 +287,21 @@ const SetupTenants2026 = () => {
                         <p className="font-bold text-gray-800">Room {tenant.roomNumber} - {tenant.tenantName}</p>
                         <p className="text-sm text-gray-600">Rent: ₹{tenant.rent.toLocaleString('en-IN')} | Due: {tenant.dueDate}th</p>
                       </div>
-                      <button
-                        onClick={() => navigator.clipboard.writeText(tenant.portalLink)}
-                        className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
-                      >
-                        📋 Copy Link
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => window.open(tenant.portalLink, '_blank')}
+                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                          title="Open portal link in new tab to test"
+                        >
+                          🔗 Test
+                        </button>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(tenant.portalLink)}
+                          className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+                        >
+                          📋 Copy
+                        </button>
+                      </div>
                     </div>
                     <div className="bg-gray-50 rounded p-2 text-xs font-mono break-all">
                       {tenant.portalLink}
