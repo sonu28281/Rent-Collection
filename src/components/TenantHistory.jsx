@@ -10,6 +10,7 @@ const TenantHistory = () => {
   const [stats, setStats] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [tenantDetails, setTenantDetails] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const MONTHS = [
     { num: 1, name: 'Jan' }, { num: 2, name: 'Feb' }, { num: 3, name: 'Mar' },
@@ -224,10 +225,27 @@ const TenantHistory = () => {
     return grouped;
   };
 
-  // Filter tenants based on search
-  const filteredTenants = tenants.filter(tenant =>
-    tenant.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter tenants based on status + search
+  const filteredTenants = tenants.filter((tenant) => {
+    const matchesSearch = tenant.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'active' && tenant.isActive) ||
+      (statusFilter === 'past' && !tenant.isActive);
+
+    return matchesSearch && matchesStatus;
+  });
+
+  useEffect(() => {
+    if (!selectedTenant) return;
+    const stillVisible = filteredTenants.some((tenant) => tenant.name === selectedTenant.name);
+    if (!stillVisible) {
+      setSelectedTenant(null);
+      setTenantHistory([]);
+      setStats(null);
+      setTenantDetails(null);
+    }
+  }, [filteredTenants, selectedTenant]);
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -252,6 +270,43 @@ const TenantHistory = () => {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
           />
+        </div>
+
+        {/* Status Filter */}
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${
+              statusFilter === 'all'
+                ? 'bg-indigo-500 text-white border-indigo-600'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+            }`}
+          >
+            All ({tenants.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('active')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${
+              statusFilter === 'active'
+                ? 'bg-green-500 text-white border-green-600'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+            }`}
+          >
+            Active ({tenants.filter((tenant) => tenant.isActive).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('past')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${
+              statusFilter === 'past'
+                ? 'bg-gray-700 text-white border-gray-800'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+            }`}
+          >
+            Past ({tenants.filter((tenant) => !tenant.isActive).length})
+          </button>
         </div>
 
         {/* Tenant List */}
