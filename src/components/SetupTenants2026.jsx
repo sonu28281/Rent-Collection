@@ -24,13 +24,7 @@ const SetupTenants2026 = () => {
     { roomNumber: 203, tenantName: 'Manali Singh', dueDate: 1, rent: 4000, ratePerUnit: 9 },
     { roomNumber: 204, tenantName: 'Suneel Gupta', dueDate: 20, rent: 4000, ratePerUnit: 9 },
     { roomNumber: 205, tenantName: 'Veer Singh', dueDate: 1, rent: 3800, ratePerUnit: 9 },
-    { roomNumber: 206, tenantName: 'Sanjeev Rastogi', dueDate: 1, rent: 2500, ratePerUnit: 9 },
-    { roomNumber: 207, tenantName: '', dueDate: 1, rent: 0, ratePerUnit: 9 },
-    { roomNumber: 208, tenantName: '', dueDate: 1, rent: 0, ratePerUnit: 9 },
-    { roomNumber: 209, tenantName: '', dueDate: 1, rent: 0, ratePerUnit: 9 },
-    { roomNumber: 210, tenantName: '', dueDate: 1, rent: 0, ratePerUnit: 9 },
-    { roomNumber: 211, tenantName: '', dueDate: 1, rent: 0, ratePerUnit: 9 },
-    { roomNumber: 212, tenantName: '', dueDate: 1, rent: 0, ratePerUnit: 9 }
+    { roomNumber: 206, tenantName: 'Sanjeev Rastogi', dueDate: 1, rent: 2500, ratePerUnit: 9 }
   ];
 
   const setupFloor = async (floorNumber) => {
@@ -244,7 +238,6 @@ const SetupTenants2026 = () => {
             </tbody>
           </table>
         </div>
-        <p className="text-sm text-gray-500 mt-2">Note: Rooms 207-212 are currently vacant</p>
       </div>
 
       {/* Loading State */}

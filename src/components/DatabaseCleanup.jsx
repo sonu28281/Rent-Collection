@@ -15,6 +15,8 @@ function DatabaseCleanup() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [roomCleanupLoading, setRoomCleanupLoading] = useState(false);
+  const [invalidRooms, setInvalidRooms] = useState([]);
 
   /**
    * Get document counts from collections
@@ -42,6 +44,77 @@ function DatabaseCleanup() {
     } catch (err) {
       console.error('Error getting stats:', err);
       throw err;
+    }
+  };
+
+  /**
+   * Find invalid rooms (not in the valid range)
+   */
+  const findInvalidRooms = async () => {
+    try {
+      setRoomCleanupLoading(true);
+      const validRoomNumbers = [101, 102, 103, 104, 105, 106, 201, 202, 203, 204, 205, 206];
+      
+      const roomsRef = collection(db, 'rooms');
+      const snapshot = await getDocs(roomsRef);
+      
+      const invalid = [];
+      snapshot.forEach((docSnap) => {
+        const roomData = docSnap.data();
+        const roomNumber = Number(roomData.roomNumber);
+        
+        if (!validRoomNumbers.includes(roomNumber)) {
+          invalid.push({
+            id: docSnap.id,
+            roomNumber: roomNumber,
+            status: roomData.status,
+            tenantName: roomData.tenantName || 'N/A'
+          });
+        }
+      });
+      
+      setInvalidRooms(invalid);
+      return invalid;
+    } catch (err) {
+      console.error('Error finding invalid rooms:', err);
+      setError('Failed to scan rooms: ' + err.message);
+      return [];
+    } finally {
+      setRoomCleanupLoading(false);
+    }
+  };
+
+  /**
+   * Remove invalid rooms from database
+   */
+  const removeInvalidRooms = async () => {
+    if (!window.confirm(`⚠️ Delete ${invalidRooms.length} invalid room(s)?\\n\\nThis cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setRoomCleanupLoading(true);
+      const batch = writeBatch(db);
+      
+      invalidRooms.forEach((room) => {
+        batch.delete(doc(db, 'rooms', room.id));
+      });
+      
+      await batch.commit();
+      
+      alert(`✅ Successfully deleted ${invalidRooms.length} invalid room(s)!`);
+      setInvalidRooms([]);
+      
+      // Refresh stats
+      if (stats) {
+        const newStats = await getStats();
+        setStats(newStats);
+      }
+    } catch (err) {
+      console.error('Error removing invalid rooms:', err);
+      setError('Failed to remove rooms: ' + err.message);
+    } finally {
+      setRoomCleanupLoading(false);
     }
   };
 
@@ -172,6 +245,61 @@ function DatabaseCleanup() {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Room Cleanup Section */}
+        <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3 mb-3">
+            <span className="text-2xl">🏠</span>
+            <div className="flex-1">
+              <h3 className="text-orange-800 font-semibold mb-1">Clean Up Invalid Rooms</h3>
+              <p className="text-orange-700 text-sm mb-3">
+                Remove rooms that don't belong to your property (only 101-106 and 201-206 are valid)
+              </p>
+              
+              <button
+                onClick={findInvalidRooms}
+                disabled={roomCleanupLoading}
+                className="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+              >
+                {roomCleanupLoading ? '⏳ Scanning...' : '🔍 Scan for Invalid Rooms'}
+              </button>
+            </div>
+          </div>
+
+          {invalidRooms.length > 0 && (
+            <div className="bg-white border border-orange-200 rounded-lg p-3 mt-3">
+              <h4 className="font-semibold text-orange-900 mb-2">
+                ⚠️ Found {invalidRooms.length} Invalid Room(s):
+              </h4>
+              <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
+                {invalidRooms.map((room) => (
+                  <div key={room.id} className="flex items-center justify-between text-sm bg-orange-50 p-2 rounded">
+                    <div>
+                      <span className="font-semibold text-orange-800">Room {room.roomNumber}</span>
+                      <span className="text-gray-600 ml-2">• {room.status}</span>
+                      {room.tenantName !== 'N/A' && (
+                        <span className="text-gray-600 ml-2">• {room.tenantName}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={removeInvalidRooms}
+                disabled={roomCleanupLoading}
+                className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+              >
+                {roomCleanupLoading ? '⏳ Deleting...' : `🗑️ Delete ${invalidRooms.length} Invalid Room(s)`}
+              </button>
+            </div>
+          )}
+
+          {invalidRooms.length === 0 && !roomCleanupLoading && invalidRooms !== null && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-3 text-center text-green-800 text-sm">
+              ✅ No invalid rooms found! All rooms are valid (101-106, 201-206)
+            </div>
+          )}
         </div>
 
         {/* Error Display */}

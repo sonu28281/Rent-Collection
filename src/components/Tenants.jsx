@@ -112,6 +112,34 @@ const Tenants = () => {
     });
   };
 
+  const handleSendWhatsApp = (phone, token, tenantName) => {
+    if (!phone) {
+      alert('⚠️ Phone number not available for this tenant.\n\nPlease add their phone number first.');
+      return;
+    }
+
+    // Clean phone number (remove spaces, dashes, etc.)
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    
+    // Add country code if not present (assuming India +91)
+    const phoneWithCode = cleanPhone.startsWith('91') ? cleanPhone : '91' + cleanPhone;
+    
+    // Create portal URL
+    const portalUrl = `${window.location.origin}/t/${token}`;
+    
+    // Create WhatsApp message
+    const message = `Hello ${tenantName}! 👋\n\nYour tenant portal is ready! You can view your room details, meter readings, and payment history using this link:\n\n${portalUrl}\n\n🔐 This link is secure and only for you.\n\n- Autoxweb Rent Management`;
+    
+    // Encode message for URL
+    const encodedMessage = encodeURIComponent(message);
+    
+    // Create WhatsApp URL
+    const whatsappUrl = `https://wa.me/${phoneWithCode}?text=${encodedMessage}`;
+    
+    // Open WhatsApp in new tab
+    window.open(whatsappUrl, '_blank');
+  };
+
   const filteredTenants = tenants.filter(tenant => {
     if (filter === 'all') return true;
     if (filter === 'active') return tenant.isActive;
@@ -260,6 +288,7 @@ const Tenants = () => {
               onEdit={() => handleEditTenant(tenant)}
               onDelete={() => handleDeleteTenant(tenant.id, tenant.roomNumber)}
               onCopyPortalLink={() => handleCopyPortalLink(tenant.uniqueToken)}
+              onSendWhatsApp={() => handleSendWhatsApp(tenant.phone, tenant.uniqueToken, tenant.name)}
             />
           ))}
         </div>
@@ -279,7 +308,7 @@ const Tenants = () => {
   );
 };
 
-const TenantCard = ({ tenant, onEdit, onDelete, onCopyPortalLink }) => {
+const TenantCard = ({ tenant, onEdit, onDelete, onCopyPortalLink, onSendWhatsApp }) => {
   const isActive = tenant.isActive;
   
   return (
@@ -353,16 +382,23 @@ const TenantCard = ({ tenant, onEdit, onDelete, onCopyPortalLink }) => {
         )}
       </div>
 
-      <div className="flex gap-2">
-        <button onClick={onCopyPortalLink} className="btn-secondary flex-1 text-sm" title="Copy tenant portal link">
-          🔗 Link
-        </button>
-        <button onClick={onEdit} className="btn-primary flex-1 text-sm">
-          ✏️ Edit
-        </button>
-        <button onClick={onDelete} className="btn-secondary flex-1 text-sm">
-          🗑️ Delete
-        </button>
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <button onClick={onCopyPortalLink} className="btn-secondary flex-1 text-sm" title="Copy tenant portal link">
+            🔗 Link
+          </button>
+          <button onClick={onSendWhatsApp} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition flex-1 text-sm" title="Send portal link via WhatsApp">
+            📱 WhatsApp
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onEdit} className="btn-primary flex-1 text-sm">
+            ✏️ Edit
+          </button>
+          <button onClick={onDelete} className="btn-secondary flex-1 text-sm">
+            🗑️ Delete
+          </button>
+        </div>
       </div>
     </div>
   );
