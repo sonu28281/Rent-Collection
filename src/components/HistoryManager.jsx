@@ -943,9 +943,54 @@ const HistoryManager = () => {
               badge: 'bg-purple-200 text-purple-800'
             };
 
+            // Calculate overall totals (both floors combined)
+            const overallTotals = calculateTotals(filteredPayments);
+
             // Render both floor sections
             return (
               <div className="space-y-6">
+                {/* Overall Summary Card - Both Floors Combined */}
+                <div className="card bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border-2 border-indigo-300 shadow-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                        💰 Overall Summary - {selectedPeriod}
+                      </h3>
+                      <p className="text-sm font-semibold text-gray-600 mt-1">
+                        🏢 Both Floors Combined (All Rooms)
+                      </p>
+                    </div>
+                    <div className="text-sm font-semibold px-5 py-2.5 rounded-full bg-indigo-200 text-indigo-900">
+                      {filteredPayments.length} record{filteredPayments.length !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="bg-white rounded-lg p-4 border-2 border-blue-300 shadow-sm">
+                      <p className="text-xs text-gray-600 mb-1 font-semibold">Total Rent Received</p>
+                      <p className="text-2xl font-bold text-blue-700">₹{overallTotals.rent.toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border-2 border-purple-300 shadow-sm">
+                      <p className="text-xs text-gray-600 mb-1 font-semibold">Total Electricity</p>
+                      <p className="text-2xl font-bold text-purple-700">₹{overallTotals.electricity.toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border-2 border-green-300 shadow-sm">
+                      <p className="text-xs text-gray-600 mb-1 font-semibold">Grand Total</p>
+                      <p className="text-2xl font-bold text-green-700">₹{overallTotals.total.toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border-2 border-teal-300 shadow-sm">
+                      <p className="text-xs text-gray-600 mb-1 font-semibold">Total Paid</p>
+                      <p className="text-2xl font-bold text-teal-700">₹{overallTotals.paidAmount.toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border-2 border-orange-300 shadow-sm">
+                      <p className="text-xs text-gray-600 mb-1 font-semibold">Total Balance</p>
+                      <p className={`text-2xl font-bold ${overallTotals.balance < 0 ? 'text-red-700' : 'text-orange-700'}`}>
+                        ₹{overallTotals.balance.toLocaleString('en-IN')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {renderFloorSection(1, floor1Payments, floor1Colors)}
                 {renderFloorSection(2, floor2Payments, floor2Colors)}
               </div>
