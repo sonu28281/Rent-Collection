@@ -102,44 +102,6 @@ const Tenants = () => {
     }
   };
 
-  const handleCopyPortalLink = (token) => {
-    const portalUrl = `${window.location.origin}/t/${token}`;
-    navigator.clipboard.writeText(portalUrl).then(() => {
-      alert('✅ Portal link copied to clipboard!\n\nShare this link with the tenant.');
-    }).catch((err) => {
-      console.error('Failed to copy:', err);
-      prompt('Copy this link:', portalUrl);
-    });
-  };
-
-  const handleSendWhatsApp = (phone, token, tenantName) => {
-    if (!phone) {
-      alert('⚠️ Phone number not available for this tenant.\n\nPlease add their phone number first.');
-      return;
-    }
-
-    // Clean phone number (remove spaces, dashes, etc.)
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    
-    // Add country code if not present (assuming India +91)
-    const phoneWithCode = cleanPhone.startsWith('91') ? cleanPhone : '91' + cleanPhone;
-    
-    // Create portal URL
-    const portalUrl = `${window.location.origin}/t/${token}`;
-    
-    // Create WhatsApp message
-    const message = `Hello ${tenantName}! 👋\n\nYour tenant portal is ready! You can view your room details, meter readings, and payment history using this link:\n\n${portalUrl}\n\n🔐 This link is secure and only for you.\n\n- Autoxweb Rent Management`;
-    
-    // Encode message for URL
-    const encodedMessage = encodeURIComponent(message);
-    
-    // Create WhatsApp URL
-    const whatsappUrl = `https://wa.me/${phoneWithCode}?text=${encodedMessage}`;
-    
-    // Open WhatsApp in new tab
-    window.open(whatsappUrl, '_blank');
-  };
-
   const filteredTenants = tenants.filter(tenant => {
     if (filter === 'all') return true;
     if (filter === 'active') return tenant.isActive;
@@ -287,8 +249,6 @@ const Tenants = () => {
               tenant={tenant}
               onEdit={() => handleEditTenant(tenant)}
               onDelete={() => handleDeleteTenant(tenant.id, tenant.roomNumber)}
-              onCopyPortalLink={() => handleCopyPortalLink(tenant.uniqueToken)}
-              onSendWhatsApp={() => handleSendWhatsApp(tenant.phone, tenant.uniqueToken, tenant.name)}
             />
           ))}
         </div>
@@ -308,8 +268,16 @@ const Tenants = () => {
   );
 };
 
-const TenantCard = ({ tenant, onEdit, onDelete, onCopyPortalLink, onSendWhatsApp }) => {
+const TenantCard = ({ tenant, onEdit, onDelete }) => {
   const isActive = tenant.isActive;
+  
+  // Copy credentials to clipboard
+  const copyCredentials = () => {
+    const text = `Room: ${tenant.roomNumber}\nUsername: ${tenant.username}\nPassword: ${tenant.password}`;
+    navigator.clipboard.writeText(text)
+      .then(() => alert('✅ Credentials copied!\n\nShare these with the tenant.'))
+      .catch(() => prompt('Copy these credentials:', text));
+  };
   
   return (
     <div className={`card border-2 transition-all ${
@@ -342,21 +310,12 @@ const TenantCard = ({ tenant, onEdit, onDelete, onCopyPortalLink, onSendWhatsApp
       <div className="space-y-2 mb-4">
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">📱 Phone:</span>
-          <span className="font-semibold text-gray-800">{tenant.phone}</span>
+          <span className="font-semibold text-gray-800">{tenant.phone || '-'}</span>
         </div>
-        
-        {tenant.baseRent && (
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">💰 Base Rent:</span>
-            <span className="font-semibold text-gray-800">
-              ₹{tenant.baseRent.toLocaleString('en-IN')}
-            </span>
-          </div>
-        )}
         
         {tenant.currentRent && (
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600">💵 Current Rent:</span>
+            <span className="text-gray-600">💵 Rent:</span>
             <span className="font-semibold text-gray-800">
               ₹{tenant.currentRent.toLocaleString('en-IN')}
             </span>
@@ -371,34 +330,33 @@ const TenantCard = ({ tenant, onEdit, onDelete, onCopyPortalLink, onSendWhatsApp
             </span>
           </div>
         )}
-        
-        {tenant.checkOutDate && (
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">📅 Check-out:</span>
-            <span className="font-semibold text-gray-800">
-              {new Date(tenant.checkOutDate).toLocaleDateString('en-IN')}
-            </span>
-          </div>
-        )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex gap-2">
-          <button onClick={onCopyPortalLink} className="btn-secondary flex-1 text-sm" title="Copy tenant portal link">
-            🔗 Link
-          </button>
-          <button onClick={onSendWhatsApp} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition flex-1 text-sm" title="Send portal link via WhatsApp">
-            📱 WhatsApp
-          </button>
+      {/* Login Credentials */}
+      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-3 mb-4">
+        <h4 className="text-xs font-bold text-blue-800 mb-2">🔐 Portal Login</h4>
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-blue-700">Username:</span>
+            <span className="font-mono font-bold text-blue-900">{tenant.username || tenant.roomNumber}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-blue-700">Password:</span>
+            <span className="font-mono font-bold text-blue-900">{tenant.password || 'password'}</span>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button onClick={onEdit} className="btn-primary flex-1 text-sm">
-            ✏️ Edit
-          </button>
-          <button onClick={onDelete} className="btn-secondary flex-1 text-sm">
-            🗑️ Delete
-          </button>
-        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <button onClick={copyCredentials} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition flex-1 text-sm">
+          📋 Copy Login
+        </button>
+        <button onClick={onEdit} className="btn-primary flex-1 text-sm">
+          ✏️ Edit
+        </button>
+        <button onClick={onDelete} className="btn-secondary flex-1 text-sm">
+          🗑️ Delete
+        </button>
       </div>
     </div>
   );

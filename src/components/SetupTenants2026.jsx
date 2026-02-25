@@ -1,30 +1,38 @@
 import { useState } from 'react';
-import { collection, query, where, getDocs, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
+/**
+ * Simple Tenant Setup for 2026
+ * 
+ * Creates tenants with USERNAME/PASSWORD login (not token)
+ * - Username = Room Number (e.g., "101")  
+ * - Password = "password" (tenant can change later)
+ * 
+ * Prevents duplicates by deleting existing tenants before creating
+ */
 const SetupTenants2026 = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [floor, setFloor] = useState('1');
 
   // Floor 1 tenant data
   const floor1Tenants = [
-    { roomNumber: 101, tenantName: 'Janvi Singh', dueDate: 20, rent: 3200, ratePerUnit: 9 },
-    { roomNumber: 102, tenantName: 'Aadarsh Sharma', dueDate: 1, rent: 2500, ratePerUnit: 9 },
-    { roomNumber: 103, tenantName: 'DK Singh', dueDate: 22, rent: 3500, ratePerUnit: 9 },
-    { roomNumber: 104, tenantName: 'Raj Singh', dueDate: 1, rent: 3800, ratePerUnit: 9 },
-    { roomNumber: 105, tenantName: 'Akash Singh', dueDate: 1, rent: 2500, ratePerUnit: 9 },
-    { roomNumber: 106, tenantName: 'Akash Singh', dueDate: 1, rent: 2500, ratePerUnit: 9 }
+    { roomNumber: '101', tenantName: 'Janvi Singh', dueDate: 20, rent: 3200, phone: '' },
+    { roomNumber: '102', tenantName: 'Aadarsh Sharma', dueDate: 1, rent: 2500, phone: '' },
+    { roomNumber: '103', tenantName: 'DK Singh', dueDate: 22, rent: 3500, phone: '' },
+    { roomNumber: '104', tenantName: 'Raj Singh', dueDate: 1, rent: 3800, phone: '' },
+    { roomNumber: '105', tenantName: 'Akash Singh', dueDate: 1, rent: 2500, phone: '' },
+    { roomNumber: '106', tenantName: 'Akash Singh', dueDate: 1, rent: 2500, phone: '' }
   ];
 
   // Floor 2 tenant data
   const floor2Tenants = [
-    { roomNumber: 201, tenantName: 'Saurabh Singh', dueDate: 22, rent: 3200, ratePerUnit: 9 },
-    { roomNumber: 202, tenantName: 'Sumit Yadav', dueDate: 20, rent: 3000, ratePerUnit: 9 },
-    { roomNumber: 203, tenantName: 'Manali Singh', dueDate: 1, rent: 4000, ratePerUnit: 9 },
-    { roomNumber: 204, tenantName: 'Suneel Gupta', dueDate: 20, rent: 4000, ratePerUnit: 9 },
-    { roomNumber: 205, tenantName: 'Veer Singh', dueDate: 1, rent: 3800, ratePerUnit: 9 },
-    { roomNumber: 206, tenantName: 'Sanjeev Rastogi', dueDate: 1, rent: 2500, ratePerUnit: 9 }
+    { roomNumber: '201', tenantName: 'Saurabh Singh', dueDate: 22, rent: 3200, phone: '' },
+    { roomNumber: '202', tenantName: 'Sumit Yadav', dueDate: 20, rent: 3000, phone: '' },
+    { roomNumber: '203', tenantName: 'Manali Singh', dueDate: 1, rent: 4000, phone: '' },
+    { roomNumber: '204', tenantName: 'Suneel Gupta', dueDate: 20, rent: 4000, phone: '' },
+    { roomNumber: '205', tenantName: 'Veer Singh', dueDate: 1, rent: 3800, phone: '' },
+    { roomNumber: '206', tenantName: 'Sanjeev Rastogi', dueDate: 1, rent: 2500, phone: '' }
   ];
 
   const setupFloor = async (floorNumber) => {
@@ -36,10 +44,45 @@ const SetupTenants2026 = () => {
       const results = [];
 
       for (const tenantData of tenants) {
-        // Skip empty tenant names for floor 2
-        if (!tenantData.tenantName || tenantData.rent === 0) continue;
+        // 1. Delete ANY existing tenant for this room (to prevent duplicates)
+        const tenantsRef = collection(db, 'tenants');
+        const existingQuery = query(tenantsRef, where('roomNumber', '==', tenantData.roomNumber));
+        const existingSnap = await getDocs(existingQuery);
+        
+        for (const docSnap of existingSnap.docs) {
+          await deleteDoc(doc(db, 'tenants', docSnap.id));
+        }
 
-        // 1. Update/Create Room
+        // 2. Create NEW tenant with simple username/password
+        const newTenantRef = doc(tenantsRef);
+        const username = tenantData.roomNumber; // Room number IS the username
+        const password = 'password';  // Default password
+        
+        await setDoc(newTenantRef, {
+          // Basic Info
+          name: tenantData.tenantName,
+          roomNumber: tenantData.roomNumber,
+          phone: tenantData.phone || '',
+          email: '',
+          
+          // Login Credentials
+          username: username,  // e.g., "101"
+          password: password,  // Simple default password
+          
+          // Status
+          isActive: true,
+          
+          // Rent Info
+          currentRent: tenantData.rent,
+          dueDate: tenantData.dueDate,
+          
+          // Dates
+          checkInDate: new Date().toISOString().split('T')[0],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        // 3. Update/Create Room record
         const roomsRef = collection(db, 'rooms');
         const roomQuery = query(roomsRef, where('roomNumber', '==', tenantData.roomNumber));
         const roomSnapshot = await getDocs(roomQuery);
@@ -49,12 +92,13 @@ const SetupTenants2026 = () => {
           const newRoomRef = doc(roomsRef);
           await setDoc(newRoomRef, {
             roomNumber: tenantData.roomNumber,
-            floor: tenantData.roomNumber < 200 ? 1 : 2,
+            floor: parseInt(tenantData.roomNumber) < 200 ? 1 : 2,
             rent: tenantData.rent,
-            ratePerUnit: tenantData.ratePerUnit,
+            ratePerUnit: 9,
             status: 'filled',
             tenantName: tenantData.tenantName,
             dueDate: tenantData.dueDate,
+            electricityMeterNo: `MTR${tenantData.roomNumber}`,
             currentReading: 0,
             previousReading: 0,
             createdAt: serverTimestamp(),
@@ -63,67 +107,24 @@ const SetupTenants2026 = () => {
         } else {
           // Update existing room
           const roomDocRef = roomSnapshot.docs[0].ref;
-          await updateDoc(roomDocRef, {
+          await setDoc(roomDocRef, {
+            roomNumber: tenantData.roomNumber,
+            floor: parseInt(tenantData.roomNumber) < 200 ? 1 : 2,
             rent: tenantData.rent,
-            ratePerUnit: tenantData.ratePerUnit,
+            ratePerUnit: 9,
             status: 'filled',
             tenantName: tenantData.tenantName,
             dueDate: tenantData.dueDate,
+            electricityMeterNo: `MTR${tenantData.roomNumber}`,
             updatedAt: serverTimestamp()
-          });
-        }
-
-        // 2. Update/Create Tenant
-        const tenantsRef = collection(db, 'tenants');
-        const tenantQuery = query(
-          tenantsRef,
-          where('roomNumber', '==', tenantData.roomNumber),
-          where('isActive', '==', true)
-        );
-        const tenantSnapshot = await getDocs(tenantQuery);
-
-        let uniqueToken;
-        if (tenantSnapshot.empty) {
-          // Create new tenant
-          const newTenantRef = doc(tenantsRef);
-          uniqueToken = `tenant_${tenantData.roomNumber}_${Date.now()}`;
-
-          await setDoc(newTenantRef, {
-            name: tenantData.tenantName,
-            roomNumber: tenantData.roomNumber,
-            phone: '',
-            email: '',
-            isActive: true,
-            uniqueToken: uniqueToken,
-            currentRent: tenantData.rent,
-            dueDate: tenantData.dueDate,
-            checkInDate: new Date().toISOString().split('T')[0],
-            securityDeposit: 0,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-        } else {
-          // Update existing tenant
-          const tenantDocRef = tenantSnapshot.docs[0].ref;
-          const existingData = tenantSnapshot.docs[0].data();
-          uniqueToken = existingData.uniqueToken;
-
-          await updateDoc(tenantDocRef, {
-            name: tenantData.tenantName,
-            currentRent: tenantData.rent,
-            dueDate: tenantData.dueDate,
-            isActive: true,
-            updatedAt: serverTimestamp()
-          });
+          }, { merge: true });
         }
 
         results.push({
           roomNumber: tenantData.roomNumber,
           tenantName: tenantData.tenantName,
-          rent: tenantData.rent,
-          dueDate: tenantData.dueDate,
-          portalLink: `${window.location.origin}/t/${uniqueToken}`,
-          uniqueToken
+          username: username,
+          password: password
         });
       }
 
@@ -148,122 +149,63 @@ const SetupTenants2026 = () => {
     <div className="container mx-auto px-4 py-6 max-w-6xl">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">🚀 Setup Tenants 2026</h1>
-        <p className="text-gray-600">
-          Setup tenant information for the new year. This will update rooms and create tenant portal access.
-        </p>
+        <p className="text-gray-600">Create tenant accounts with simple username/password login</p>
       </div>
 
-      {/* Important Info */}
-      <div className="card bg-yellow-50 border-2 border-yellow-300 mb-6">
-        <div className="flex items-start gap-3">
-          <span className="text-3xl">⚠️</span>
-          <div className="flex-1">
-            <h3 className="font-bold text-yellow-900 mb-2">Important: Run Setup Before Sharing Links</h3>
-            <ul className="text-yellow-800 text-sm space-y-1 list-disc list-inside">
-              <li><strong>Step 1:</strong> Click Floor 1 or Floor 2 button below to create tenant accounts</li>
-              <li><strong>Step 2:</strong> Copy the generated portal links for each tenant</li>
-              <li><strong>Step 3:</strong> Share links via WhatsApp or SMS (use Tenants page for quick sharing)</li>
-              <li><strong>Step 4:</strong> Test links by clicking "Test" button to verify they work</li>
-              <li>⚠️ If tenants get "Invalid link" error = Setup not run yet!</li>
+      {/* Info Box */}
+      <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 mb-6">
+        <h3 className="font-bold text-blue-900 mb-3">📋 How This Works:</h3>
+        <ul className="space-y-2 text-blue-800">
+          <li>✓ <strong>Username</strong> = Room Number (e.g., "101", "202")</li>
+          <li>✓ <strong>Password</strong> = "password" (default)</li>
+          <li>✓ Each button creates 6 tenants (one per room)</li>
+          <li>✓ Safe to click multiple times - prevents duplicates automatically</li>
+          <li>✓ Tenant portal: Login with room number and password</li>
+        </ul>
+      </div>
+
+      {/* Setup Buttons */}
+      <div className="grid md:grid-cols-2 gap-6 mb-6">
+        {/* Floor 1 */}
+        <div className="card border-2 border-blue-200">
+          <h3 className="text-xl font-bold mb-4">Floor 1 (Rooms 101-106)</h3>
+          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <p className="text-sm font-semibold text-gray-700 mb-2">Tenants:</p>
+            <ul className="text-sm text-gray-600 space-y-1">
+              {floor1Tenants.map(t => (
+                <li key={t.roomNumber}>Room {t.roomNumber} - {t.tenantName} (₹{t.rent})</li>
+              ))}
             </ul>
           </div>
-        </div>
-      </div>
-
-      {/* Floor Selection */}
-      <div className="card mb-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Select Floor to Setup</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
             onClick={() => setupFloor('1')}
             disabled={loading}
-            className="p-6 rounded-lg border-2 border-green-300 bg-green-50 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
-            <div className="text-4xl mb-2">🏠</div>
-            <h3 className="text-xl font-bold text-green-800 mb-2">Floor 1</h3>
-            <p className="text-sm text-green-700">Rooms 101-106 (6 rooms)</p>
-            <p className="text-xs text-green-600 mt-2">All tenant details ready</p>
+            {loading ? '⏳ Setting up...' : '🚀 Setup Floor 1'}
           </button>
+        </div>
 
+        {/* Floor 2 */}
+        <div className="card border-2 border-purple-200">
+          <h3 className="text-xl font-bold mb-4">Floor 2 (Rooms 201-206)</h3>
+          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <p className="text-sm font-semibold text-gray-700 mb-2">Tenants:</p>
+            <ul className="text-sm text-gray-600 space-y-1">
+              {floor2Tenants.map(t => (
+                <li key={t.roomNumber}>Room {t.roomNumber} - {t.tenantName} (₹{t.rent})</li>
+              ))}
+            </ul>
+          </div>
           <button
             onClick={() => setupFloor('2')}
             disabled={loading}
-            className="p-6 rounded-lg border-2 border-blue-300 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-6 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
-            <div className="text-4xl mb-2">🏢</div>
-            <h3 className="text-xl font-bold text-blue-800 mb-2">Floor 2</h3>
-            <p className="text-sm text-blue-700">Rooms 201-206 (6 rooms filled)</p>
-            <p className="text-xs text-blue-600 mt-2">Ready to setup!</p>
+            {loading ? '⏳ Setting up...' : '🚀 Setup Floor 2'}
           </button>
         </div>
       </div>
-
-      {/* Floor 1 Details */}
-      <div className="card mb-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">📋 Floor 1 Tenant Details</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
-                <th className="px-3 py-2 text-left font-semibold text-gray-700">Tenant Name</th>
-                <th className="px-3 py-2 text-right font-semibold text-gray-700">Rent</th>
-                <th className="px-3 py-2 text-right font-semibold text-gray-700">Due Date</th>
-                <th className="px-3 py-2 text-right font-semibold text-gray-700">Rate/Unit</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {floor1Tenants.map((tenant) => (
-                <tr key={tenant.roomNumber} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 font-semibold">{tenant.roomNumber}</td>
-                  <td className="px-3 py-2">{tenant.tenantName}</td>
-                  <td className="px-3 py-2 text-right">₹{tenant.rent.toLocaleString('en-IN')}</td>
-                  <td className="px-3 py-2 text-right">{tenant.dueDate}th each month</td>
-                  <td className="px-3 py-2 text-right">₹{tenant.ratePerUnit}/unit</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Floor 2 Details */}
-      <div className="card mb-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">📋 Floor 2 Tenant Details</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
-                <th className="px-3 py-2 text-left font-semibold text-gray-700">Tenant Name</th>
-                <th className="px-3 py-2 text-right font-semibold text-gray-700">Rent</th>
-                <th className="px-3 py-2 text-right font-semibold text-gray-700">Due Date</th>
-                <th className="px-3 py-2 text-right font-semibold text-gray-700">Rate/Unit</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {floor2Tenants.filter(t => t.tenantName).map((tenant) => (
-                <tr key={tenant.roomNumber} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 font-semibold">{tenant.roomNumber}</td>
-                  <td className="px-3 py-2">{tenant.tenantName}</td>
-                  <td className="px-3 py-2 text-right">₹{tenant.rent.toLocaleString('en-IN')}</td>
-                  <td className="px-3 py-2 text-right">{tenant.dueDate}th each month</td>
-                  <td className="px-3 py-2 text-right">₹{tenant.ratePerUnit}/unit</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Loading State */}
-      {loading && (
-        <div className="card text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-600">Setting up tenants...</p>
-        </div>
-      )}
 
       {/* Results */}
       {result && (
@@ -271,65 +213,48 @@ const SetupTenants2026 = () => {
           {result.success ? (
             <>
               <div className="flex items-center gap-3 mb-4">
-                <div className="text-4xl">✅</div>
+                <span className="text-4xl">✅</span>
                 <div>
-                  <h3 className="text-2xl font-bold text-green-800">Setup Successful!</h3>
-                  <p className="text-green-700">Floor {result.floor} - {result.count} tenants configured</p>
+                  <h3 className="text-2xl font-bold text-green-800">Setup Complete!</h3>
+                  <p className="text-green-700">Created {result.count} tenants for Floor {result.floor}</p>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h4 className="font-bold text-gray-800 mb-2">📱 Tenant Portal Links:</h4>
-                {result.tenants.map((tenant) => (
-                  <div key={tenant.roomNumber} className="bg-white rounded-lg p-4 border border-green-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <p className="font-bold text-gray-800">Room {tenant.roomNumber} - {tenant.tenantName}</p>
-                        <p className="text-sm text-gray-600">Rent: ₹{tenant.rent.toLocaleString('en-IN')} | Due: {tenant.dueDate}th</p>
+              <div className="bg-white border border-green-300 rounded-lg p-4 mb-4">
+                <h4 className="font-bold text-gray-800 mb-3">📋 Tenant Login Credentials:</h4>
+                <div className="space-y-3">
+                  {result.tenants.map((tenant) => (
+                    <div key={tenant.roomNumber} className="bg-gray-50 border border-gray-300 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-gray-800">
+                          Room {tenant.roomNumber} - {tenant.tenantName}
+                        </span>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => window.open(tenant.portalLink, '_blank')}
-                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-                          title="Open portal link in new tab to test"
-                        >
-                          🔗 Test
-                        </button>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(tenant.portalLink)
-                              .then(() => alert(`✅ Link copied!\n\nRoom ${tenant.roomNumber} - ${tenant.tenantName}\n\nYou can now paste this link in WhatsApp or SMS to share with the tenant.`))
-                              .catch(() => {
-                                prompt('Copy this link manually:', tenant.portalLink);
-                              });
-                          }}
-                          className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
-                        >
-                          📋 Copy
-                        </button>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-gray-600">Username:</p>
+                          <p className="font-mono font-bold text-blue-600">{tenant.username}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Password:</p>
+                          <p className="font-mono font-bold text-blue-600">{tenant.password}</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-gray-50 rounded p-2 text-xs font-mono break-all">
-                      {tenant.portalLink}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
 
-              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-800 font-semibold mb-2">📤 Next Steps:</p>
-                <ul className="text-blue-700 text-sm space-y-1 ml-4">
-                  <li>1. Copy each tenant's portal link</li>
-                  <li>2. Share the link via WhatsApp/SMS with respective tenants</li>
-                  <li>3. Tenants can view their room details and make payments</li>
-                  <li>4. Setup QR code in Bank Accounts section for UPI payments</li>
-                </ul>
+              <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+                <p className="text-sm text-yellow-800">
+                  <strong>💡 Share with tenants:</strong> Each tenant can login at the tenant portal using their room number as username and "password" as password.
+                </p>
               </div>
             </>
           ) : (
             <>
               <div className="flex items-center gap-3 mb-4">
-                <div className="text-4xl">❌</div>
+                <span className="text-4xl">❌</span>
                 <div>
                   <h3 className="text-2xl font-bold text-red-800">Setup Failed</h3>
                   <p className="text-red-700">{result.error}</p>
@@ -339,19 +264,6 @@ const SetupTenants2026 = () => {
           )}
         </div>
       )}
-
-      {/* Info Box */}
-      <div className="card bg-blue-50 border border-blue-200 mt-6">
-        <h3 className="font-bold text-blue-900 mb-2">ℹ️ Important Information</h3>
-        <ul className="text-blue-800 text-sm space-y-2">
-          <li>• This will update room details with new tenant information</li>
-          <li>• Each tenant will get a unique portal link for self-service access</li>
-          <li>• Electricity rate is set to ₹9 per unit for all rooms</li>
-          <li>• Tenants can view their room, meter readings, and payment history</li>
-          <li>• Setup UPI/QR code in Bank Accounts for payment collection</li>
-          <li>• Portal links are permanent and secure for each tenant</li>
-        </ul>
-      </div>
     </div>
   );
 };

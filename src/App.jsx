@@ -25,9 +25,6 @@ import TenantHistory from './components/TenantHistory';
 import SetupTenants2026 from './components/SetupTenants2026';
 import VacancyReport from './components/VacancyReport';
 import SyncRoomMeters from './components/SyncRoomMeters';
-import TenantSetupCheck from './components/TenantSetupCheck';
-import QuickDatabaseCheck from './components/QuickDatabaseCheck';
-import TenantCleanup from './components/TenantCleanup';
 
 function App() {
   return (
@@ -35,8 +32,8 @@ function App() {
       <Router>
         <Routes>
           
-          {/* Public Tenant Portal Route */}
-          <Route path="/t/:token" element={<TenantPortal />} />
+          {/* Public Tenant Portal Route - Username/Password Login */}
+          <Route path="/tenant-portal" element={<TenantPortal />} />
           
           <Route path="/login" element={<Login />} />
           <Route 
@@ -196,30 +193,6 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><SetupTenants2026 /></Layout>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/tenant-setup-check" 
-            element={
-              <ProtectedRoute>
-                <Layout><TenantSetupCheck /></Layout>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/db-check" 
-            element={
-              <ProtectedRoute>
-                <QuickDatabaseCheck />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/tenant-cleanup" 
-            element={
-              <ProtectedRoute>
-                <TenantCleanup />
               </ProtectedRoute>
             } 
           />
