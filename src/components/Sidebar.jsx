@@ -22,6 +22,8 @@ const Sidebar = () => {
     { icon: '📥', label: 'Import CSV', path: '/import' },
     { icon: '📚', label: 'History Manager', path: '/history' },
     { icon: '📊', label: 'Financial History', path: '/financial-history' },
+    { icon: '🏠', label: 'Room History', path: '/room-history' },
+    { icon: '👤', label: 'Tenant History', path: '/tenant-history' },
   ];
 
   // Settings submenu items

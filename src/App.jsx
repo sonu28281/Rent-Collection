@@ -20,6 +20,8 @@ import FinancialHistoryManager from './components/FinancialHistoryManager';
 import ImportLogsPage from './components/ImportLogsPage';
 import PaymentsReset from './components/PaymentsReset';
 import DatabaseCleanup from './components/DatabaseCleanup';
+import RoomHistory from './components/RoomHistory';
+import TenantHistory from './components/TenantHistory';
 
 function App() {
   return (
@@ -148,6 +150,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><DatabaseCleanup /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/room-history" 
+            element={
+              <ProtectedRoute>
+                <Layout><RoomHistory /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/tenant-history" 
+            element={
+              <ProtectedRoute>
+                <Layout><TenantHistory /></Layout>
               </ProtectedRoute>
             } 
           />
