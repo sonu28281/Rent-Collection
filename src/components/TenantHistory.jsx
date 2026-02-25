@@ -254,6 +254,10 @@ const TenantHistory = () => {
 
   const roomOptions = [...new Set(
     tenants
+      .filter((tenant) => {
+        if (floorFilter === 'all') return true;
+        return getFloorFromRoom(tenant.roomNumber) === floorFilter;
+      })
       .map((tenant) => normalizeRoomValue(tenant.roomNumber))
       .filter((room) => room !== null)
       .map((room) => String(room))
@@ -263,6 +267,14 @@ const TenantHistory = () => {
     if (!Number.isNaN(roomA) && !Number.isNaN(roomB)) return roomA - roomB;
     return a.localeCompare(b);
   });
+
+  useEffect(() => {
+    if (roomFilter === 'all') return;
+    const roomStillAvailable = roomOptions.includes(roomFilter);
+    if (!roomStillAvailable) {
+      setRoomFilter('all');
+    }
+  }, [floorFilter, roomFilter, roomOptions]);
 
   // Filter tenants based on status + floor + room + search
   const filteredTenants = tenants.filter((tenant) => {
