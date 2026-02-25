@@ -469,43 +469,74 @@ const TenantPortal = () => {
       });
     }
   };
-  
-  // Open UPI payment link
-  const openUPIPayment = () => {
+
+  const getPayableAmount = () => {
     const reading = parseFloat(meterReading);
-    if (!reading || reading <= (room?.currentReading || 0)) {
+    if (!reading || reading < (room?.currentReading || 0)) {
+      return null;
+    }
+
+    const { electricityAmount } = calculateElectricity(reading);
+    const rentAmount = tenant?.currentRent || room?.rent || 0;
+    const totalAmount = rentAmount + electricityAmount;
+
+    return {
+      reading,
+      rentAmount,
+      electricityAmount,
+      totalAmount
+    };
+  };
+
+  const openSpecificUPIApp = (appType) => {
+    const payable = getPayableAmount();
+
+    if (!payable || payable.reading <= (room?.currentReading || 0)) {
       alert('⚠️ Please enter a valid meter reading first');
       return;
     }
-    
-    const { units, electricityAmount } = calculateElectricity(reading);
-    const rentAmount = tenant?.currentRent || room?.rent || 0;
-    const totalAmount = rentAmount + electricityAmount;
-    
+
     if (!activeUPI?.upiId) {
       alert('❌ UPI ID not available');
       return;
     }
-    
-    // Create UPI payment link
-    const upiLink = `upi://pay?pa=${activeUPI.upiId}&pn=${encodeURIComponent(activeUPI.nickname || 'Property Owner')}&am=${totalAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Room ${tenant.roomNumber} - Rent+Electricity`)}`;
-    
-    // Try to open UPI app
-    window.location.href = upiLink;
-    
-    // Show confirmation
+
+    const { rentAmount, electricityAmount, totalAmount } = payable;
+
+    const params = `pa=${encodeURIComponent(activeUPI.upiId)}&pn=${encodeURIComponent(activeUPI.nickname || 'Property Owner')}&am=${totalAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Room ${tenant.roomNumber} - Rent+Electricity`)}`;
+    const genericUpiLink = `upi://pay?${params}`;
+
+    let deepLink = genericUpiLink;
+    if (appType === 'gpay') {
+      deepLink = `tez://upi/pay?${params}`;
+    }
+    if (appType === 'phonepe') {
+      deepLink = `phonepe://pay?${params}`;
+    }
+
+    window.location.href = deepLink;
+
+    setTimeout(() => {
+      if (document.visibilityState !== 'hidden') {
+        window.location.href = genericUpiLink;
+      }
+    }, 1200);
+
     setTimeout(() => {
       alert(
         `📊 Payment Details:\n\n` +
         `Rent: ₹${rentAmount}\n` +
-        `Electricity: ${units} units × ₹8.5 = ₹${electricityAmount.toFixed(2)}\n` +
+        `Electricity: ₹${electricityAmount.toFixed(2)}\n` +
         `Total: ₹${totalAmount.toFixed(2)}\n\n` +
-        `✅ UPI app opened. After payment:\n` +
-        `1. Take screenshot of payment confirmation\n` +
-        `2. Share with property manager\n` +
-        `3. Your payment will be verified within 24 hours`
+        `✅ Amount and UPI ID auto-filled.\n` +
+        `Now just tap "Pay" in your UPI app.`
       );
     }, 500);
+  };
+  
+  // Open UPI payment link
+  const openUPIPayment = () => {
+    openSpecificUPIApp('generic');
   };
 
   // Get status badge
@@ -828,15 +859,52 @@ const TenantPortal = () => {
                   </div>
                 )}
 
-                {/* Pay Now Button - Opens UPI App */}
+                {/* Pay Buttons - Google Pay + PhonePe */}
                 {meterReading && parseFloat(meterReading) >= (room?.currentReading || 0) && (
-                  <button
-                    onClick={openUPIPayment}
-                    disabled={paymentProcessing}
-                    className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-                  >
-                    🚀 Open UPI App & Pay ₹{((tenant?.currentRent || room?.rent || 0) + calculateElectricity(parseFloat(meterReading)).electricityAmount).toFixed(2)}
-                  </button>
+                  <div className="mb-4">
+                    <p className="text-sm font-semibold text-gray-700 mb-2">
+                      Payable Amount: <span className="text-green-600 text-lg">₹{((tenant?.currentRent || room?.rent || 0) + calculateElectricity(parseFloat(meterReading)).electricityAmount).toFixed(2)}</span>
+                    </p>
+                    <p className="text-xs text-gray-500 mb-3">Choose app and tap once to open with prefilled UPI details</p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        onClick={() => openSpecificUPIApp('gpay')}
+                        disabled={paymentProcessing}
+                        className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-4 px-4 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div className="flex flex-col items-center leading-tight gap-1">
+                          <span className="inline-flex items-center gap-2 bg-white/20 px-2 py-1 rounded-full text-xs font-semibold">
+                            <span>🟦</span>
+                            <span>Google Pay</span>
+                          </span>
+                          <span className="text-xs font-semibold text-blue-100">Pay ₹{((tenant?.currentRent || room?.rent || 0) + calculateElectricity(parseFloat(meterReading)).electricityAmount).toFixed(2)}</span>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => openSpecificUPIApp('phonepe')}
+                        disabled={paymentProcessing}
+                        className="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white font-bold py-4 px-4 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div className="flex flex-col items-center leading-tight gap-1">
+                          <span className="inline-flex items-center gap-2 bg-white/20 px-2 py-1 rounded-full text-xs font-semibold">
+                            <span>🟣</span>
+                            <span>PhonePe</span>
+                          </span>
+                          <span className="text-xs font-semibold text-purple-100">Pay ₹{((tenant?.currentRent || room?.rent || 0) + calculateElectricity(parseFloat(meterReading)).electricityAmount).toFixed(2)}</span>
+                        </div>
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={openUPIPayment}
+                      disabled={paymentProcessing}
+                      className="w-full mt-3 bg-gray-800 hover:bg-gray-900 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      📱 Other UPI App • Pay ₹{((tenant?.currentRent || room?.rent || 0) + calculateElectricity(parseFloat(meterReading)).electricityAmount).toFixed(2)}
+                    </button>
+                  </div>
                 )}
 
                 {/* UPI ID */}
