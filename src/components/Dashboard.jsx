@@ -265,59 +265,42 @@ const Dashboard = () => {
           </div>
         </div>
       )}
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* Quick Stats - Only Essential Info */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-sm">Total Rooms</p>
-              <p className="text-3xl font-bold mt-1">12</p>
-              <p className="text-blue-100 text-xs mt-1">
-                {loading ? '...' : `${stats.occupancy.occupied} occupied`}
-              </p>
+              <p className="text-blue-100 text-sm font-semibold">Property Overview</p>
+              <div className="flex items-baseline gap-3 mt-2">
+                <div>
+                  <p className="text-3xl font-bold">12</p>
+                  <p className="text-blue-100 text-xs">Total Rooms</p>
+                </div>
+                <div className="text-2xl text-blue-100">|</div>
+                <div>
+                  <p className="text-3xl font-bold">{loading ? '...' : stats.occupancy.occupied}</p>
+                  <p className="text-blue-100 text-xs">Occupied</p>
+                </div>
+              </div>
             </div>
-            <div className="text-4xl">🏠</div>
+            <div className="text-5xl">🏠</div>
           </div>
         </div>
 
         <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-sm">Active Tenants</p>
-              <p className="text-3xl font-bold mt-1">
-                {loading ? '...' : stats.activeTenants}
-              </p>
-              <p className="text-green-100 text-xs mt-1">
-                {loading ? '...' : `${stats.occupancy.rate}% occupancy`}
-              </p>
+              <p className="text-green-100 text-sm font-semibold">Active Tenants</p>
+              <div className="mt-2">
+                <p className="text-4xl font-bold">
+                  {loading ? '...' : stats.activeTenants}
+                </p>
+                <p className="text-green-100 text-xs mt-1">
+                  {loading ? '...' : `${stats.occupancy.rate}% occupancy rate`}
+                </p>
+              </div>
             </div>
-            <div className="text-4xl">👥</div>
-          </div>
-        </div>
-
-        <div className="card bg-gradient-to-br from-yellow-500 to-yellow-600 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-yellow-100 text-sm">Pending Payments</p>
-              <p className="text-3xl font-bold mt-1">
-                {loading ? '...' : stats.pendingPayments}
-              </p>
-              <p className="text-yellow-100 text-xs mt-1">Due this month</p>
-            </div>
-            <div className="text-4xl">💰</div>
-          </div>
-        </div>
-
-        <div className="card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-100 text-sm">This Month</p>
-              <p className="text-3xl font-bold mt-1">
-                {loading ? '...' : `₹${stats.currentMonthIncome.toLocaleString('en-IN')}`}
-              </p>
-              <p className="text-purple-100 text-xs mt-1">Collected</p>
-            </div>
-            <div className="text-4xl">📊</div>
+            <div className="text-5xl">👥</div>
           </div>
         </div>
       </div>
@@ -325,22 +308,23 @@ const Dashboard = () => {
       {/* Financial Summary */}
       <div className="mb-6">
         <div className="card">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">
-            💰 Financial Summary
-          </h3>
-          
-          {/* Total Lifetime Income */}
-          <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg p-6 mb-6">
-            <p className="text-indigo-100 text-sm mb-1">Total Lifetime Income</p>
-            <p className="text-4xl font-bold">
-              {loading ? '...' : `₹${stats.totalIncome.toLocaleString('en-IN')}`}
-            </p>
-            <p className="text-indigo-100 text-xs mt-2">All-time collected rent + electricity</p>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-xl font-semibold text-gray-800">
+                💰 Financial Summary
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">Year-wise collection overview</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-gray-600 uppercase tracking-wide">Total Lifetime Income</p>
+              <p className="text-3xl font-bold text-indigo-600">
+                {loading ? '...' : `₹${stats.totalIncome.toLocaleString('en-IN')}`}
+              </p>
+            </div>
           </div>
 
           {/* Yearly Summary */}
           <div className="mb-6">
-            <h4 className="font-semibold text-gray-700 mb-3">📊 Year-wise Income</h4>
             {loading ? (
               <p className="text-gray-500 text-sm">Loading...</p>
             ) : yearlyData.length === 0 ? (

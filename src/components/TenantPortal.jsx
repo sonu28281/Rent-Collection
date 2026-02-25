@@ -243,8 +243,12 @@ const TenantPortal = () => {
     let status = 'pending';
     let statusText = 'Payment Pending';
     
-    // Check if current month is already paid
-    if (currentMonthPayment && currentMonthPayment.status === 'paid') {
+    // Check if current month is already paid (check both status AND paidAmount)
+    const isPaid = currentMonthPayment && 
+                   currentMonthPayment.status === 'paid' && 
+                   (currentMonthPayment.paidAmount || 0) > 0;
+    
+    if (isPaid) {
       // ✅ Current month paid - Show NEXT month's due date
       if (currentMonth === 12) {
         nextDueMonth = 1;
