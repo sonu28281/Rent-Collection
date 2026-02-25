@@ -383,8 +383,8 @@ const ImportCSV = () => {
         // Rent and electricity are base amounts (use MAX, don't sum)
         existing.rent = Math.max(existing.rent, record.rent);
         existing.paidAmount += record.paidAmount;
-        existing.electricity = Math.max(existing.electricity, record.electricity);
-        // Don't sum total here - will recalculate below
+        // Use highest rate per unit (in case it changed)
+        existing.ratePerUnit = Math.max(existing.ratePerUnit, record.ratePerUnit);
         
         // Keep the latest meter readings (assume chronological order)
         if (record.currentReading > existing.currentReading) {
@@ -394,7 +394,7 @@ const ImportCSV = () => {
           existing.oldReading = record.oldReading;
         }
         
-        // Recalculate units and electricity based on final readings
+        // Recalculate units and electricity based on final readings and rate
         existing.units = existing.currentReading - existing.oldReading;
         if (existing.units < 0) existing.units = 0;
         existing.electricity = existing.units * existing.ratePerUnit;
@@ -640,9 +640,26 @@ const ImportCSV = () => {
             <ul className="ml-4 mt-1 space-y-1">
               <li>• <strong>floor</strong> = roomNumber &lt; 200 ? 1 : 2</li>
               <li>• <strong>units</strong> = max(0, currentReading - oldReading)</li>
-              <li>• <strong>electricity</strong> = units × ratePerUnit</li>
+              <li>• <strong>electricity</strong> = units × ratePerUnit (Price/Unit in ₹)</li>
               <li>• <strong>total</strong> = rent + electricity</li>
               <li>• <strong>status</strong> = auto-determined from paidAmount vs total</li>
+              <li className="mt-2 text-green-900">
+                <strong>📌 Example:</strong> 100 units × ₹8/unit = ₹800 electricity charge
+              </li>
+              <li className="text-green-900">
+                Then final payable: Rent (₹5000) + Electricity (₹800) = ₹5800 total
+              </li>
+            </ul>
+          </div>
+          
+          <div className="bg-indigo-100 border border-indigo-300 rounded p-3 mt-3">
+            <strong className="text-indigo-900">💰 PRICE/UNIT COLUMN (Rate per Unit):</strong>
+            <ul className="ml-4 mt-1 space-y-1">
+              <li>• <strong>Must be in Indian Rupees (₹/Rs)</strong></li>
+              <li>• Supported formats: "Rs 8", "Rs. 8", "₹8", "8", "INR 8"</li>
+              <li>• Can include commas: "Rs 8.50", "₹ 8.5"</li>
+              <li>• System removes currency symbols and calculates: units × rate</li>
+              <li>• For aggregated records: uses MAX rate if multiple values</li>
             </ul>
           </div>
           
