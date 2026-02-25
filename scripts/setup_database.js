@@ -183,7 +183,7 @@ async function initializeSettings() {
     
     if (!settingsDoc.exists()) {
       const defaultSettings = {
-        defaultElectricityRate: 7.5,
+        defaultElectricityRate: 9,
         annualIncreasePercentage: 10,
         paymentMode: 'manual',
         reminderDaysBefore: 3,

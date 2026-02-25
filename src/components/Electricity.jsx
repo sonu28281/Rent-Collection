@@ -6,7 +6,7 @@ const Electricity = () => {
   const [tenants, setTenants] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [meterReadings, setMeterReadings] = useState([]);
-  const [globalRate, setGlobalRate] = useState(8);
+  const [globalRate, setGlobalRate] = useState(9);
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -26,7 +26,7 @@ const Electricity = () => {
       const settingsSnapshot = await getDocs(settingsRef);
       if (!settingsSnapshot.empty) {
         const settings = settingsSnapshot.docs[0].data();
-        setGlobalRate(settings.electricityRate || 8);
+        setGlobalRate(settings.electricityRate || 9);
       }
 
       // Fetch active tenants

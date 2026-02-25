@@ -9,6 +9,7 @@ const TenantHistory = () => {
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [tenantDetails, setTenantDetails] = useState(null);
 
   const MONTHS = [
     { num: 1, name: 'Jan' }, { num: 2, name: 'Feb' }, { num: 3, name: 'Mar' },
@@ -17,29 +18,84 @@ const TenantHistory = () => {
     { num: 10, name: 'Oct' }, { num: 11, name: 'Nov' }, { num: 12, name: 'Dec' }
   ];
 
-  // Load all unique tenants from payments
+  const formatMonthYear = (dateLike) => {
+    if (!dateLike) return '-';
+    const date = new Date(dateLike);
+    if (Number.isNaN(date.getTime())) return '-';
+    return `${MONTHS[date.getMonth()]?.name} ${date.getFullYear()}`;
+  };
+
+  const formatDate = (dateLike) => {
+    if (!dateLike) return '-';
+    const date = new Date(dateLike);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('en-IN');
+  };
+
+  // Load all unique tenants from tenants + payments
   useEffect(() => {
     const fetchTenants = async () => {
       try {
+        const tenantsRef = collection(db, 'tenants');
+        const tenantsSnapshot = await getDocs(tenantsRef);
+
         const paymentsRef = collection(db, 'payments');
-        const snapshot = await getDocs(paymentsRef);
-        
-        // Extract unique tenant names
-        const tenantSet = new Set();
-        snapshot.docs.forEach(doc => {
+        const paymentsSnapshot = await getDocs(paymentsRef);
+
+        const tenantMap = new Map();
+
+        tenantsSnapshot.docs.forEach((doc) => {
           const data = doc.data();
-          const tenantName = data.tenantNameSnapshot || data.tenantName;
-          
-          // Only include valid tenant names (exclude placeholders)
-          if (tenantName && 
-              tenantName.trim() !== '' && 
-              tenantName !== 'Historical Record' && 
-              tenantName !== 'Unknown') {
-            tenantSet.add(tenantName);
+          const tenantName = data.name?.trim();
+          if (!tenantName) return;
+
+          if (!tenantMap.has(tenantName)) {
+            tenantMap.set(tenantName, {
+              name: tenantName,
+              isActive: Boolean(data.isActive),
+              roomNumber: data.roomNumber ?? null,
+              checkInDate: data.checkInDate ?? null,
+              checkOutDate: data.checkOutDate ?? null,
+              source: 'tenantDoc'
+            });
+          } else {
+            const existing = tenantMap.get(tenantName);
+            tenantMap.set(tenantName, {
+              ...existing,
+              isActive: existing.isActive || Boolean(data.isActive),
+              roomNumber: existing.roomNumber ?? data.roomNumber ?? null,
+              checkInDate: existing.checkInDate ?? data.checkInDate ?? null,
+              checkOutDate: existing.checkOutDate ?? data.checkOutDate ?? null
+            });
           }
         });
 
-        const tenantList = Array.from(tenantSet).sort();
+        paymentsSnapshot.docs.forEach((doc) => {
+          const data = doc.data();
+          const tenantName = (data.tenantNameSnapshot || data.tenantName || '').trim();
+          if (
+            !tenantName ||
+            tenantName === 'Historical Record' ||
+            tenantName === 'Unknown'
+          ) {
+            return;
+          }
+
+          if (!tenantMap.has(tenantName)) {
+            tenantMap.set(tenantName, {
+              name: tenantName,
+              isActive: false,
+              roomNumber: data.roomNumber ?? null,
+              checkInDate: null,
+              checkOutDate: null,
+              source: 'paymentOnly'
+            });
+          }
+        });
+
+        const tenantList = Array.from(tenantMap.values()).sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
         setTenants(tenantList);
       } catch (error) {
         console.error('Error fetching tenants:', error);
@@ -50,9 +106,10 @@ const TenantHistory = () => {
   }, []);
 
   // Load tenant history
-  const loadTenantHistory = async (tenantName) => {
+  const loadTenantHistory = async (tenantObj) => {
+    const tenantName = tenantObj.name;
     setLoading(true);
-    setSelectedTenant(tenantName);
+    setSelectedTenant(tenantObj);
     
     try {
       const paymentsRef = collection(db, 'payments');
@@ -71,6 +128,28 @@ const TenantHistory = () => {
         });
 
       setTenantHistory(history);
+
+      const firstRecord = history.length > 0 ? history[history.length - 1] : null;
+      const latestRecord = history.length > 0 ? history[0] : null;
+
+      setTenantDetails({
+        joinedMonth: tenantObj.checkInDate
+          ? formatMonthYear(tenantObj.checkInDate)
+          : firstRecord
+            ? `${MONTHS[firstRecord.month - 1]?.name} ${firstRecord.year}`
+            : '-',
+        joinedDate: tenantObj.checkInDate ? formatDate(tenantObj.checkInDate) : '-',
+        leftMonth: tenantObj.checkOutDate
+          ? formatMonthYear(tenantObj.checkOutDate)
+          : tenantObj.isActive
+            ? 'Still Staying'
+            : latestRecord
+              ? `${MONTHS[latestRecord.month - 1]?.name} ${latestRecord.year}`
+              : '-',
+        leftDate: tenantObj.checkOutDate ? formatDate(tenantObj.checkOutDate) : '-',
+        latestRoom: latestRecord?.roomNumber ?? tenantObj.roomNumber ?? '-',
+        status: tenantObj.isActive ? 'Active' : 'Past Tenant'
+      });
       
       // Calculate statistics
       const stats = calculateStats(history);
@@ -147,7 +226,7 @@ const TenantHistory = () => {
 
   // Filter tenants based on search
   const filteredTenants = tenants.filter(tenant =>
-    tenant.toLowerCase().includes(searchQuery.toLowerCase())
+    tenant.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -183,7 +262,7 @@ const TenantHistory = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
             {filteredTenants.map((tenant, idx) => {
-              const isSelected = selectedTenant === tenant;
+              const isSelected = selectedTenant?.name === tenant.name;
               
               return (
                 <button
@@ -195,7 +274,10 @@ const TenantHistory = () => {
                       : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
                   }`}
                 >
-                  <div className="font-semibold text-lg">👤 {tenant}</div>
+                  <div className="font-semibold text-lg">👤 {tenant.name}</div>
+                  <div className={`text-xs mt-1 font-semibold ${isSelected ? 'text-indigo-100' : 'text-gray-500'}`}>
+                    {tenant.isActive ? '🟢 Active' : '⚪ Past Tenant'}
+                  </div>
                 </button>
               );
             })}
@@ -219,7 +301,7 @@ const TenantHistory = () => {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-3xl font-bold text-gray-800">
-                  👤 {selectedTenant}
+                  👤 {selectedTenant.name}
                 </h2>
                 <p className="text-gray-600 mt-1">
                   {stats.totalRecords} records • From {stats.firstRecord} to {stats.latestRecord}
@@ -229,6 +311,34 @@ const TenantHistory = () => {
                 {stats.yearsStayed} years
               </div>
             </div>
+
+            {/* Stay Timeline */}
+            {tenantDetails && (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                <div className="bg-white rounded-lg p-3 border border-indigo-200">
+                  <p className="text-xs text-gray-600 mb-1">Status</p>
+                  <p className={`text-sm font-bold ${tenantDetails.status === 'Active' ? 'text-green-600' : 'text-gray-700'}`}>
+                    {tenantDetails.status}
+                  </p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                  <p className="text-xs text-gray-600 mb-1">Joined Month</p>
+                  <p className="text-sm font-bold text-blue-700">{tenantDetails.joinedMonth}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-cyan-200">
+                  <p className="text-xs text-gray-600 mb-1">Joined Date</p>
+                  <p className="text-sm font-bold text-cyan-700">{tenantDetails.joinedDate}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-orange-200">
+                  <p className="text-xs text-gray-600 mb-1">Left Month</p>
+                  <p className="text-sm font-bold text-orange-700">{tenantDetails.leftMonth}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-purple-200">
+                  <p className="text-xs text-gray-600 mb-1">Latest Room</p>
+                  <p className="text-sm font-bold text-purple-700">{tenantDetails.latestRoom}</p>
+                </div>
+              </div>
+            )}
 
             {/* Duration & Rooms */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -408,7 +518,7 @@ const TenantHistory = () => {
       {!loading && selectedTenant && tenantHistory.length === 0 && (
         <div className="card text-center py-12">
           <div className="text-5xl mb-4">📋</div>
-          <p className="text-gray-600 text-lg">No payment history found for {selectedTenant}</p>
+          <p className="text-gray-600 text-lg">No payment history found for {selectedTenant.name}</p>
         </div>
       )}
     </div>

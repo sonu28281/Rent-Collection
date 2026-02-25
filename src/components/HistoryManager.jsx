@@ -696,8 +696,9 @@ const HistoryManager = () => {
                           </th>
                           <th className="px-3 py-3 text-left font-semibold text-gray-700">Room</th>
                           <th className="px-3 py-3 text-left font-semibold text-gray-700">Status</th>
-                          <th className="px-3 py-3 text-left font-semibold text-gray-700">Month</th>
-                          <th className="px-3 py-3 text-left font-semibold text-gray-700">Tenant</th>
+                          <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                            Tenant {selectedMonth !== 'all' ? `(${MONTHS.find(m => m.num === selectedMonth)?.name})` : '(All Months)'}
+                          </th>
                           <th className="px-3 py-3 text-right font-semibold text-gray-700">Rent</th>
                           <th className="px-3 py-3 text-right font-semibold text-gray-700">Old Reading</th>
                           <th className="px-3 py-3 text-right font-semibold text-gray-700">Current Reading</th>
@@ -743,7 +744,7 @@ const HistoryManager = () => {
                       
                       <td className="px-3 py-3">
                         {payment.roomStatus ? (
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          <span className={`inline-flex items-center whitespace-nowrap px-2 py-1 rounded-full text-xs font-semibold leading-none ${
                             payment.roomStatus === 'vacant' 
                               ? 'bg-gray-100 text-gray-800'
                               : 'bg-green-100 text-green-800'
@@ -754,8 +755,6 @@ const HistoryManager = () => {
                           <span className="text-gray-400 text-xs">-</span>
                         )}
                       </td>
-                      
-                      <td className="px-3 py-3">{MONTHS[payment.month - 1]?.name}</td>
                       
                       <td className="px-3 py-3">
                         {isEditing ? (

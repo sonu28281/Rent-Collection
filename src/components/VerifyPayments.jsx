@@ -134,11 +134,17 @@ const VerifyPayments = () => {
     try {
       setProcessing(true);
 
+      const previousReading = parseFloat(editingSubmission.previousReading) || 0;
+      const meterReading = parseFloat(editingSubmission.meterReading) || 0;
+      const unitsConsumed = Math.max(0, meterReading - previousReading);
+
       await updateDoc(doc(db, 'paymentSubmissions', editingSubmission.id), {
         paidAmount: parseFloat(editingSubmission.paidAmount),
         rentAmount: parseFloat(editingSubmission.rentAmount),
         electricityAmount: parseFloat(editingSubmission.electricityAmount),
-        meterReading: parseFloat(editingSubmission.meterReading),
+        previousReading,
+        meterReading,
+        unitsConsumed,
         paidDate: editingSubmission.paidDate,
         utr: editingSubmission.utr,
         notes: editingSubmission.notes,
@@ -402,7 +408,16 @@ const VerifyPayments = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Meter Reading</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Previous Reading</label>
+                  <input
+                    type="number"
+                    value={editingSubmission.previousReading || 0}
+                    onChange={(e) => setEditingSubmission({ ...editingSubmission, previousReading: e.target.value })}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Current Meter Reading</label>
                   <input
                     type="number"
                     value={editingSubmission.meterReading}

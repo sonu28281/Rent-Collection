@@ -23,6 +23,7 @@ const TenantPortal = () => {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
+    const DEFAULT_ELECTRICITY_RATE = 9; // Default electricity rate
 
   // Tenant data state
   const [tenant, setTenant] = useState(null);
@@ -31,13 +32,15 @@ const TenantPortal = () => {
   const [activeUPI, setActiveUPI] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pendingSubmissions, setPendingSubmissions] = useState([]);
+  const [globalElectricityRate, setGlobalElectricityRate] = useState(DEFAULT_ELECTRICITY_RATE);
   
   // UI state for collapsible cards
   const [expandedCard, setExpandedCard] = useState(null);
   
   // Payment form state
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [meterReading, setMeterReading] = useState('');
+  const [previousMeterReading, setPreviousMeterReading] = useState('');
+  const [currentMeterReading, setCurrentMeterReading] = useState('');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   
   // Submit payment modal state
@@ -102,6 +105,17 @@ const TenantPortal = () => {
         asNumber: roomNumberAsNumber,
         asString: roomNumberAsString
       });
+
+      // Fetch global electricity rate from settings
+      const settingsRef = collection(db, 'settings');
+      const settingsSnapshot = await getDocs(settingsRef);
+      if (!settingsSnapshot.empty) {
+        const settingsData = settingsSnapshot.docs[0].data();
+        const configuredRate = Number(settingsData?.electricityRate);
+        setGlobalElectricityRate(Number.isFinite(configuredRate) && configuredRate > 0 ? configuredRate : DEFAULT_ELECTRICITY_RATE);
+      } else {
+        setGlobalElectricityRate(DEFAULT_ELECTRICITY_RATE);
+      }
       
       // Fetch room details - try both number and string
       const roomsRef = collection(db, 'rooms');
@@ -439,24 +453,27 @@ const TenantPortal = () => {
   };
 
   // Calculate electricity amount
-  const calculateElectricity = (currentReading) => {
-    const prevReading = room?.currentReading || 0;
-    const units = Math.max(0, currentReading - prevReading);
-    const ratePerUnit = 8.5; // Default rate
+  const calculateElectricity = (oldReading, currentReading) => {
+    const units = Math.max(0, currentReading - oldReading);
+    const ratePerUnit = globalElectricityRate; // Use global electricity rate
     const electricityAmount = units * ratePerUnit;
     return { units, electricityAmount };
   };
 
   // Handle meter reading submit
   const handleMeterReadingSubmit = () => {
-    const reading = parseFloat(meterReading);
-    if (!reading || reading <= (room?.currentReading || 0)) {
-      alert('⚠️ Please enter a valid meter reading greater than current reading');
+    const oldReading = Number(previousMeterReading);
+    const currentReading = Number(currentMeterReading);
+
+    if (!Number.isFinite(oldReading) || oldReading < 0) {
+      alert('⚠️ Please enter a valid previous reading');
       return;
     }
-    
-    // Just validate, don't show alert yet
-    // The UI will show the calculated amount
+
+    if (!Number.isFinite(currentReading) || currentReading < oldReading) {
+      alert('⚠️ Current reading must be greater than or equal to previous reading');
+      return;
+    }
   };
   
   // Copy UPI ID to clipboard
@@ -471,17 +488,25 @@ const TenantPortal = () => {
   };
 
   const getPayableAmount = () => {
-    const reading = parseFloat(meterReading);
-    if (!reading || reading < (room?.currentReading || 0)) {
+    const oldReading = Number(previousMeterReading);
+    const currentReading = Number(currentMeterReading);
+
+    if (!Number.isFinite(oldReading) || oldReading < 0) {
       return null;
     }
 
-    const { electricityAmount } = calculateElectricity(reading);
+    if (!Number.isFinite(currentReading) || currentReading < oldReading) {
+      return null;
+    }
+
+    const { units, electricityAmount } = calculateElectricity(oldReading, currentReading);
     const rentAmount = tenant?.currentRent || room?.rent || 0;
     const totalAmount = rentAmount + electricityAmount;
 
     return {
-      reading,
+      oldReading,
+      currentReading,
+      units,
       rentAmount,
       electricityAmount,
       totalAmount
@@ -491,8 +516,8 @@ const TenantPortal = () => {
   const openSpecificUPIApp = (appType) => {
     const payable = getPayableAmount();
 
-    if (!payable || payable.reading <= (room?.currentReading || 0)) {
-      alert('⚠️ Please enter a valid meter reading first');
+    if (!payable) {
+      alert('⚠️ Enter valid Previous and Current meter readings first');
       return;
     }
 
@@ -737,6 +762,8 @@ const TenantPortal = () => {
                           alert('⚠️ Payment setup not available. Please contact property manager.');
                           return;
                         }
+                        setPreviousMeterReading(String(room?.currentReading || 0));
+                        setCurrentMeterReading('');
                         setShowPaymentForm(true);
                       }}
                       className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 touch-manipulation mb-3"
@@ -785,7 +812,8 @@ const TenantPortal = () => {
                   <button
                     onClick={() => {
                       setShowPaymentForm(false);
-                      setMeterReading('');
+                      setPreviousMeterReading('');
+                      setCurrentMeterReading('');
                     }}
                     className="text-gray-500 hover:text-gray-700 font-bold text-xl"
                   >
@@ -801,28 +829,36 @@ const TenantPortal = () => {
                 ) : (
                   <>
 
-                {/* Meter Reading Input */}
+                {/* Meter Reading Inputs */}
                 <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    ⚡ Enter Current Meter Reading
+                    ⚡ Enter Meter Readings
                   </label>
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <input
                       type="number"
-                      value={meterReading}
-                      onChange={(e) => setMeterReading(e.target.value)}
-                      placeholder={`Current: ${room?.currentReading || 0}`}
-                      className="flex-1 px-4 py-3 text-lg font-mono border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      min={room?.currentReading || 0}
+                      value={previousMeterReading}
+                      placeholder="Previous Reading"
+                      className="px-4 py-3 text-lg font-mono border-2 border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
+                      min="0"
+                      readOnly
+                    />
+                    <input
+                      type="number"
+                      value={currentMeterReading}
+                      onChange={(e) => setCurrentMeterReading(e.target.value)}
+                      placeholder="Current Reading"
+                      className="px-4 py-3 text-lg font-mono border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      min={Number(previousMeterReading) || 0}
                     />
                   </div>
                   <p className="text-xs text-gray-600 mt-2">
-                    Previous reading: {room?.currentReading || 0} | Rate: ₹8.5/unit
+                    Previous reading is auto-filled from room data (tenant cannot edit) | Rate: ₹{globalElectricityRate}/unit
                   </p>
                 </div>
 
                 {/* Payment Amount Summary - Always show when meter reading entered */}
-                {meterReading && parseFloat(meterReading) >= (room?.currentReading || 0) && (
+                {getPayableAmount() && (
                   <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <h3 className="font-semibold text-blue-900 mb-2">Payment Amount:</h3>
                     <div className="space-y-2 text-sm">
@@ -831,13 +867,13 @@ const TenantPortal = () => {
                         <span className="font-bold">₹{(tenant?.currentRent || room?.rent || 0).toLocaleString('en-IN')}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Electricity ({calculateElectricity(parseFloat(meterReading)).units} units):</span>
-                        <span className="font-bold">₹{calculateElectricity(parseFloat(meterReading)).electricityAmount.toFixed(2)}</span>
+                        <span>Electricity ({getPayableAmount().units} units):</span>
+                        <span className="font-bold">₹{getPayableAmount().electricityAmount.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between pt-2 border-t border-blue-300 text-lg">
                         <span className="font-bold">Total:</span>
                         <span className="font-bold text-green-600">
-                          ₹{((tenant?.currentRent || room?.rent || 0) + calculateElectricity(parseFloat(meterReading)).electricityAmount).toFixed(2)}
+                          ₹{getPayableAmount().totalAmount.toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -860,10 +896,10 @@ const TenantPortal = () => {
                 )}
 
                 {/* Pay Buttons - Google Pay + PhonePe */}
-                {meterReading && parseFloat(meterReading) >= (room?.currentReading || 0) && (
+                {getPayableAmount() && (
                   <div className="mb-4">
                     <p className="text-sm font-semibold text-gray-700 mb-2">
-                      Payable Amount: <span className="text-green-600 text-lg">₹{((tenant?.currentRent || room?.rent || 0) + calculateElectricity(parseFloat(meterReading)).electricityAmount).toFixed(2)}</span>
+                      Payable Amount: <span className="text-green-600 text-lg">₹{getPayableAmount().totalAmount.toFixed(2)}</span>
                     </p>
                     <p className="text-xs text-gray-500 mb-3">Choose app and tap once to open with prefilled UPI details</p>
 
@@ -878,7 +914,7 @@ const TenantPortal = () => {
                             <span>🟦</span>
                             <span>Google Pay</span>
                           </span>
-                          <span className="text-xs font-semibold text-blue-100">Pay ₹{((tenant?.currentRent || room?.rent || 0) + calculateElectricity(parseFloat(meterReading)).electricityAmount).toFixed(2)}</span>
+                          <span className="text-xs font-semibold text-blue-100">Pay ₹{getPayableAmount().totalAmount.toFixed(2)}</span>
                         </div>
                       </button>
 
@@ -892,7 +928,7 @@ const TenantPortal = () => {
                             <span>🟣</span>
                             <span>PhonePe</span>
                           </span>
-                          <span className="text-xs font-semibold text-purple-100">Pay ₹{((tenant?.currentRent || room?.rent || 0) + calculateElectricity(parseFloat(meterReading)).electricityAmount).toFixed(2)}</span>
+                          <span className="text-xs font-semibold text-purple-100">Pay ₹{getPayableAmount().totalAmount.toFixed(2)}</span>
                         </div>
                       </button>
                     </div>
@@ -902,7 +938,7 @@ const TenantPortal = () => {
                       disabled={paymentProcessing}
                       className="w-full mt-3 bg-gray-800 hover:bg-gray-900 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      📱 Other UPI App • Pay ₹{((tenant?.currentRent || room?.rent || 0) + calculateElectricity(parseFloat(meterReading)).electricityAmount).toFixed(2)}
+                        📱 Other UPI App • Pay ₹{getPayableAmount().totalAmount.toFixed(2)}
                     </button>
                   </div>
                 )}
@@ -1159,6 +1195,7 @@ const TenantPortal = () => {
           <SubmitPayment
             tenant={tenant}
             room={room}
+            electricityRate={globalElectricityRate}
             onClose={() => setShowSubmitPayment(false)}
             onSuccess={() => {
               // Reload tenant data after successful submission

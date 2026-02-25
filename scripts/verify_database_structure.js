@@ -148,7 +148,7 @@ async function initializeSettings() {
   try {
     const settingsDoc = doc(db, 'settings', 'global');
     await setDoc(settingsDoc, {
-      defaultElectricityRate: 8.5,
+      defaultElectricityRate: 9,
       annualRentIncreasePercent: 10,
       paymentMode: 'manual',
       createdAt: new Date().toISOString(),

@@ -44,7 +44,7 @@ async function createSettings() {
     console.log('\n📋 Creating settings collection...');
     
     const settingsData = {
-      defaultElectricityRate: 8.5,
+      defaultElectricityRate: 9,
       annualRentIncreasePercent: 10,
       paymentMode: 'manual',
       createdAt: new Date().toISOString(),
@@ -170,7 +170,7 @@ async function createElectricityReadings() {
       const tenant = tenantDoc.data();
       const tenantId = tenantDoc.id;
       const roomNumber = Number(tenant.roomNumber) || 101;
-      const rate = Number(tenant.customElectricityRate) || 8.5;
+      const rate = Number(tenant.customElectricityRate) || 9;
 
       const readingId = `${tenantId}_${currentYear}_${currentMonth}`;
       

@@ -17,6 +17,7 @@ import BankAccounts from './components/BankAccounts';
 import BackupExport from './components/BackupExport';
 import RentIncrease from './components/RentIncrease';
 import HistoryManager from './components/HistoryManager';
+import TenantHistory from './components/TenantHistory';
 import ImportLogsPage from './components/ImportLogsPage';
 import PaymentsReset from './components/PaymentsReset';
 import DatabaseCleanup from './components/DatabaseCleanup';
@@ -126,6 +127,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><HistoryManager /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/tenant-history" 
+            element={
+              <ProtectedRoute>
+                <Layout><TenantHistory /></Layout>
               </ProtectedRoute>
             } 
           />

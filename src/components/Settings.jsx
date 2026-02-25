@@ -33,10 +33,10 @@ const Settings = () => {
       if (!settingsSnapshot.empty) {
         const settingsData = { id: settingsSnapshot.docs[0].id, ...settingsSnapshot.docs[0].data() };
         setSettings(settingsData);
-        setElectricityRate(settingsData.electricityRate || '');
+        setElectricityRate(settingsData.electricityRate || '9');
       } else {
         // No settings exist yet, set defaults
-        setElectricityRate('8');
+        setElectricityRate('9');
       }
       
       setLoading(false);

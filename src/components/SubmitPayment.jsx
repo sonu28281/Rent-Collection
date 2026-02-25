@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-const SubmitPayment = ({ tenant, room, onClose, onSuccess }) => {
+const SubmitPayment = ({ tenant, room, electricityRate = 9, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     paidAmount: '',
     rentAmount: tenant?.currentRent || room?.rent || 0,
     electricityAmount: '',
-    meterReading: room?.currentReading || 0,
+    previousReading: room?.currentReading || 0,
+    currentReading: room?.currentReading || 0,
     paidDate: new Date().toISOString().split('T')[0],
     utr: '',
     screenshot: '',
@@ -24,12 +25,25 @@ const SubmitPayment = ({ tenant, room, onClose, onSuccess }) => {
       return;
     }
 
+    const previousReading = parseFloat(formData.previousReading);
+    const currentReading = parseFloat(formData.currentReading);
+
+    if (!Number.isFinite(previousReading) || previousReading < 0) {
+      setError('Please enter valid previous meter reading');
+      return;
+    }
+
+    if (!Number.isFinite(currentReading) || currentReading < previousReading) {
+      setError('Current reading must be greater than or equal to previous reading');
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError('');
 
-      const unitsConsumed = parseFloat(formData.meterReading) - (room?.currentReading || 0);
-      const calculatedElectricity = unitsConsumed * 8.5;
+      const unitsConsumed = currentReading - previousReading;
+      const calculatedElectricity = unitsConsumed * electricityRate;
 
       // Create payment submission
       await addDoc(collection(db, 'paymentSubmissions'), {
@@ -43,8 +57,8 @@ const SubmitPayment = ({ tenant, room, onClose, onSuccess }) => {
         paidAmount: parseFloat(formData.paidAmount),
         rentAmount: parseFloat(formData.rentAmount),
         electricityAmount: parseFloat(formData.electricityAmount) || calculatedElectricity,
-        meterReading: parseFloat(formData.meterReading),
-        previousReading: room?.currentReading || 0,
+        meterReading: currentReading,
+        previousReading,
         unitsConsumed: unitsConsumed,
         
         paidDate: formData.paidDate,
@@ -77,10 +91,10 @@ const SubmitPayment = ({ tenant, room, onClose, onSuccess }) => {
   };
 
   const calculateElectricity = () => {
-    const current = parseFloat(formData.meterReading) || 0;
-    const previous = room?.currentReading || 0;
+    const current = parseFloat(formData.currentReading) || 0;
+    const previous = parseFloat(formData.previousReading) || 0;
     const units = Math.max(0, current - previous);
-    return (units * 8.5).toFixed(2);
+    return (units * electricityRate).toFixed(2);
   };
 
   return (
@@ -119,29 +133,38 @@ const SubmitPayment = ({ tenant, room, onClose, onSuccess }) => {
             />
           </div>
 
-          {/* Meter Reading */}
+          {/* Meter Readings */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              ⚡ Current Meter Reading <span className="text-red-500">*</span>
+              ⚡ Meter Readings <span className="text-red-500">*</span>
             </label>
-            <input
-              type="number"
-              value={formData.meterReading}
-              onChange={(e) => {
-                const newReading = e.target.value;
-                setFormData({ 
-                  ...formData, 
-                  meterReading: newReading,
-                  electricityAmount: calculateElectricity()
-                });
-              }}
-              min={room?.currentReading || 0}
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder={`Previous: ${room?.currentReading || 0}`}
-              required
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input
+                type="number"
+                value={formData.previousReading}
+                min="0"
+                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
+                placeholder="Previous Reading"
+                readOnly
+                required
+              />
+              <input
+                type="number"
+                value={formData.currentReading}
+                onChange={(e) => {
+                  setFormData({
+                    ...formData,
+                    currentReading: e.target.value
+                  });
+                }}
+                min={parseFloat(formData.previousReading) || 0}
+                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Current Reading"
+                required
+              />
+            </div>
             <p className="text-xs text-gray-600 mt-1">
-              Previous: {room?.currentReading || 0} | Units: {Math.max(0, parseFloat(formData.meterReading) - (room?.currentReading || 0))} | Auto-calculated: ₹{calculateElectricity()}
+              Previous reading is auto-filled from room data (tenant cannot edit) | Units: {Math.max(0, (parseFloat(formData.currentReading) || 0) - (parseFloat(formData.previousReading) || 0))} | Rate: ₹{electricityRate}/unit | Auto-calculated: ₹{calculateElectricity()}
             </p>
           </div>
 
