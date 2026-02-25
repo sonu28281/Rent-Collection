@@ -285,6 +285,49 @@ const ImportCSV = () => {
     };
   };
 
+  // Auto-fill month column based on room sequence logic
+  // When room number sequence repeats (goes back to 101 or lower number), increment month
+  const autoFillMonths = (data) => {
+    let currentMonth = 1;
+    let lastRoomNumber = 0;
+    const autoFilledCount = { count: 0 };
+    
+    const filledData = data.map((row, index) => {
+      const mappedRow = mapColumns(row);
+      const roomNumber = Number(mappedRow.roomNumber);
+      
+      // If room number is valid
+      if (roomNumber && !isNaN(roomNumber)) {
+        // Detect if we've started a new cycle (room number decreased)
+        if (index > 0 && roomNumber < lastRoomNumber) {
+          currentMonth++;
+        }
+        lastRoomNumber = roomNumber;
+      }
+      
+      // Check if month is missing or empty
+      const existingMonth = mappedRow.month;
+      const monthIsEmpty = !existingMonth || String(existingMonth).trim() === '' || existingMonth === '0';
+      
+      if (monthIsEmpty) {
+        // Auto-fill month - update the original row object with mapped column name
+        const monthColumnName = Object.keys(row).find(key => COLUMN_MAPPING[key] === 'month');
+        if (monthColumnName) {
+          row[monthColumnName] = String(currentMonth);
+          autoFilledCount.count++;
+        } else {
+          // If no month column exists, add a generic 'month' column
+          row['month'] = String(currentMonth);
+          autoFilledCount.count++;
+        }
+      }
+      
+      return row;
+    });
+    
+    return { data: filledData, autoFilledCount: autoFilledCount.count };
+  };
+
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile && selectedFile.type === 'text/csv') {
@@ -300,12 +343,17 @@ const ImportCSV = () => {
         skipEmptyLines: true,
         complete: (results) => {
           try {
-            const data = results.data;
+            let data = results.data;
             
             if (data.length === 0) {
               setError('CSV file is empty');
               return;
             }
+            
+            // Auto-fill month column if empty based on room sequence
+            const autoFillResult = autoFillMonths(data);
+            data = autoFillResult.data;
+            const autoFilledMonthCount = autoFillResult.autoFilledCount;
             
             // Check required columns
             const headers = Object.keys(data[0]);
@@ -323,6 +371,11 @@ const ImportCSV = () => {
             // Process all rows for preview
             const processedRows = [];
             const allWarnings = [];
+            
+            // Add info message about auto-filled months
+            if (autoFilledMonthCount > 0) {
+              allWarnings.push(`✨ Auto-filled ${autoFilledMonthCount} empty month values based on room sequence`);
+            }
             
             for (let i = 0; i < data.length; i++) {
               try {
@@ -676,6 +729,26 @@ const ImportCSV = () => {
               <li>• <strong>Room status = vacant → all amounts forced to 0</strong></li>
               <li>• Tenant names stored as snapshots - NEVER validated</li>
               <li>• <strong>Same room+year+month → Amounts SUMMED (aggregated)</strong></li>
+            </ul>
+          </div>
+
+          <div className="bg-cyan-100 border border-cyan-300 rounded p-3 mt-3">
+            <strong className="text-cyan-900">✨ AUTO-FILL MONTH (Smart Detection):</strong>
+            <ul className="ml-4 mt-1 space-y-1">
+              <li>• <strong>Leave Month column empty - System fills automatically!</strong></li>
+              <li>• Logic: Detects when room sequence repeats (new month cycle)</li>
+              <li>• <strong className="text-cyan-900">How it works:</strong></li>
+              <li className="ml-6">→ First cycle (101→106, 201→212): Month = 1 (January)</li>
+              <li className="ml-6">→ Second cycle (101 appears again): Month = 2 (February)</li>
+              <li className="ml-6">→ Third cycle (101 appears again): Month = 3 (March)</li>
+              <li className="ml-6">→ And so on...</li>
+              <li>• <strong>Example CSV rows:</strong></li>
+              <li className="ml-6 text-xs font-mono">101, tenant1, 2024, <span className="text-red-600">[empty]</span>, ... → Auto-filled: Jan (1)</li>
+              <li className="ml-6 text-xs font-mono">102, tenant2, 2024, <span className="text-red-600">[empty]</span>, ... → Jan (1)</li>
+              <li className="ml-6 text-xs font-mono">206, tenant3, 2024, <span className="text-red-600">[empty]</span>, ... → Jan (1)</li>
+              <li className="ml-6 text-xs font-mono">101, tenant1, 2024, <span className="text-red-600">[empty]</span>, ... → Auto-filled: Feb (2) 🔄</li>
+              <li className="ml-6 text-xs font-mono">103, tenant2, 2024, <span className="text-red-600">[empty]</span>, ... → Feb (2)</li>
+              <li>• Perfect for sequential CSV exports from Excel sheets!</li>
             </ul>
           </div>
 
