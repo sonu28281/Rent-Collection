@@ -6,6 +6,12 @@ import { getDashboardStats, getYearlyIncomeSummary, getMonthlyIncomeByYear, getC
 const Dashboard = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  
+  // State for month navigation
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1); // 1-12
+  const [selectedMonthYear, setSelectedMonthYear] = useState(now.getFullYear());
+  
   const [stats, setStats] = useState({
     activeTenants: 0,
     pendingPayments: 0,
@@ -30,19 +36,22 @@ const Dashboard = () => {
     }
   }, [selectedYear]);
 
+  // Refetch when selected month/year changes
+  useEffect(() => {
+    fetchMonthData();
+  }, [selectedMonth, selectedMonthYear]);
+
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [statsData, yearlyIncome, monthSummary, todaysData] = await Promise.all([
+      const [statsData, yearlyIncome, todaysData] = await Promise.all([
         getDashboardStats(),
         getYearlyIncomeSummary(),
-        getCurrentMonthDetailedSummary(),
         getTodaysCollection()
       ]);
       
       setStats(statsData);
       setYearlyData(yearlyIncome);
-      setCurrentMonthSummary(monthSummary);
       setTodaysCollection(todaysData);
       
       // Set selected year to current or latest year with data
@@ -51,10 +60,22 @@ const Dashboard = () => {
         setSelectedYear(latestYear);
       }
       
+      // Fetch month data
+      await fetchMonthData();
+      
       setLoading(false);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setLoading(false);
+    }
+  };
+
+  const fetchMonthData = async () => {
+    try {
+      const monthSummary = await getCurrentMonthDetailedSummary(selectedMonth, selectedMonthYear);
+      setCurrentMonthSummary(monthSummary);
+    } catch (error) {
+      console.error('Error fetching month data:', error);
     }
   };
 
@@ -65,6 +86,36 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error fetching monthly data:', error);
     }
+  };
+
+  // Month navigation functions
+  const goToPreviousMonth = () => {
+    if (selectedMonth === 1) {
+      setSelectedMonth(12);
+      setSelectedMonthYear(selectedMonthYear - 1);
+    } else {
+      setSelectedMonth(selectedMonth - 1);
+    }
+  };
+
+  const goToNextMonth = () => {
+    if (selectedMonth === 12) {
+      setSelectedMonth(1);
+      setSelectedMonthYear(selectedMonthYear + 1);
+    } else {
+      setSelectedMonth(selectedMonth + 1);
+    }
+  };
+
+  const goToToday = () => {
+    const now = new Date();
+    setSelectedMonth(now.getMonth() + 1);
+    setSelectedMonthYear(now.getFullYear());
+  };
+
+  const isCurrentMonth = () => {
+    const now = new Date();
+    return selectedMonth === (now.getMonth() + 1) && selectedMonthYear === now.getFullYear();
   };
 
   // Helper function to get floor number from room number
@@ -108,13 +159,49 @@ const Dashboard = () => {
       {currentMonthSummary && (
         <div className="mb-6">
           <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-gray-800">
-                📅 Current Month Summary - {new Date(2000, currentMonthSummary.month - 1).toLocaleString('default', { month: 'long' })} {currentMonthSummary.year}
-              </h3>
-              <span className="text-sm text-gray-600">
-                {currentMonthSummary.paidCount + currentMonthSummary.pendingCount} active tenants
-              </span>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                  📅 Month Summary - {new Date(2000, currentMonthSummary.month - 1).toLocaleString('default', { month: 'long' })} {currentMonthSummary.year}
+                  {!isCurrentMonth() && (
+                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-full">
+                      Historical
+                    </span>
+                  )}
+                </h3>
+                <span className="text-sm text-gray-600">
+                  {currentMonthSummary.paidCount + currentMonthSummary.pendingCount} active tenants
+                </span>
+              </div>
+              
+              {/* Month Navigation Controls */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={goToPreviousMonth}
+                  className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold transition text-sm"
+                  title="Previous Month"
+                >
+                  ⬅️ Prev
+                </button>
+                
+                {!isCurrentMonth() && (
+                  <button
+                    onClick={goToToday}
+                    className="flex items-center gap-1 px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-semibold transition text-sm"
+                    title="Go to Current Month"
+                  >
+                    📅 Today
+                  </button>
+                )}
+                
+                <button
+                  onClick={goToNextMonth}
+                  className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold transition text-sm"
+                  title="Next Month"
+                >
+                  Next ➡️
+                </button>
+              </div>
             </div>
 
             {/* Summary Cards */}

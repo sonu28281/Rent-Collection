@@ -339,13 +339,15 @@ export const getTodaysCollection = async () => {
 };
 
 /**
- * Get current month detailed summary with tenant information
+ * Get month detailed summary with tenant information
+ * @param {number} month - Optional month (1-12), defaults to current month
+ * @param {number} year - Optional year, defaults to current year
  */
-export const getCurrentMonthDetailedSummary = async () => {
+export const getCurrentMonthDetailedSummary = async (month = null, year = null) => {
   try {
     const now = new Date();
-    const currentMonth = now.getMonth() + 1; // 1-12
-    const currentYear = now.getFullYear();
+    const currentMonth = month || (now.getMonth() + 1); // 1-12
+    const currentYear = year || now.getFullYear();
 
     // Fetch all active tenants
     const tenantsRef = collection(db, 'tenants');
