@@ -11,6 +11,9 @@ const Tenants = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingTenant, setEditingTenant] = useState(null);
   const [filter, setFilter] = useState('all'); // all, active, inactive
+  const [selectedTenantHistory, setSelectedTenantHistory] = useState(null);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -100,6 +103,42 @@ const Tenants = () => {
       console.error('Error deleting tenant:', err);
       alert('Failed to delete tenant. Please try again.');
     }
+  };
+
+  const handleViewHistory = async (tenant) => {
+    setSelectedTenantHistory(tenant);
+    setLoadingHistory(true);
+    
+    try {
+      // Fetch payment history for this tenant
+      const paymentsRef = collection(db, 'payments');
+      const paymentsQuery = query(
+        paymentsRef,
+        where('tenantNameSnapshot', '==', tenant.name),
+        orderBy('year', 'desc'),
+        orderBy('month', 'desc')
+      );
+      
+      const paymentsSnapshot = await getDocs(paymentsQuery);
+      const payments = [];
+      
+      paymentsSnapshot.forEach((doc) => {
+        payments.push({ id: doc.id, ...doc.data() });
+      });
+      
+      setPaymentHistory(payments);
+    } catch (err) {
+      console.error('Error fetching payment history:', err);
+      alert('Failed to load payment history');
+      setPaymentHistory([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleCloseHistory = () => {
+    setSelectedTenantHistory(null);
+    setPaymentHistory([]);
   };
 
   const filteredTenants = tenants.filter(tenant => {
@@ -249,6 +288,7 @@ const Tenants = () => {
               tenant={tenant}
               onEdit={() => handleEditTenant(tenant)}
               onDelete={() => handleDeleteTenant(tenant.id, tenant.roomNumber)}
+              onViewHistory={() => handleViewHistory(tenant)}
             />
           ))}
         </div>
@@ -264,11 +304,147 @@ const Tenants = () => {
           onSuccess={handleFormSuccess}
         />
       )}
+
+      {/* Payment History Modal */}
+      {selectedTenantHistory && (
+        <PaymentHistoryModal
+          tenant={selectedTenantHistory}
+          payments={paymentHistory}
+          loading={loadingHistory}
+          onClose={handleCloseHistory}
+        />
+      )}
     </div>
   );
 };
 
-const TenantCard = ({ tenant, onEdit, onDelete }) => {
+const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  // Calculate totals
+  const totalCollected = payments.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
+  const totalBilled = payments.reduce((sum, p) => sum + ((p.rent || 0) + (p.electricity || 0)), 0);
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-1">📊 Payment History</h2>
+              <p className="text-blue-100">{tenant.name} - Room {tenant.roomNumber}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          {/* Summary Stats */}
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <p className="text-blue-100 text-sm">Total Collected</p>
+              <p className="text-2xl font-bold">₹{totalCollected.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <p className="text-blue-100 text-sm">Total Payments</p>
+              <p className="text-2xl font-bold">{payments.length}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading payment history...</p>
+              </div>
+            </div>
+          ) : payments.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">📄</div>
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">No Payment History</h3>
+              <p className="text-gray-600">This tenant has no payment records yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">Period</th>
+                    <th className="px-4 py-3 text-right font-semibold">Rent</th>
+                    <th className="px-4 py-3 text-right font-semibold">Electricity</th>
+                    <th className="px-4 py-3 text-right font-semibold">Total</th>
+                    <th className="px-4 py-3 text-right font-semibold">Paid</th>
+                    <th className="px-4 py-3 text-left font-semibold">Payment Date</th>
+                    <th className="px-4 py-3 text-center font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map((payment) => {
+                    const rent = payment.rent || 0;
+                    const electricity = payment.electricity || 0;
+                    const total = rent + electricity;
+                    const paid = payment.paidAmount || 0;
+                    const isPaid = payment.status === 'paid';
+                    
+                    return (
+                      <tr key={payment.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 font-semibold">
+                          {monthNames[payment.month - 1]} {payment.year}
+                        </td>
+                        <td className="px-4 py-3 text-right">₹{rent.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3 text-right">₹{electricity.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3 text-right font-semibold">₹{total.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3 text-right font-bold text-green-600">
+                          ₹{paid.toLocaleString('en-IN')}
+                        </td>
+                        <td className="px-4 py-3">
+                          {payment.paymentDate || payment.paidAt 
+                            ? new Date(payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
+                            : '-'
+                          }
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            isPaid && paid > 0
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {isPaid && paid > 0 ? '✅ Paid' : '❌ Pending'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t p-4 bg-gray-50 flex justify-end">
+          <button
+            onClick={onClose}
+            className="btn-primary"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
   const isActive = tenant.isActive;
   
   // Copy credentials to clipboard
@@ -348,8 +524,11 @@ const TenantCard = ({ tenant, onEdit, onDelete }) => {
       </div>
 
       <div className="flex gap-2">
+        <button onClick={onViewHistory} className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold transition flex-1 text-sm">
+          📊 History
+        </button>
         <button onClick={copyCredentials} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition flex-1 text-sm">
-          📋 Copy Login
+          📋 Copy
         </button>
         <button onClick={onEdit} className="btn-primary flex-1 text-sm">
           ✏️ Edit

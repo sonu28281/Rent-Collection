@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { getDashboardStats, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary } from '../utils/financial';
+import { getDashboardStats, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary, getTodaysCollection } from '../utils/financial';
 
 const Dashboard = () => {
   const { currentUser } = useAuth();
@@ -17,6 +17,7 @@ const Dashboard = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [monthlyData, setMonthlyData] = useState([]);
   const [currentMonthSummary, setCurrentMonthSummary] = useState(null);
+  const [todaysCollection, setTodaysCollection] = useState({ amount: 0, count: 0, date: '' });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,15 +33,17 @@ const Dashboard = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [statsData, yearlyIncome, monthSummary] = await Promise.all([
+      const [statsData, yearlyIncome, monthSummary, todaysData] = await Promise.all([
         getDashboardStats(),
         getYearlyIncomeSummary(),
-        getCurrentMonthDetailedSummary()
+        getCurrentMonthDetailedSummary(),
+        getTodaysCollection()
       ]);
       
       setStats(statsData);
       setYearlyData(yearlyIncome);
       setCurrentMonthSummary(monthSummary);
+      setTodaysCollection(todaysData);
       
       // Set selected year to current or latest year with data
       if (yearlyIncome.length > 0) {
@@ -62,6 +65,19 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error fetching monthly data:', error);
     }
+  };
+
+  // Helper function to get floor number from room number
+  const getFloor = (roomNumber) => {
+    const roomNum = typeof roomNumber === 'string' ? parseInt(roomNumber, 10) : roomNumber;
+    return roomNum >= 200 ? 2 : 1;
+  };
+
+  // Helper function to group tenants by floor
+  const groupTenantsByFloor = (tenants) => {
+    const floor1 = tenants.filter(t => getFloor(t.roomNumber) === 1);
+    const floor2 = tenants.filter(t => getFloor(t.roomNumber) === 2);
+    return { floor1, floor2 };
   };
 
   return (
@@ -169,104 +185,206 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Tenants Who Paid */}
-            {currentMonthSummary.paidTenants.length > 0 && (
-              <div className="mb-6">
-                <h4 className="font-semibold text-green-700 mb-3 flex items-center gap-2">
-                  <span className="text-xl">✅</span>
-                  Paid Tenants ({currentMonthSummary.paidTenants.length})
-                </h4>
-                <div className="bg-green-50 rounded-lg border border-green-200 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-green-100">
-                        <tr>
-                          <th className="px-3 py-2 text-left">Room</th>
-                          <th className="px-3 py-2 text-left">Tenant</th>
-                          <th className="px-3 py-2 text-right">Amount</th>
-                          <th className="px-3 py-2 text-left">Payment Date</th>
-                          <th className="px-3 py-2 text-left">Method</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {currentMonthSummary.paidTenants.map((tenant) => (
-                          <tr key={tenant.id} className="border-b border-green-100 hover:bg-green-100">
-                            <td className="px-3 py-2 font-semibold">{tenant.roomNumber}</td>
-                            <td className="px-3 py-2">{tenant.name}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-green-700">
-                              ₹{tenant.collectedAmount.toLocaleString('en-IN')}
-                            </td>
-                            <td className="px-3 py-2">{tenant.paidDate || '-'}</td>
-                            <td className="px-3 py-2">
-                              <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded">
-                                {tenant.paymentMethod || 'N/A'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Tenants Who Paid - Floor-wise */}
+            {currentMonthSummary.paidTenants.length > 0 && (() => {
+              const { floor1, floor2 } = groupTenantsByFloor(currentMonthSummary.paidTenants);
+              return (
+                <div className="mb-6 space-y-4">
+                  {/* Floor 1 - Paid */}
+                  {floor1.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-green-700 mb-3 flex items-center gap-2">
+                        <span className="text-xl">✅</span>
+                        Floor 1 - Paid ({floor1.length})
+                      </h4>
+                      <div className="bg-green-50 rounded-lg border border-green-200 overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-green-100">
+                              <tr>
+                                <th className="px-3 py-2 text-left">Room</th>
+                                <th className="px-3 py-2 text-left">Tenant</th>
+                                <th className="px-3 py-2 text-right">Amount</th>
+                                <th className="px-3 py-2 text-left">Payment Date</th>
+                                <th className="px-3 py-2 text-left">Method</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {floor1.map((tenant) => (
+                                <tr key={tenant.id} className="border-b border-green-100 hover:bg-green-100">
+                                  <td className="px-3 py-2 font-semibold">{tenant.roomNumber}</td>
+                                  <td className="px-3 py-2">{tenant.name}</td>
+                                  <td className="px-3 py-2 text-right font-semibold text-green-700">
+                                    ₹{tenant.collectedAmount.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2">{tenant.paidDate || '-'}</td>
+                                  <td className="px-3 py-2">
+                                    <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded">
+                                      {tenant.paymentMethod || 'N/A'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-            {/* Tenants with Pending Payments */}
-            {currentMonthSummary.pendingTenants.length > 0 && (
-              <div>
-                <h4 className="font-semibold text-orange-700 mb-3 flex items-center gap-2">
-                  <span className="text-xl">⏳</span>
-                  Pending Payments ({currentMonthSummary.pendingTenants.length})
-                </h4>
-                <div className="bg-orange-50 rounded-lg border border-orange-200 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-orange-100">
-                        <tr>
-                          <th className="px-3 py-2 text-left">Room</th>
-                          <th className="px-3 py-2 text-left">Tenant</th>
-                          <th className="px-3 py-2 text-right">Expected Rent</th>
-                          <th className="px-3 py-2 text-right">Electricity</th>
-                          <th className="px-3 py-2 text-right">Total Due</th>
-                          <th className="px-3 py-2 text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {currentMonthSummary.pendingTenants.map((tenant) => (
-                          <tr key={tenant.id} className="border-b border-orange-100 hover:bg-orange-100">
-                            <td className="px-3 py-2 font-semibold">{tenant.roomNumber}</td>
-                            <td className="px-3 py-2">{tenant.name}</td>
-                            <td className="px-3 py-2 text-right">
-                              ₹{tenant.expectedRent.toLocaleString('en-IN')}
-                            </td>
-                            <td className="px-3 py-2 text-right">
-                              ₹{tenant.expectedElectricity.toLocaleString('en-IN')}
-                            </td>
-                            <td className="px-3 py-2 text-right font-semibold text-orange-700">
-                              ₹{tenant.dueAmount.toLocaleString('en-IN')}
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <span className={`text-xs px-2 py-1 rounded ${
-                                tenant.status === 'pending' ? 'bg-yellow-200 text-yellow-800' :
-                                tenant.status === 'overdue' ? 'bg-red-200 text-red-800' :
-                                'bg-gray-200 text-gray-800'
-                              }`}>
-                                {tenant.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {/* Floor 2 - Paid */}
+                  {floor2.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-green-700 mb-3 flex items-center gap-2">
+                        <span className="text-xl">✅</span>
+                        Floor 2 - Paid ({floor2.length})
+                      </h4>
+                      <div className="bg-green-50 rounded-lg border border-green-200 overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-green-100">
+                              <tr>
+                                <th className="px-3 py-2 text-left">Room</th>
+                                <th className="px-3 py-2 text-left">Tenant</th>
+                                <th className="px-3 py-2 text-right">Amount</th>
+                                <th className="px-3 py-2 text-left">Payment Date</th>
+                                <th className="px-3 py-2 text-left">Method</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {floor2.map((tenant) => (
+                                <tr key={tenant.id} className="border-b border-green-100 hover:bg-green-100">
+                                  <td className="px-3 py-2 font-semibold">{tenant.roomNumber}</td>
+                                  <td className="px-3 py-2">{tenant.name}</td>
+                                  <td className="px-3 py-2 text-right font-semibold text-green-700">
+                                    ₹{tenant.collectedAmount.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2">{tenant.paidDate || '-'}</td>
+                                  <td className="px-3 py-2">
+                                    <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded">
+                                      {tenant.paymentMethod || 'N/A'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
+
+            {/* Tenants with Pending Payments - Floor-wise */}
+            {currentMonthSummary.pendingTenants.length > 0 && (() => {
+              const { floor1, floor2 } = groupTenantsByFloor(currentMonthSummary.pendingTenants);
+              return (
+                <div className="space-y-4">
+                  {/* Floor 1 - Pending */}
+                  {floor1.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-red-700 mb-3 flex items-center gap-2">
+                        <span className="text-xl">❌</span>
+                        Floor 1 - Pending ({floor1.length})
+                      </h4>
+                      <div className="bg-red-50 rounded-lg border border-red-300 overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-red-100">
+                              <tr>
+                                <th className="px-3 py-2 text-left">Room</th>
+                                <th className="px-3 py-2 text-left">Tenant</th>
+                                <th className="px-3 py-2 text-right">Expected Rent</th>
+                                <th className="px-3 py-2 text-right">Electricity</th>
+                                <th className="px-3 py-2 text-right">Total Due</th>
+                                <th className="px-3 py-2 text-center">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {floor1.map((tenant) => (
+                                <tr key={tenant.id} className="border-b border-red-100 hover:bg-red-100">
+                                  <td className="px-3 py-2 font-semibold">{tenant.roomNumber}</td>
+                                  <td className="px-3 py-2">{tenant.name}</td>
+                                  <td className="px-3 py-2 text-right">
+                                    ₹{tenant.expectedRent.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    ₹{tenant.expectedElectricity.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-semibold text-red-700">
+                                    ₹{tenant.dueAmount.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-center">
+                                    <span className="text-xs px-2 py-1 rounded bg-red-200 text-red-900 font-semibold">
+                                      {tenant.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Floor 2 - Pending */}
+                  {floor2.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-red-700 mb-3 flex items-center gap-2">
+                        <span className="text-xl">❌</span>
+                        Floor 2 - Pending ({floor2.length})
+                      </h4>
+                      <div className="bg-red-50 rounded-lg border border-red-300 overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-red-100">
+                              <tr>
+                                <th className="px-3 py-2 text-left">Room</th>
+                                <th className="px-3 py-2 text-left">Tenant</th>
+                                <th className="px-3 py-2 text-right">Expected Rent</th>
+                                <th className="px-3 py-2 text-right">Electricity</th>
+                                <th className="px-3 py-2 text-right">Total Due</th>
+                                <th className="px-3 py-2 text-center">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {floor2.map((tenant) => (
+                                <tr key={tenant.id} className="border-b border-red-100 hover:bg-red-100">
+                                  <td className="px-3 py-2 font-semibold">{tenant.roomNumber}</td>
+                                  <td className="px-3 py-2">{tenant.name}</td>
+                                  <td className="px-3 py-2 text-right">
+                                    ₹{tenant.expectedRent.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    ₹{tenant.expectedElectricity.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-semibold text-red-700">
+                                    ₹{tenant.dueAmount.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-center">
+                                    <span className="text-xs px-2 py-1 rounded bg-red-200 text-red-900 font-semibold">
+                                      {tenant.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
-      {/* Quick Stats - Only Essential Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      {/* Quick Stats - Essential Info */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -301,6 +419,23 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="text-5xl">👥</div>
+          </div>
+        </div>
+
+        <div className="card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-semibold">Today's Collection</p>
+              <div className="mt-2">
+                <p className="text-4xl font-bold">
+                  {loading ? '...' : `₹${todaysCollection.amount.toLocaleString('en-IN')}`}
+                </p>
+                <p className="text-purple-100 text-xs mt-1">
+                  {loading ? 'Loading...' : `${todaysCollection.count} payment${todaysCollection.count !== 1 ? 's' : ''} today`}
+                </p>
+              </div>
+            </div>
+            <div className="text-5xl">💰</div>
           </div>
         </div>
       </div>

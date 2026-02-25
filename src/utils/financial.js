@@ -280,6 +280,65 @@ export const getDashboardStats = async () => {
 };
 
 /**
+ * Get today's collection (payments made today)
+ */
+export const getTodaysCollection = async () => {
+  try {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+    
+    // Fetch all payments
+    const paymentsRef = collection(db, 'payments');
+    const paymentsSnapshot = await getDocs(paymentsRef);
+    
+    let todaysCollection = 0;
+    let todaysPaymentCount = 0;
+    
+    paymentsSnapshot.forEach((doc) => {
+      const data = doc.data();
+      const paidAmount = Number(data.paidAmount) || 0;
+      
+      // Skip if no paid amount
+      if (paidAmount <= 0) return;
+      
+      // Check if payment was made today
+      let isTodaysPayment = false;
+      
+      // Check paymentDate field (format: 'YYYY-MM-DD')
+      if (data.paymentDate === today) {
+        isTodaysPayment = true;
+      }
+      
+      // Also check paidAt field (ISO timestamp)
+      if (!isTodaysPayment && data.paidAt) {
+        const paidDate = new Date(data.paidAt).toISOString().split('T')[0];
+        if (paidDate === today) {
+          isTodaysPayment = true;
+        }
+      }
+      
+      if (isTodaysPayment) {
+        todaysCollection += paidAmount;
+        todaysPaymentCount++;
+      }
+    });
+    
+    return {
+      amount: todaysCollection,
+      count: todaysPaymentCount,
+      date: today
+    };
+  } catch (error) {
+    console.error('Error calculating today\'s collection:', error);
+    return {
+      amount: 0,
+      count: 0,
+      date: new Date().toISOString().split('T')[0]
+    };
+  }
+};
+
+/**
  * Get current month detailed summary with tenant information
  */
 export const getCurrentMonthDetailedSummary = async () => {
