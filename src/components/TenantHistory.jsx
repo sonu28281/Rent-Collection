@@ -68,11 +68,13 @@ const TenantHistory = () => {
 
         tenantsSnapshot.docs.forEach((doc) => {
           const data = doc.data();
+          const tenantId = doc.id;
           const tenantName = data.name?.trim();
           if (!tenantName) return;
 
           if (!tenantMap.has(tenantName)) {
             tenantMap.set(tenantName, {
+              id: tenantId,
               name: tenantName,
               isActive: Boolean(data.isActive),
               roomNumber: data.roomNumber ?? null,
@@ -84,6 +86,7 @@ const TenantHistory = () => {
             const existing = tenantMap.get(tenantName);
             tenantMap.set(tenantName, {
               ...existing,
+              id: existing.id || tenantId,
               isActive: existing.isActive || Boolean(data.isActive),
               roomNumber: existing.roomNumber ?? data.roomNumber ?? null,
               checkInDate: existing.checkInDate ?? data.checkInDate ?? null,
@@ -95,6 +98,8 @@ const TenantHistory = () => {
         paymentsSnapshot.docs.forEach((doc) => {
           const data = doc.data();
           const tenantName = (data.tenantNameSnapshot || data.tenantName || '').trim();
+          const paymentTenantId = data.tenantId || null;
+
           if (
             !tenantName ||
             tenantName === 'Historical Record' ||
@@ -103,8 +108,17 @@ const TenantHistory = () => {
             return;
           }
 
+          const hasMatchingTenantDoc = paymentTenantId
+            ? tenantsSnapshot.docs.some((tenantDoc) => tenantDoc.id === paymentTenantId)
+            : false;
+
+          if (hasMatchingTenantDoc) {
+            return;
+          }
+
           if (!tenantMap.has(tenantName)) {
             tenantMap.set(tenantName, {
+              id: paymentTenantId,
               name: tenantName,
               isActive: false,
               roomNumber: data.roomNumber ?? null,
@@ -130,6 +144,7 @@ const TenantHistory = () => {
   // Load tenant history
   const loadTenantHistory = async (tenantObj) => {
     const tenantName = tenantObj.name;
+    const tenantId = tenantObj.id || null;
     setLoading(true);
     setSelectedTenant(tenantObj);
     
@@ -141,8 +156,10 @@ const TenantHistory = () => {
       const history = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(p => {
-          const name = p.tenantNameSnapshot || p.tenantName;
-          return name === tenantName;
+          const name = (p.tenantNameSnapshot || p.tenantName || '').trim();
+          if (tenantId && p.tenantId === tenantId) return true;
+          if (!p.tenantId && name === tenantName) return true;
+          return false;
         })
         .sort((a, b) => {
           if (a.year !== b.year) return b.year - a.year;

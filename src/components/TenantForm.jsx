@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, doc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, query, where, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 
 const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
@@ -153,6 +153,9 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
       };
 
       if (tenant) {
+        const oldName = (tenant.name || '').trim();
+        const newName = formData.name.trim();
+
         // Update existing tenant
         // Generate uniqueToken if it doesn't exist (for older tenants)
         if (!tenant.uniqueToken) {
@@ -171,6 +174,16 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
         } else {
           // Same room: update status based on isActive
           await updateRoomStatus(formData.roomNumber, formData.isActive);
+        }
+
+        if (oldName && newName && oldName !== newName) {
+          await syncTenantNameAcrossCollections({
+            tenantId: tenant.id,
+            oldName,
+            newName,
+            oldRoomNumber,
+            newRoomNumber: formData.roomNumber
+          });
         }
         
         alert('Tenant updated successfully!');
@@ -196,6 +209,82 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
       alert('Failed to save tenant. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const syncTenantNameAcrossCollections = async ({ tenantId, oldName, newName, oldRoomNumber, newRoomNumber }) => {
+    const roomCandidates = [oldRoomNumber, newRoomNumber]
+      .filter((value) => value !== undefined && value !== null && value !== '');
+
+    const matchesRoom = (recordRoom) => {
+      if (!roomCandidates.length) return true;
+      return roomCandidates.some((room) => String(room) === String(recordRoom));
+    };
+
+    const syncConfig = [
+      {
+        collectionName: 'payments',
+        nameFields: ['tenantName', 'tenantNameSnapshot'],
+        includeTenantId: true,
+      },
+      {
+        collectionName: 'paymentSubmissions',
+        nameFields: ['tenantName'],
+        includeTenantId: true,
+      },
+      {
+        collectionName: 'electricityReadings',
+        nameFields: ['tenantName'],
+        includeTenantId: true,
+      }
+    ];
+
+    for (const config of syncConfig) {
+      try {
+        const docsToUpdate = new Map();
+
+        if (config.includeTenantId && tenantId) {
+          const byTenantId = await getDocs(
+            query(collection(db, config.collectionName), where('tenantId', '==', tenantId))
+          );
+          byTenantId.docs.forEach((snapshotDoc) => {
+            docsToUpdate.set(snapshotDoc.id, snapshotDoc);
+          });
+        }
+
+        for (const fieldName of config.nameFields) {
+          const byOldName = await getDocs(
+            query(collection(db, config.collectionName), where(fieldName, '==', oldName))
+          );
+
+          byOldName.docs.forEach((snapshotDoc) => {
+            const data = snapshotDoc.data();
+            if (data.tenantId && tenantId && data.tenantId !== tenantId) return;
+            if (!data.tenantId && !matchesRoom(data.roomNumber)) return;
+            docsToUpdate.set(snapshotDoc.id, snapshotDoc);
+          });
+        }
+
+        if (docsToUpdate.size === 0) continue;
+
+        const batch = writeBatch(db);
+        docsToUpdate.forEach((snapshotDoc) => {
+          const updatePayload = {
+            tenantId,
+            updatedAt: new Date().toISOString()
+          };
+
+          config.nameFields.forEach((fieldName) => {
+            updatePayload[fieldName] = newName;
+          });
+
+          batch.update(snapshotDoc.ref, updatePayload);
+        });
+
+        await batch.commit();
+      } catch (syncError) {
+        console.error(`Error syncing ${config.collectionName} tenant rename:`, syncError);
+      }
     }
   };
 
