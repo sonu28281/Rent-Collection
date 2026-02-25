@@ -23,6 +23,14 @@ const TenantPortal = () => {
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [activeUPI, setActiveUPI] = useState(null);
   const [loading, setLoading] = useState(false);
+  
+  // UI state for collapsible cards
+  const [expandedCard, setExpandedCard] = useState(null);
+  
+  // Payment form state
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [meterReading, setMeterReading] = useState('');
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   // Handle login
   const handleLogin = async (e) => {
@@ -135,6 +143,90 @@ const TenantPortal = () => {
     setActiveUPI(null);
     setUsername('');
     setPassword('');
+  };
+
+  // Calculate next due date and payment status
+  const getNextDueDate = () => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1; // 1-12
+    const currentDay = today.getDate();
+    const dueDay = tenant?.dueDate || 20;
+    
+    // Check if current month payment exists and is paid
+    const currentMonthPayment = paymentRecords.find(
+      p => p.year === currentYear && p.month === currentMonth
+    );
+    
+    let nextDueMonth, nextDueYear;
+    let status = 'pending';
+    
+    if (currentMonthPayment && currentMonthPayment.status === 'paid') {
+      // Current month paid, next due is next month
+      if (currentMonth === 12) {
+        nextDueMonth = 1;
+        nextDueYear = currentYear + 1;
+      } else {
+        nextDueMonth = currentMonth + 1;
+        nextDueYear = currentYear;
+      }
+      status = 'paid';
+    } else if (currentDay <= dueDay) {
+      // Within current month, before due date
+      nextDueMonth = currentMonth;
+      nextDueYear = currentYear;
+      status = 'due';
+    } else {
+      // After due date, not paid
+      nextDueMonth = currentMonth;
+      nextDueYear = currentYear;
+      status = 'overdue';
+    }
+    
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const dueDateStr = `${dueDay} ${monthNames[nextDueMonth - 1]} ${nextDueYear}`;
+    
+    return { dueDateStr, status, dueDay };
+  };
+
+  // Toggle card expansion
+  const toggleCard = (cardId) => {
+    setExpandedCard(expandedCard === cardId ? null : cardId);
+  };
+
+  // Calculate electricity amount
+  const calculateElectricity = (currentReading) => {
+    const prevReading = room?.currentReading || 0;
+    const units = Math.max(0, currentReading - prevReading);
+    const ratePerUnit = 8.5; // Default rate
+    const electricityAmount = units * ratePerUnit;
+    return { units, electricityAmount };
+  };
+
+  // Handle meter reading submit
+  const handleMeterReadingSubmit = () => {
+    const reading = parseFloat(meterReading);
+    if (!reading || reading <= (room?.currentReading || 0)) {
+      alert('⚠️ Please enter a valid meter reading greater than current reading');
+      return;
+    }
+    
+    const { units, electricityAmount } = calculateElectricity(reading);
+    const rentAmount = tenant?.currentRent || room?.rent || 0;
+    const totalAmount = rentAmount + electricityAmount;
+    
+    setPaymentProcessing(true);
+    
+    // Show payment details
+    const confirmMsg = `📊 Payment Summary:\n\n` +
+      `Rent: ₹${rentAmount}\n` +
+      `Electricity: ${units} units × ₹8.5 = ₹${electricityAmount.toFixed(2)}\n` +
+      `Total: ₹${totalAmount.toFixed(2)}\n\n` +
+      `After payment, share screenshot with property manager.\n` +
+      `Meter reading: ${reading} units`;
+    
+    alert(confirmMsg);
+    setPaymentProcessing(false);
   };
 
   // Get status badge
@@ -270,23 +362,167 @@ const TenantPortal = () => {
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">
-            {/* Due Date Alert - Mobile Optimized */}
-            <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg shadow-lg p-4 sm:p-6">
-              <div className="flex flex-col sm:flex-row items-center gap-4">
-                <div className="flex items-center gap-3 sm:gap-4 flex-1 w-full">
-                  <div className="text-3xl sm:text-5xl">📅</div>
-                  <div className="flex-1">
-                    <h3 className="text-lg sm:text-xl font-bold mb-1">Next Payment Due</h3>
-                    <p className="text-white/90 text-xs sm:text-sm">Monthly rent payment</p>
+            {/* Due Date Alert - Mobile Optimized with Smart Logic */}
+            {(() => {
+              const dueInfo = getNextDueDate();
+              const statusColors = {
+                paid: 'from-green-500 to-emerald-600',
+                due: 'from-blue-500 to-indigo-600',
+                overdue: 'from-orange-500 to-red-600'
+              };
+              const statusIcons = {
+                paid: '✅',
+                due: '📅',
+                overdue: '⚠️'
+              };
+              const statusTexts = {
+                paid: 'Current Month Paid',
+                due: 'Payment Due',
+                overdue: 'Payment Overdue'
+              };
+              
+              return (
+                <div className={`bg-gradient-to-r ${statusColors[dueInfo.status]} text-white rounded-lg shadow-lg p-4 sm:p-6`}>
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div className="flex items-center gap-3 sm:gap-4 flex-1 w-full">
+                      <div className="text-3xl sm:text-5xl">{statusIcons[dueInfo.status]}</div>
+                      <div className="flex-1">
+                        <h3 className="text-lg sm:text-xl font-bold mb-1">{statusTexts[dueInfo.status]}</h3>
+                        <p className="text-white/90 text-xs sm:text-sm">
+                          {dueInfo.status === 'paid' ? 'Next payment due' : 'Monthly rent payment'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-center bg-white/20 backdrop-blur-sm rounded-lg px-4 sm:px-6 py-3 sm:py-4 w-full sm:w-auto">
+                      <p className="text-white/80 text-xs sm:text-sm mb-1">
+                        {dueInfo.status === 'paid' ? 'Next Due' : 'Due Date'}
+                      </p>
+                      <p className="text-xl sm:text-2xl font-bold">{dueInfo.dueDateStr}</p>
+                      {dueInfo.status === 'overdue' && (
+                        <p className="text-white/90 text-xs mt-1 font-semibold">Please pay soon!</p>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="text-center bg-white/20 backdrop-blur-sm rounded-lg px-4 sm:px-6 py-3 sm:py-4 w-full sm:w-auto">
-                  <p className="text-white/80 text-xs sm:text-sm mb-1">Due Date</p>
-                  <p className="text-3xl sm:text-4xl font-bold">{tenant?.dueDate || room?.dueDate || 'N/A'}</p>
-                  <p className="text-white/80 text-xs mt-1">of every month</p>
+              );
+            })()}
+
+            {/* Quick Payment Action - NEW */}
+            {!showPaymentForm && (
+              <button
+                onClick={() => setShowPaymentForm(true)}
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 touch-manipulation"
+              >
+                💳 Make Payment Now
+              </button>
+            )}
+
+            {/* Payment Form with Meter Reading - NEW */}
+            {showPaymentForm && activeUPI && (
+              <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 border-2 border-green-500">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">💳 Make Payment</h2>
+                  <button
+                    onClick={() => setShowPaymentForm(false)}
+                    className="text-gray-500 hover:text-gray-700 font-bold text-xl"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Meter Reading Input */}
+                <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    ⚡ Enter Current Meter Reading
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      value={meterReading}
+                      onChange={(e) => setMeterReading(e.target.value)}
+                      placeholder={`Current: ${room?.currentReading || 0}`}
+                      className="flex-1 px-4 py-3 text-lg font-mono border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      min={room?.currentReading || 0}
+                    />
+                    <button
+                      onClick={handleMeterReadingSubmit}
+                      disabled={!meterReading || paymentProcessing}
+                      className="bg-green-500 hover:bg-green-600 active:bg-green-700 text-white font-bold px-6 py-3 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      Calculate
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2">
+                    Previous reading: {room?.currentReading || 0} | Rate: ₹8.5/unit
+                  </p>
+                </div>
+
+                {/* Payment Amount Summary */}
+                {meterReading && parseFloat(meterReading) > (room?.currentReading || 0) && (
+                  <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h3 className="font-semibold text-blue-900 mb-2">Payment Amount:</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Rent:</span>
+                        <span className="font-bold">₹{(tenant?.currentRent || room?.rent || 0).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Electricity ({calculateElectricity(parseFloat(meterReading)).units} units):</span>
+                        <span className="font-bold">₹{calculateElectricity(parseFloat(meterReading)).electricityAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t border-blue-300 text-lg">
+                        <span className="font-bold">Total:</span>
+                        <span className="font-bold text-green-600">
+                          ₹{((tenant?.currentRent || room?.rent || 0) + calculateElectricity(parseFloat(meterReading)).electricityAmount).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* QR Code */}
+                {activeUPI.qrCode && (
+                  <div className="text-center mb-4">
+                    <p className="text-sm font-semibold text-gray-700 mb-3">Scan to Pay:</p>
+                    <div className="bg-white p-3 sm:p-4 rounded-xl border-2 border-gray-300 inline-block">
+                      <img 
+                        src={activeUPI.qrCode} 
+                        alt="UPI QR Code" 
+                        className="w-48 h-48 sm:w-56 sm:h-56 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* UPI ID */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+                  <p className="text-xs text-gray-600 mb-1">Or pay via UPI ID:</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono font-bold text-sm flex-1 break-all">{activeUPI.upiId}</p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(activeUPI.upiId);
+                        alert('✅ UPI ID copied!');
+                      }}
+                      className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-3 rounded text-xs whitespace-nowrap"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                {/* Instructions */}
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-orange-900 mb-1">⚠️ After Payment:</p>
+                  <ul className="text-xs text-orange-800 space-y-1">
+                    <li>✓ Take screenshot of payment confirmation</li>
+                    <li>✓ Share with property manager on WhatsApp</li>
+                    <li>✓ Mention your room number and meter reading</li>
+                    <li>✓ Payment will be updated within 24 hours</li>
+                  </ul>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Room Info Card - Mobile Optimized */}
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
@@ -334,9 +570,9 @@ const TenantPortal = () => {
               )}
             </div>
 
-            {/* Payment Records - Mobile Optimized */}
+            {/* Payment Records - Collapsible Mobile-Friendly Cards */}
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-gray-800">💰 Payment History</h2>
                 <span className="text-xs sm:text-sm text-gray-600">
                   {paymentRecords.length} record{paymentRecords.length !== 1 ? 's' : ''}
@@ -350,81 +586,124 @@ const TenantPortal = () => {
                   <p className="text-xs sm:text-sm text-gray-500 mt-1">Your payment history will appear here</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {paymentRecords.map((record) => {
                     const total = (record.rent || 0) + (record.electricity || 0);
                     const isPaid = record.status === 'paid';
                     const isPending = record.status === 'pending';
                     const isOverdue = record.status === 'overdue';
+                    const isExpanded = expandedCard === record.id;
                     
                     return (
                       <div 
                         key={record.id} 
-                        className={`border-2 rounded-lg p-3 sm:p-4 transition-all ${
-                          isPaid ? 'border-green-300 bg-green-50' :
-                          isPending ? 'border-yellow-300 bg-yellow-50' :
-                          isOverdue ? 'border-red-300 bg-red-50' :
-                          'border-gray-300 bg-gray-50'
+                        className={`border-2 rounded-lg transition-all cursor-pointer ${
+                          isPaid ? 'border-green-300 bg-green-50 hover:bg-green-100' :
+                          isPending ? 'border-yellow-300 bg-yellow-50 hover:bg-yellow-100' :
+                          isOverdue ? 'border-red-300 bg-red-50 hover:bg-red-100' :
+                          'border-gray-300 bg-gray-50 hover:bg-gray-100'
                         }`}
                       >
-                        <div className="flex items-start justify-between mb-2 sm:mb-3">
-                          <div className="flex-1 min-w-0 pr-2">
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-1 sm:mb-2">
-                              <h3 className="text-base sm:text-lg font-bold text-gray-800">
+                        {/* Compact Header - Always Visible */}
+                        <div 
+                          onClick={() => toggleCard(record.id)}
+                          className="flex items-center justify-between p-3"
+                        >
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <span className="text-xl flex-shrink-0">
+                              {isPaid ? '✅' : isPending ? '⏳' : '❌'}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-sm sm:text-base font-bold text-gray-800 truncate">
                                 {getMonthName(record.month)} {record.year}
                               </h3>
-                              {getStatusBadge(record.status)}
+                              <p className="text-xs text-gray-600">
+                                {isPaid ? 'Paid' : isPending ? 'Pending' : 'Overdue'}
+                              </p>
                             </div>
-                            
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="text-right">
+                              <p className="text-base sm:text-lg font-bold text-gray-900">₹{total.toLocaleString('en-IN')}</p>
+                            </div>
+                            <span className="text-gray-400 text-xl">
+                              {isExpanded ? '▼' : '▶'}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {/* Expanded Details - Show on Click */}
+                        {isExpanded && (
+                          <div className="px-3 pb-3 space-y-3 border-t border-gray-200 pt-3">
                             {/* Payment Date */}
                             {record.paidAt && isPaid && (
-                              <p className="text-xs sm:text-sm text-green-700 mb-1">
-                                ✅ <span className="font-semibold">
+                              <div className="bg-white/50 rounded p-2">
+                                <p className="text-xs text-gray-600 mb-1">Payment Date:</p>
+                                <p className="text-sm font-semibold text-green-700">
                                   {new Date(record.paidAt).toLocaleDateString('en-IN', {
                                     day: 'numeric',
                                     month: 'short',
                                     year: 'numeric'
                                   })}
-                                </span>
-                              </p>
+                                </p>
+                              </div>
+                            )}
+                            
+                            {/* Breakdown */}
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="bg-white/50 rounded p-2">
+                                <p className="text-xs text-gray-600 mb-1">Rent</p>
+                                <p className="font-bold text-gray-800 text-sm">₹{(record.rent || 0).toLocaleString('en-IN')}</p>
+                              </div>
+                              <div className="bg-white/50 rounded p-2">
+                                <p className="text-xs text-gray-600 mb-1">Electricity</p>
+                                <p className="font-bold text-gray-800 text-sm">₹{(record.electricity || 0).toLocaleString('en-IN')}</p>
+                              </div>
+                            </div>
+                            
+                            {/* Meter Readings */}
+                            {(record.oldReading || record.currentReading || record.units) && (
+                              <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
+                                <p className="text-xs font-semibold text-yellow-900 mb-2">⚡ Meter Details:</p>
+                                <div className="grid grid-cols-3 gap-2 text-xs">
+                                  <div>
+                                    <p className="text-yellow-700">Previous</p>
+                                    <p className="font-mono font-bold text-yellow-900">{record.oldReading || 0}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-yellow-700">Current</p>
+                                    <p className="font-mono font-bold text-yellow-900">{record.currentReading || 0}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-yellow-700">Units</p>
+                                    <p className="font-mono font-bold text-yellow-900">{record.units || 0}</p>
+                                  </div>
+                                </div>
+                                {record.ratePerUnit && (
+                                  <p className="text-xs text-yellow-700 mt-1">
+                                    Rate: ₹{record.ratePerUnit}/unit
+                                  </p>
+                                )}
+                              </div>
                             )}
                             
                             {/* Payment Method */}
                             {record.paymentMethod && isPaid && (
-                              <p className="text-xs sm:text-sm text-gray-600">
-                                💳 <span className="font-semibold">{record.paymentMethod}</span>
-                              </p>
+                              <div className="bg-white/50 rounded p-2">
+                                <p className="text-xs text-gray-600 mb-1">Payment Method:</p>
+                                <p className="text-sm font-semibold text-gray-800">
+                                  💳 {record.paymentMethod}
+                                </p>
+                              </div>
                             )}
-                          </div>
-                          
-                          <div className="text-right flex-shrink-0">
-                            <p className="text-xl sm:text-2xl font-bold text-gray-900">₹{total.toLocaleString('en-IN')}</p>
-                            <p className="text-xs text-gray-500">Total</p>
-                          </div>
-                        </div>
-                        
-                        {/* Breakdown - Mobile Optimized */}
-                        <div className="grid grid-cols-2 gap-2 sm:gap-3 pt-2 sm:pt-3 border-t border-gray-200">
-                          <div className="bg-white/50 rounded p-2">
-                            <p className="text-xs text-gray-600 mb-1">Rent</p>
-                            <p className="font-bold text-gray-800 text-sm sm:text-base">₹{(record.rent || 0).toLocaleString('en-IN')}</p>
-                          </div>
-                          <div className="bg-white/50 rounded p-2">
-                            <p className="text-xs text-gray-600 mb-1">Electricity</p>
-                            <p className="font-bold text-gray-800 text-sm sm:text-base">
-                              ₹{(record.electricity || 0).toLocaleString('en-IN')}
-                              {record.units > 0 && (
-                                <span className="text-xs text-gray-500 block sm:inline sm:ml-1">({record.units} units)</span>
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        {/* Notes */}
-                        {record.notes && (
-                          <div className="mt-3 pt-3 border-t border-gray-200">
-                            <p className="text-xs text-gray-600 mb-1">📝 Note:</p>
-                            <p className="text-sm text-gray-700 italic">{record.notes}</p>
+                            
+                            {/* Notes */}
+                            {record.notes && (
+                              <div className="bg-white/50 rounded p-2">
+                                <p className="text-xs text-gray-600 mb-1">📝 Note:</p>
+                                <p className="text-sm text-gray-700 italic">{record.notes}</p>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -434,107 +713,32 @@ const TenantPortal = () => {
               )}
             </div>
 
-            {/* Make Payment Section - Mobile Optimized */}
-            {activeUPI && (
-              <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-lg shadow-lg p-4 sm:p-6">
-                <div className="text-center mb-4 sm:mb-6">
-                  <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">💳</div>
-                  <h2 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Make a Payment</h2>
-                  <p className="text-white/90 text-sm sm:text-base">Use any method to pay your rent</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                  {/* UPI Payment Details - Mobile Optimized */}
-                  <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 sm:p-5 border-2 border-white/20">
-                    <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                      <div className="bg-white/20 rounded-full p-2 sm:p-3">
-                        <span className="text-xl sm:text-2xl">📱</span>
-                      </div>
-                      <h3 className="text-lg sm:text-xl font-bold">UPI Payment</h3>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div className="bg-white/10 rounded-lg p-3">
-                        <p className="text-white/70 text-xs sm:text-sm mb-1">UPI ID</p>
-                        <p className="font-mono font-bold text-base sm:text-lg break-all">{activeUPI.upiId}</p>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(activeUPI.upiId);
-                            alert('✅ UPI ID copied to clipboard!');
-                          }}
-                          className="mt-2 w-full bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-semibold py-3 px-4 rounded transition-colors text-sm touch-manipulation"
-                        >
-                          📋 Copy UPI ID
-                        </button>
-                      </div>
-                      
-                      {activeUPI.accountName && (
-                        <div className="bg-white/10 rounded-lg p-3">
-                          <p className="text-white/70 text-xs sm:text-sm mb-1">Account Name</p>
-                          <p className="font-semibold text-sm sm:text-base">{activeUPI.accountName}</p>
-                        </div>
-                      )}
-                      
-                      <div className="bg-white/10 rounded-lg p-3">
-                        <p className="text-white/70 text-xs sm:text-sm mb-2">💡 How to pay:</p>
-                        <ol className="text-xs sm:text-sm space-y-1 text-white/90 list-decimal list-inside leading-relaxed">
-                          <li className="mb-1">Open any UPI app (PhonePe, GPay, Paytm)</li>
-                          <li className="mb-1">Enter the UPI ID above</li>
-                          <li className="mb-1">Enter amount and pay</li>
-                          <li>Share payment screenshot with manager</li>
-                        </ol>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* QR Code Payment - Mobile Optimized */}
-                  {activeUPI.qrCode && (
-                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 sm:p-5 border-2 border-white/20">
-                      <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                        <div className="bg-white/20 rounded-full p-2 sm:p-3">
-                          <span className="text-xl sm:text-2xl">📷</span>
-                        </div>
-                        <h3 className="text-lg sm:text-xl font-bold">Scan QR Code</h3>
-                      </div>
-                      
-                      <div className="flex flex-col items-center">
-                        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-xl mb-3 sm:mb-4">
-                          <img 
-                            src={activeUPI.qrCode} 
-                            alt="UPI QR Code" 
-                            className="w-48 h-48 sm:w-56 sm:h-56 rounded-lg"
-                          />
-                        </div>
-                        <div className="bg-white/10 rounded-lg p-3 w-full">
-                          <p className="text-white/70 text-xs sm:text-sm mb-2">📷 How to scan:</p>
-                          <ol className="text-xs sm:text-sm space-y-1 text-white/90 list-decimal list-inside leading-relaxed">
-                            <li className="mb-1">Open any UPI app scanner</li>
-                            <li className="mb-1">Scan this QR code</li>
-                            <li>Enter amount and complete payment</li>
-                          </ol>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Important Note - Mobile Optimized */}
-                <div className="mt-4 sm:mt-6 bg-white/10 backdrop-blur-sm border-2 border-white/30 rounded-lg p-3 sm:p-4">
-                  <div className="flex items-start gap-2 sm:gap-3">
-                    <span className="text-xl sm:text-2xl flex-shrink-0">⚠️</span>
-                    <div className="flex-1">
-                      <h4 className="font-bold mb-1 text-sm sm:text-base">Important Note</h4>
-                      <ul className="text-xs sm:text-sm text-white/90 space-y-1">
-                        <li>• Pay on or before {tenant?.dueDate || 'due date'} of every month</li>
-                        <li>• Send payment screenshot to property manager</li>
-                        <li>• Payment updated within 24 hours</li>
-                        <li>• Keep receipts for your records</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
+            {/* Contact & Support Info */}
+            <div className="bg-gradient-to-br from-gray-700 to-gray-900 text-white rounded-lg shadow-lg p-4 sm:p-6">
+              <div className="text-center mb-4">
+                <div className="text-3xl sm:text-4xl mb-2">📞</div>
+                <h2 className="text-xl sm:text-2xl font-bold mb-1">Need Help?</h2>
+                <p className="text-white/80 text-sm">Contact property manager</p>
               </div>
-            )}
+
+              <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-4">
+                <h3 className="font-bold mb-3 text-sm">📋 Payment Instructions:</h3>
+                <ul className="text-xs sm:text-sm text-white/90 space-y-2">
+                  <li>✓ Click "Make Payment Now" button above</li>
+                  <li>✓ Enter your current meter reading</li>
+                  <li>✓ Calculate total amount</li>
+                  <li>✓ Scan QR code or use UPI ID to pay</li>
+                  <li>✓ Share payment screenshot with manager</li>
+                  <li>✓ Payment will be updated within 24 hours</li>
+                </ul>
+              </div>
+
+              <div className="mt-4 bg-yellow-500/20 border border-yellow-500/30 rounded-lg p-3">
+                <p className="text-xs text-yellow-100">
+                  <strong>⚠️ Important:</strong> Always provide your meter reading along with payment proof for accurate billing.
+                </p>
+              </div>
+            </div>
           </div>
         )}
       </div>
