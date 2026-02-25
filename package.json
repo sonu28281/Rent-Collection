@@ -11,6 +11,7 @@
     "seed:rooms": "node scripts/seed_rooms.js",
     "setup:database": "node scripts/setup_database.js",
     "migrate:tokens": "node scripts/add_tenant_tokens.js",
+    "migrate:room-status": "node scripts/migrate_room_status.js",
     "check:tokens": "node scripts/check_tenant_token.js",
     "verify:db": "node scripts/verify_database_structure.js",
     "create:payment": "node scripts/create_sample_payment.js",

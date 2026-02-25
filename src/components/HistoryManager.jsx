@@ -603,6 +603,7 @@ const HistoryManager = () => {
                   </th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-700">Room</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-700">Floor</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-700">Status</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-700">Month</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-700">Tenant</th>
                   <th className="px-3 py-3 text-right font-semibold text-gray-700">Rent</th>
@@ -649,6 +650,20 @@ const HistoryManager = () => {
                       <td className="px-3 py-3 font-semibold">{payment.roomNumber}</td>
                       
                       <td className="px-3 py-3">{floor}</td>
+                      
+                      <td className="px-3 py-3">
+                        {payment.roomStatus ? (
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            payment.roomStatus === 'vacant' 
+                              ? 'bg-gray-100 text-gray-800'
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {payment.roomStatus === 'vacant' ? '⬜ Vacant' : '✅ Filled'}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">-</span>
+                        )}
+                      </td>
                       
                       <td className="px-3 py-3">{MONTHS[payment.month - 1]?.name}</td>
                       

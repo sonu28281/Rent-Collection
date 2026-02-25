@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, doc, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, addDoc, updateDoc, doc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../firebase';
 
 const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -153,12 +153,16 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
         
         await updateDoc(doc(db, 'tenants', tenant.id), tenantData);
         
-        // Update room status
-        await updateRoomStatus(formData.roomNumber, formData.isActive);
+        // Update room status (handle room change and active status change)
+        const oldRoomNumber = tenant.roomNumber;
+        const roomChanged = oldRoomNumber !== formData.roomNumber;
         
-        // If room changed, update old room status
-        if (tenant.roomNumber && tenant.roomNumber !== formData.roomNumber) {
-          await updateRoomStatus(tenant.roomNumber, false);
+        if (roomChanged) {
+          // Room changed: update both old and new room
+          await updateRoomStatus(formData.roomNumber, formData.isActive, oldRoomNumber);
+        } else {
+          // Same room: update status based on isActive
+          await updateRoomStatus(formData.roomNumber, formData.isActive);
         }
         
         alert('Tenant updated successfully!');
@@ -187,17 +191,70 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
     }
   };
 
-  const updateRoomStatus = async (roomNumber, isOccupied) => {
+  const updateRoomStatus = async (roomNumber, isOccupied, oldRoomNumber = null) => {
     try {
+      const user = auth.currentUser;
       const roomsRef = collection(db, 'rooms');
-      const roomQuery = query(roomsRef, where('roomNumber', '==', roomNumber));
-      const roomSnapshot = await getDocs(roomQuery);
       
-      if (!roomSnapshot.empty) {
-        const roomDoc = roomSnapshot.docs[0];
-        await updateDoc(doc(db, 'rooms', roomDoc.id), {
-          status: isOccupied ? 'occupied' : 'vacant'
-        });
+      // Update new room status to filled
+      if (roomNumber) {
+        const roomQuery = query(roomsRef, where('roomNumber', '==', roomNumber));
+        const roomSnapshot = await getDocs(roomQuery);
+        
+        if (!roomSnapshot.empty) {
+          const roomDoc = roomSnapshot.docs[0];
+          const oldStatus = roomDoc.data().status || 'vacant';
+          const newStatus = isOccupied ? 'filled' : 'vacant';
+          
+          await updateDoc(doc(db, 'rooms', roomDoc.id), {
+            status: newStatus,
+            lastStatusUpdatedAt: serverTimestamp(),
+            lastStatusUpdatedBy: user?.uid || 'system',
+            ...(isOccupied ? { currentTenantId: tenant?.id || null } : { currentTenantId: null })
+          });
+
+          // Log status change
+          await addDoc(collection(db, 'roomStatusLogs'), {
+            roomId: roomDoc.id,
+            roomNumber: roomNumber,
+            oldStatus,
+            newStatus,
+            changedBy: user?.uid || 'system',
+            changedByEmail: user?.email || 'system',
+            changedAt: serverTimestamp(),
+            remark: isOccupied ? 'Tenant assigned' : 'Tenant removed/checkout'
+          });
+        }
+      }
+
+      // Update old room status to vacant if room was changed
+      if (oldRoomNumber && oldRoomNumber !== roomNumber) {
+        const oldRoomQuery = query(roomsRef, where('roomNumber', '==', oldRoomNumber));
+        const oldRoomSnapshot = await getDocs(oldRoomQuery);
+        
+        if (!oldRoomSnapshot.empty) {
+          const oldRoomDoc = oldRoomSnapshot.docs[0];
+          const oldStatus = oldRoomDoc.data().status || 'filled';
+          
+          await updateDoc(doc(db, 'rooms', oldRoomDoc.id), {
+            status: 'vacant',
+            lastStatusUpdatedAt: serverTimestamp(),
+            lastStatusUpdatedBy: user?.uid || 'system',
+            currentTenantId: null
+          });
+
+          // Log status change
+          await addDoc(collection(db, 'roomStatusLogs'), {
+            roomId: oldRoomDoc.id,
+            roomNumber: oldRoomNumber,
+            oldStatus,
+            newStatus: 'vacant',
+            changedBy: user?.uid || 'system',
+            changedByEmail: user?.email || 'system',
+            changedAt: serverTimestamp(),
+            remark: 'Tenant moved to different room'
+          });
+        }
       }
     } catch (error) {
       console.error('Error updating room status:', error);
@@ -281,7 +338,7 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
                 {availableRooms.map(room => (
                   <option key={room.id} value={room.roomNumber}>
                     Room {room.roomNumber} - Floor {room.floor} 
-                    {room.status === 'vacant' ? ' (Vacant)' : ' (Currently Assigned)'}
+                    {(room.status || 'vacant') === 'vacant' ? ' (Vacant)' : ' (Currently Assigned)'}
                   </option>
                 ))}
               </select>

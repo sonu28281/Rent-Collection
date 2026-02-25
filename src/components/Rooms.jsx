@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, getDocs, query, orderBy, doc, updateDoc, addDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../firebase';
 
 const Rooms = () => {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState('all'); // all, vacant, occupied
+  const [filter, setFilter] = useState('all'); // all, vacant, filled
+  const [selectedRooms, setSelectedRooms] = useState(new Set());
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [modalRoom, setModalRoom] = useState(null);
+  const [modalStatus, setModalStatus] = useState('');
+  const [modalRemark, setModalRemark] = useState('');
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     fetchRooms();
@@ -35,15 +41,153 @@ const Rooms = () => {
     }
   };
 
+  const openStatusModal = (room) => {
+    setModalRoom(room);
+    setModalStatus(room.status || 'vacant');
+    setModalRemark('');
+    setShowStatusModal(true);
+  };
+
+  const closeStatusModal = () => {
+    setShowStatusModal(false);
+    setModalRoom(null);
+    setModalStatus('');
+    setModalRemark('');
+  };
+
+  const updateRoomStatus = async (roomId, newStatus, remark = '') => {
+    try {
+      const user = auth.currentUser;
+      const roomRef = doc(db, 'rooms', roomId);
+      const room = rooms.find(r => r.id === roomId);
+      const oldStatus = room?.status || 'vacant';
+
+      // Update room status
+      await updateDoc(roomRef, {
+        status: newStatus,
+        lastStatusUpdatedAt: serverTimestamp(),
+        lastStatusUpdatedBy: user?.uid || 'system'
+      });
+
+      // Log the status change
+      await addDoc(collection(db, 'roomStatusLogs'), {
+        roomId,
+        roomNumber: room?.roomNumber,
+        oldStatus,
+        newStatus,
+        changedBy: user?.uid || 'system',
+        changedByEmail: user?.email || 'system',
+        changedAt: serverTimestamp(),
+        remark: remark || null
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error updating room status:', error);
+      throw error;
+    }
+  };
+
+  const handleSaveStatus = async () => {
+    if (!modalRoom) return;
+
+    setUpdating(true);
+    try {
+      await updateRoomStatus(modalRoom.id, modalStatus, modalRemark);
+      alert('Room status updated successfully!');
+      closeStatusModal();
+      fetchRooms(); // Refresh the room list
+    } catch (error) {
+      alert('Failed to update room status. Please try again.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleBulkUpdate = async (newStatus) => {
+    if (selectedRooms.size === 0) {
+      alert('Please select at least one room');
+      return;
+    }
+
+    if (!confirm(`Update ${selectedRooms.size} room(s) to "${newStatus}"?`)) {
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      const batch = writeBatch(db);
+      const user = auth.currentUser;
+      const timestamp = new Date();
+
+      // Update rooms in batch
+      selectedRooms.forEach(roomId => {
+        const roomRef = doc(db, 'rooms', roomId);
+        batch.update(roomRef, {
+          status: newStatus,
+          lastStatusUpdatedAt: timestamp,
+          lastStatusUpdatedBy: user?.uid || 'system'
+        });
+      });
+
+      await batch.commit();
+
+      // Log status changes (individual logs)
+      const logPromises = Array.from(selectedRooms).map(async (roomId) => {
+        const room = rooms.find(r => r.id === roomId);
+        return addDoc(collection(db, 'roomStatusLogs'), {
+          roomId,
+          roomNumber: room?.roomNumber,
+          oldStatus: room?.status || 'vacant',
+          newStatus,
+          changedBy: user?.uid || 'system',
+          changedByEmail: user?.email || 'system',
+          changedAt: timestamp,
+          remark: `Bulk update`
+        });
+      });
+
+      await Promise.all(logPromises);
+
+      alert(`${selectedRooms.size} room(s) updated successfully!`);
+      setSelectedRooms(new Set());
+      fetchRooms();
+    } catch (error) {
+      console.error('Error in bulk update:', error);
+      alert('Failed to update rooms. Please try again.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const toggleRoomSelection = (roomId) => {
+    const newSelection = new Set(selectedRooms);
+    if (newSelection.has(roomId)) {
+      newSelection.delete(roomId);
+    } else {
+      newSelection.add(roomId);
+    }
+    setSelectedRooms(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedRooms.size === filteredRooms.length) {
+      setSelectedRooms(new Set());
+    } else {
+      setSelectedRooms(new Set(filteredRooms.map(r => r.id)));
+    }
+  };
+
   const filteredRooms = rooms.filter(room => {
     if (filter === 'all') return true;
-    return room.status === filter;
+    const roomStatus = room.status || 'vacant';
+    return roomStatus === filter;
   });
 
   const stats = {
     total: rooms.length,
-    vacant: rooms.filter(r => r.status === 'vacant').length,
-    occupied: rooms.filter(r => r.status === 'occupied').length
+    vacant: rooms.filter(r => (r.status || 'vacant') === 'vacant').length,
+    filled: rooms.filter(r => r.status === 'filled').length
   };
 
   if (loading) {
@@ -73,8 +217,9 @@ const Rooms = () => {
       {/* Header */}
       <div className="mb-6">
         <h2 className="text-3xl font-bold text-gray-900 mb-2">🏠 Rooms Management</h2>
-        <p className="text-gray-600">View and manage all 12 rooms</p>
+        <p className="text-gray-600">View and manage all 12 rooms with occupancy status</p>
       </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
@@ -87,29 +232,30 @@ const Rooms = () => {
           </div>
         </div>
 
+        <div className="card bg-gradient-to-br from-gray-500 to-gray-600 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-100 text-sm">Vacant Rooms</p>
+              <p className="text-3xl font-bold mt-1">{stats.vacant}</p>
+            </div>
+            <div className="text-4xl">⬜</div>
+          </div>
+        </div>
+
         <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-sm">Vacant Rooms</p>
-              <p className="text-3xl font-bold mt-1">{stats.vacant}</p>
+              <p className="text-green-100 text-sm">Filled Rooms</p>
+              <p className="text-3xl font-bold mt-1">{stats.filled}</p>
             </div>
             <div className="text-4xl">✅</div>
           </div>
         </div>
-
-        <div className="card bg-gradient-to-br from-orange-500 to-orange-600 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-orange-100 text-sm">Occupied Rooms</p>
-              <p className="text-3xl font-bold mt-1">{stats.occupied}</p>
-            </div>
-            <div className="text-4xl">🔑</div>
-          </div>
-        </div>
       </div>
 
-      {/* Filter Buttons */}
-      <div className="card mb-6">
+      {/* Filter and Bulk Actions */}
+      <div className="card mb-6 space-y-4">
+        {/* Filters */}
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setFilter('all')}
@@ -125,27 +271,57 @@ const Rooms = () => {
             onClick={() => setFilter('vacant')}
             className={`px-4 py-2 rounded-lg font-semibold transition ${
               filter === 'vacant'
-                ? 'bg-green-500 text-white'
+                ? 'bg-gray-500 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
             Vacant ({stats.vacant})
           </button>
           <button
-            onClick={() => setFilter('occupied')}
+            onClick={() => setFilter('filled')}
             className={`px-4 py-2 rounded-lg font-semibold transition ${
-              filter === 'occupied'
-                ? 'bg-orange-500 text-white'
+              filter === 'filled'
+                ? 'bg-green-500 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
-            Occupied ({stats.occupied})
+            Filled ({stats.filled})
           </button>
         </div>
-      </div>
 
-      {/* Rooms Grid */}
-      {filteredRooms. length === 0 ? (
+        {/* Bulk Actions */}
+        {selectedRooms.size > 0 && (
+          <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <span className="font-semibold text-blue-900">
+              {selectedRooms.size} room(s) selected
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleBulkUpdate('vacant')}
+                disabled={updating}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition disabled:opacity-50"
+              >
+                Mark as Vacant
+              </button>
+              <button
+                onClick={() => handleBulkUpdate('filled')}
+                disabled={updating}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition disabled:opacity-50"
+              >
+                Mark as Filled
+              </button>
+              <button
+                onClick={() => setSelectedRooms(new Set())}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+              >
+                Clear Selection
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      {/* Rooms Grid or Table */}
+      {filteredRooms.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-gray-600 text-lg mb-4">
             {filter === 'all' 
@@ -166,100 +342,166 @@ const Rooms = () => {
           )}
         </div>
       ) : (
-        <>
-          {/* Floor 1 */}
-          <div className="mb-8">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-              <span className="bg-blue-500 text-white px-3 py-1 rounded-lg mr-2">
-                Floor 1
-              </span>
-              <span className="text-gray-500 text-sm">
-                ({filteredRooms.filter(r => r.floor === 1).length} rooms)
-              </span>
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredRooms
-                .filter(room => room.floor === 1)
-                .map(room => (
-                  <RoomCard key={room.id} room={room} />
-                ))}
-            </div>
-          </div>
-
-          {/* Floor 2 */}
-          <div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-              <span className="bg-purple-500 text-white px-3 py-1 rounded-lg mr-2">
-                Floor 2
-              </span>
-              <span className="text-gray-500 text-sm">
-                ({filteredRooms.filter(r => r.floor === 2).length} rooms)
-              </span>
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredRooms
-                .filter(room => room.floor === 2)
-                .map(room => (
-                  <RoomCard key={room.id} room={room} />
-                ))}
-            </div>
-          </div>
-        </>
+        <div className="card overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={selectedRooms.size === filteredRooms.length && filteredRooms.length > 0}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 text-primary rounded"
+                  />
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Room
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Floor
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Default Rent
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Meter No
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Updated
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredRooms.map(room => {
+                const roomStatus = room.status || 'vacant';
+                const isVacant = roomStatus === 'vacant';
+                
+                return (
+                  <tr key={room.id} className={selectedRooms.has(room.id) ? 'bg-blue-50' : ''}>
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedRooms.has(room.id)}
+                        onChange={() => toggleRoomSelection(room.id)}
+                        className="w-4 h-4 text-primary rounded"
+                      />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-bold text-gray-900">Room {room.roomNumber}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">Floor {room.floor}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        isVacant
+                          ? 'bg-gray-100 text-gray-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {isVacant ? '⬜ Vacant' : '✅ Filled'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ₹{room.defaultRent?.toLocaleString('en-IN') || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {room.electricityMeterNo || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {room.lastStatusUpdatedAt 
+                        ? new Date(room.lastStatusUpdatedAt.seconds * 1000).toLocaleDateString()
+                        : 'Never'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <button
+                        onClick={() => openStatusModal(room)}
+                        className="text-primary hover:text-blue-700 font-medium"
+                      >
+                        Update Status
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
-    </div>
-  );
-};
 
-const RoomCard = ({ room }) => {
-  const isVacant = room.status === 'vacant';
-  
-  return (
-    <div className={`card border-2 transition-all hover:shadow-lg ${
-      isVacant 
-        ? 'border-green-300 bg-green-50' 
-        : 'border-orange-300 bg-orange-50'
-    }`}>
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h4 className="text-2xl font-bold text-gray-800">
-            Room {room.roomNumber}
-          </h4>
-          <p className="text-sm text-gray-600">
-            Floor {room.floor}
-          </p>
-        </div>
-        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-          isVacant
-            ? 'bg-green-500 text-white'
-            : 'bg-orange-500 text-white'
-        }`}>
-          {isVacant ? '✅ Vacant' : '🔑 Occupied'}
-        </span>
-      </div>
+      {/* Status Update Modal */}
+      {showStatusModal && modalRoom && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-xl font-bold text-gray-800">
+                Update Room {modalRoom.roomNumber} Status
+              </h3>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status *
+                </label>
+                <select
+                  value={modalStatus}
+                  onChange={(e) => setModalStatus(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  disabled={updating}
+                >
+                  <option value="vacant">Vacant</option>
+                  <option value="filled">Filled</option>
+                </select>
+              </div>
 
-      <div className="space-y-2 mb-4">
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Default Rent:</span>
-          <span className="font-semibold text-gray-800">
-            ₹{room.defaultRent?.toLocaleString('en-IN') || 'N/A'}
-          </span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Meter No:</span>
-          <span className="font-semibold text-gray-800">
-            {room.electricityMeterNo || 'N/A'}
-          </span>
-        </div>
-      </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Remark (Optional)
+                </label>
+                <textarea
+                  value={modalRemark}
+                  onChange={(e) => setModalRemark(e.target.value)}
+                  placeholder="Add notes about this status change..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  rows="3"
+                  disabled={updating}
+                />
+              </div>
 
-      {isVacant ? (
-        <button className="btn-primary w-full text-sm">
-          Assign Tenant
-        </button>
-      ) : (
-        <button className="btn-secondary w-full text-sm">
-          View Details
-        </button>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  <strong>Current Status:</strong> {modalRoom.status || 'vacant'}
+                </p>
+                <p className="text-sm text-blue-800 mt-1">
+                  <strong>New Status:</strong> {modalStatus}
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={closeStatusModal}
+                disabled={updating}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveStatus}
+                disabled={updating}
+                className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {updating ? 'Saving...' : 'Save Status'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

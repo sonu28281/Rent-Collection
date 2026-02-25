@@ -79,6 +79,12 @@ const ImportCSV = () => {
     'remarks': 'remark',
     'Notes': 'remark',
     'notes': 'remark',
+    
+    'Room Status': 'status',
+    'Status': 'status',
+    'status': 'status',
+    'Occupancy': 'status',
+    'occupancy': 'status',
   };
 
   const mapColumns = (csvRow) => {
@@ -133,45 +139,71 @@ const ImportCSV = () => {
     if (!date) {
       warnings.push('Date is missing');
     }
+
+    // Room Status (optional) - normalize to "filled" or "vacant"
+    let roomStatus = null;
+    if (mappedRow.status) {
+      const statusValue = String(mappedRow.status).toLowerCase().trim();
+      if (statusValue === 'filled' || statusValue === 'occupied' || statusValue === 'fill') {
+        roomStatus = 'filled';
+      } else if (statusValue === 'vacant' || statusValue === 'empty') {
+        roomStatus = 'vacant';
+      }
+    }
     
-    // Rent
-    const rent = Number(mappedRow.rent) || 0;
-    if (rent === 0) {
+    // Rent - if room status is vacant, force rent to 0
+    let rent = Number(mappedRow.rent) || 0;
+    if (roomStatus === 'vacant') {
+      rent = 0;
+      warnings.push('Room marked as vacant: rent forced to 0');
+    } else if (rent === 0) {
       warnings.push('Rent is 0 or missing');
     }
     
-    // Meter readings
-    const oldReading = Number(mappedRow.oldReading) || 0;
-    const currentReading = Number(mappedRow.currentReading) || 0;
+    // Meter readings - if room status is vacant, force to 0
+    let oldReading = Number(mappedRow.oldReading) || 0;
+    let currentReading = Number(mappedRow.currentReading) || 0;
     
-    if (oldReading === 0) {
-      warnings.push('Old reading is 0 or missing');
-    }
-    if (currentReading === 0) {
-      warnings.push('Current reading is 0 or missing');
+    if (roomStatus === 'vacant') {
+      oldReading = 0;
+      currentReading = 0;
+      warnings.push('Room marked as vacant: readings forced to 0');
+    } else {
+      if (oldReading === 0) {
+        warnings.push('Old reading is 0 or missing');
+      }
+      if (currentReading === 0) {
+        warnings.push('Current reading is 0 or missing');
+      }
     }
     
     // Rate per unit
     const ratePerUnit = Number(mappedRow.ratePerUnit) || 0;
-    if (ratePerUnit === 0) {
+    if (ratePerUnit === 0 && roomStatus !== 'vacant') {
       warnings.push('Rate per unit is 0 or missing');
     }
     
     // Calculate units (defensive check for negative)
     let units = currentReading - oldReading;
-    if (units < 0) {
+    if (units < 0 && roomStatus !== 'vacant') {
       warnings.push(`Negative units detected (${units}), setting to 0`);
+      units = 0;
+    } else if (roomStatus === 'vacant') {
       units = 0;
     }
     
     // Calculate electricity
-    const electricity = units * ratePerUnit;
+    const electricity = roomStatus === 'vacant' ? 0 : units * ratePerUnit;
     
     // Calculate total
     const total = rent + electricity;
     
-    // Paid amount
-    const paidAmount = Number(mappedRow.paidAmount) || 0;
+    // Paid amount - if room status is vacant, force to 0
+    let paidAmount = Number(mappedRow.paidAmount) || 0;
+    if (roomStatus === 'vacant') {
+      paidAmount = 0;
+      warnings.push('Room marked as vacant: paid amount forced to 0');
+    }
     
     // Payment mode
     const paymentMode = (mappedRow.paymentMode || 'cash').toLowerCase();
@@ -225,6 +257,7 @@ const ImportCSV = () => {
         paymentMode,
         status,
         floor,
+        roomStatus, // Add room status to payment record for reference
         source: 'csv_import',
         notes: null,
         tenantValidated: false, // Never validated
@@ -380,6 +413,7 @@ const ImportCSV = () => {
             paymentMode: record.paymentMode,
             status: record.status,
             floor: record.floor,
+            roomStatus: record.roomStatus, // Include room status in payment record
             source: record.source,
             notes: record.notes,
             tenantValidated: false,
@@ -397,6 +431,27 @@ const ImportCSV = () => {
             paymentData.importedAt = now;
             await setDoc(doc(db, 'payments', paymentId), paymentData);
             successCount++;
+          }
+
+          // Update room status if roomStatus is specified in CSV
+          if (record.roomStatus) {
+            try {
+              const roomQuery = query(
+                collection(db, 'rooms'),
+                where('roomNumber', '==', record.roomNumber)
+              );
+              const roomSnapshot = await getDocs(roomQuery);
+              
+              if (!roomSnapshot.empty) {
+                const roomDoc = roomSnapshot.docs[0];
+                await updateDoc(doc(db, 'rooms', roomDoc.id), {
+                  status: record.roomStatus
+                });
+              }
+            } catch (roomErr) {
+              console.error('Error updating room status:', roomErr);
+              // Don't fail the import if room status update fails
+            }
           }
           
           // Progress update every 50 records
@@ -458,6 +513,7 @@ const ImportCSV = () => {
                   <li>• "Year" → year</li>
                   <li>• "Month" → month (1-12)</li>
                   <li>• "Date" → date</li>
+                  <li>• "Room Status" → status (optional)</li>
                 </ul>
               </div>
               <div>
@@ -471,6 +527,19 @@ const ImportCSV = () => {
                 </ul>
               </div>
             </div>
+          </div>
+          
+          <div className="bg-purple-100 border border-purple-300 rounded p-3 mt-3">
+            <strong className="text-purple-900">🏠 ROOM STATUS (Optional Column):</strong>
+            <ul className="ml-4 mt-1 space-y-1">
+              <li>• <strong>Values:</strong> "filled" or "vacant"</li>
+              <li>• If missing: existing room status unchanged</li>
+              <li>• <strong className="text-red-700">If status = "vacant":</strong></li>
+              <li className="ml-6">→ rent forced to 0</li>
+              <li className="ml-6">→ oldReading forced to 0</li>
+              <li className="ml-6">→ currentReading forced to 0</li>
+              <li className="ml-6">→ paidAmount forced to 0</li>
+            </ul>
           </div>
           
           <div className="bg-green-100 border border-green-300 rounded p-3 mt-3">
@@ -493,6 +562,7 @@ const ImportCSV = () => {
               <li>• Missing ratePerUnit → defaults to 0</li>
               <li>• Missing paidAmount → defaults to 0</li>
               <li>• Missing date → allowed (stored as null)</li>
+              <li>• <strong>Room status = vacant → all amounts forced to 0</strong></li>
               <li>• Tenant names stored as snapshots - NEVER validated</li>
               <li>• Duplicates (room + year + month) → UPDATED, not rejected</li>
             </ul>
