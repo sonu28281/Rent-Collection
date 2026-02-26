@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rent-collection-v1';
+const CACHE_NAME = 'rent-collection-v2';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -33,6 +33,23 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
 
   if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  if (request.destination === 'document') {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cachedResponse = await caches.match(request);
+          if (cachedResponse) return cachedResponse;
+          return caches.match('/index.html');
+        })
+    );
     return;
   }
 
