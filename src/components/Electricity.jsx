@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const Electricity = () => {
@@ -8,8 +8,6 @@ const Electricity = () => {
   const [meterReadings, setMeterReadings] = useState([]);
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [globalRate, setGlobalRate] = useState(9);
-  const [selectedTenant, setSelectedTenant] = useState(null);
-  const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [floorFilter, setFloorFilter] = useState('all');
@@ -77,22 +75,6 @@ const Electricity = () => {
       setError('Failed to load data. Please try again.');
       setLoading(false);
     }
-  };
-
-  const handleAddReading = (tenant) => {
-    setSelectedTenant(tenant);
-    setShowForm(true);
-  };
-
-  const handleFormClose = () => {
-    setShowForm(false);
-    setSelectedTenant(null);
-  };
-
-  const handleFormSuccess = () => {
-    setShowForm(false);
-    setSelectedTenant(null);
-    fetchData();
   };
 
   const getLatestReading = (tenantId) => {
@@ -477,233 +459,14 @@ const Electricity = () => {
                   )}
                 </div>
 
-                <button
-                  onClick={() => handleAddReading(tenant)}
-                  className="btn-primary w-full"
-                >
-                  ➕ Add Meter Reading
-                </button>
+                <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
+                  Read-only dashboard • New readings are submitted from Tenant Portal.
+                </div>
               </div>
             );
           })}
         </div>
       )}
-
-      {/* Reading Form Modal */}
-      {showForm && selectedTenant && (
-        <MeterReadingForm
-          tenant={selectedTenant}
-          latestReading={getEffectiveLatestReading(selectedTenant)}
-          globalRate={globalRate}
-          onClose={handleFormClose}
-          onSuccess={handleFormSuccess}
-        />
-      )}
-    </div>
-  );
-};
-
-const MeterReadingForm = ({ tenant, latestReading, globalRate, onClose, onSuccess }) => {
-  const [currentReading, setCurrentReading] = useState('');
-  const [readingDate, setReadingDate] = useState(new Date().toISOString().split('T')[0]);
-  const [rateOverride, setRateOverride] = useState(tenant.electricityRateOverride || '');
-  const [notes, setNotes] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const effectiveRate = parseFloat(rateOverride) || globalRate;
-  const previousReading = latestReading?.currentReading || 0;
-  const unitsConsumed = currentReading ? Math.max(0, parseFloat(currentReading) - previousReading) : 0;
-  const totalCharge = unitsConsumed * effectiveRate;
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    const reading = parseFloat(currentReading);
-    if (isNaN(reading) || reading < 0) {
-      setError('Please enter a valid positive number for current reading');
-      return;
-    }
-
-    if (reading < previousReading) {
-      setError('Current reading cannot be less than previous reading');
-      return;
-    }
-
-    try {
-      setSaving(true);
-      setError('');
-
-      // Generate unique ID for meter reading
-      const readingId = `${tenant.id}_${Date.now()}`;
-
-      const readingData = {
-        tenantId: tenant.id,
-        tenantName: tenant.name,
-        roomNumber: tenant.roomNumber,
-        readingDate,
-        previousReading,
-        currentReading: reading,
-        unitsConsumed,
-        ratePerUnit: effectiveRate,
-        totalCharge,
-        notes: notes.trim(),
-        createdAt: new Date().toISOString()
-      };
-
-      await setDoc(doc(db, 'electricityReadings', readingId), readingData);
-
-      alert('✅ Meter reading added successfully!');
-      onSuccess();
-    } catch (err) {
-      console.error('Error saving meter reading:', err);
-      setError('Failed to save meter reading. Please try again.');
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-gray-800">⚡ Add Meter Reading</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">
-              ×
-            </button>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6">
-          {/* Tenant Info */}
-          <div className="bg-blue-50 rounded-lg p-4 mb-4">
-            <p className="text-sm text-blue-600 mb-1">Tenant</p>
-            <p className="font-bold text-blue-900">{tenant.name}</p>
-            <p className="text-sm text-blue-700">Room {tenant.roomNumber}</p>
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
-          {/* Previous Reading */}
-          <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Previous Reading (kWh)
-            </label>
-            <input
-              type="text"
-              value={previousReading}
-              className="input-field bg-gray-100"
-              disabled
-            />
-          </div>
-
-          {/* Current Reading */}
-          <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Current Reading (kWh) *
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={currentReading}
-              onChange={(e) => setCurrentReading(e.target.value)}
-              className="input-field"
-              placeholder="0.00"
-              required
-            />
-          </div>
-
-          {/* Reading Date */}
-          <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Reading Date *
-            </label>
-            <input
-              type="date"
-              value={readingDate}
-              onChange={(e) => setReadingDate(e.target.value)}
-              className="input-field"
-              required
-            />
-          </div>
-
-          {/* Rate Override */}
-          <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Rate Override (₹/kWh)
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={rateOverride}
-              onChange={(e) => setRateOverride(e.target.value)}
-              className="input-field"
-              placeholder={`Default: ${globalRate}`}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Leave empty to use global rate (₹{globalRate}/kWh)
-            </p>
-          </div>
-
-          {/* Notes */}
-          <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Notes (Optional)
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="input-field"
-              rows="2"
-              placeholder="Any additional notes..."
-            />
-          </div>
-
-          {/* Calculation Summary */}
-          {currentReading && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-              <h4 className="font-semibold text-green-900 mb-2">📊 Calculation</h4>
-              <div className="space-y-1 text-sm text-green-800">
-                <div className="flex justify-between">
-                  <span>Units Consumed:</span>
-                  <span className="font-semibold">{unitsConsumed.toFixed(2)} kWh</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Rate per Unit:</span>
-                  <span className="font-semibold">₹{effectiveRate}</span>
-                </div>
-                <div className="flex justify-between pt-2 border-t border-green-300">
-                  <span className="font-bold">Total Charge:</span>
-                  <span className="font-bold text-lg">₹{totalCharge.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Buttons */}
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn-secondary flex-1"
-              disabled={saving}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn-primary flex-1"
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : '💾 Save Reading'}
-            </button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 };
