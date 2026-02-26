@@ -1,4 +1,0 @@
-tenantName,roomNumber,year,month,rent,electricity,paidAmount,status
-Unknown Tenant ABC,101,2025,1,5000,450,5450,paid
-Another Unknown Person,102,2025,1,6000,500,6500,paid
-XYZ Test Tenant,103,2025,2,5500,0,0,unpaid

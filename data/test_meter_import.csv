@@ -1,4 +1,0 @@
-roomNumber,tenantName,year,month,rent,oldReading,currentReading,ratePerUnit,paidAmount,paymentDate,paymentMode
-101,John Doe,2024,1,5000,1200,1250,8.5,5425,2024-01-05,upi
-102,Jane Smith,2024,1,6000,2100,2180,8.5,6680,2024-01-10,cash
-103,Bob Wilson,2024,1,5500,1800,1860,8.5,6010,2024-01-08,bank
