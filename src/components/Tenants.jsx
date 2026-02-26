@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import TenantForm from './TenantForm';
 import { useDialog } from './ui/DialogProvider';
@@ -18,6 +18,9 @@ const Tenants = () => {
   const [selectedTenantHistory, setSelectedTenantHistory] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [mergeTargetTenantId, setMergeTargetTenantId] = useState('');
+  const [mergeSourceTenantId, setMergeSourceTenantId] = useState('');
+  const [mergingTenants, setMergingTenants] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -86,6 +89,125 @@ const Tenants = () => {
       return [String(tenantRecord.roomNumber)];
     }
     return [];
+  };
+
+  const getTenantById = (tenantId) => tenants.find((tenantRecord) => tenantRecord.id === tenantId) || null;
+
+  const mergeTenantAccounts = async () => {
+    if (!mergeTargetTenantId || !mergeSourceTenantId) {
+      await showAlert('Please select both target and source tenant for merge.', { title: 'Selection Required', intent: 'warning' });
+      return;
+    }
+
+    if (mergeTargetTenantId === mergeSourceTenantId) {
+      await showAlert('Target and source tenant must be different.', { title: 'Invalid Merge', intent: 'warning' });
+      return;
+    }
+
+    const targetTenant = getTenantById(mergeTargetTenantId);
+    const sourceTenant = getTenantById(mergeSourceTenantId);
+
+    if (!targetTenant || !sourceTenant) {
+      await showAlert('Selected tenant record not found. Please refresh and try again.', { title: 'Tenant Missing', intent: 'error' });
+      return;
+    }
+
+    const targetRooms = getAssignedRooms(targetTenant);
+    const sourceRooms = getAssignedRooms(sourceTenant);
+    const mergedRooms = [...new Set([...targetRooms, ...sourceRooms])].sort((a, b) => Number(a) - Number(b));
+
+    const confirmed = await showConfirm(
+      `Merge "${sourceTenant.name}" into "${targetTenant.name}"?\n\nTarget rooms: ${targetRooms.join(', ') || '-'}\nSource rooms: ${sourceRooms.join(', ') || '-'}\nMerged rooms: ${mergedRooms.join(', ') || '-'}\n\nSource tenant will be marked inactive after merge.`,
+      { title: 'Confirm Tenant Merge', confirmLabel: 'Merge Now', intent: 'warning' }
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setMergingTenants(true);
+
+    try {
+      // 1) Update target tenant with merged room assignments
+      await updateDoc(doc(db, 'tenants', targetTenant.id), {
+        assignedRooms: mergedRooms,
+        roomNumber: mergedRooms[0] || targetTenant.roomNumber || '',
+        isActive: true,
+        updatedAt: new Date().toISOString(),
+        mergedFromTenantIds: [...new Set([...(targetTenant.mergedFromTenantIds || []), sourceTenant.id])]
+      });
+
+      // 2) Move tenant-linked records from source tenantId -> target tenantId
+      const moveRecordsByTenantId = async (collectionName, extraPayload = {}) => {
+        const snapshot = await getDocs(query(collection(db, collectionName), where('tenantId', '==', sourceTenant.id)));
+        const updatePromises = snapshot.docs.map((snapshotDoc) => {
+          const existing = snapshotDoc.data();
+          return updateDoc(snapshotDoc.ref, {
+            tenantId: targetTenant.id,
+            tenantName: targetTenant.name,
+            tenantNameSnapshot: targetTenant.name,
+            mergedFromTenantId: sourceTenant.id,
+            mergedAt: new Date().toISOString(),
+            ...extraPayload,
+            ...(existing.roomNumbers ? { roomNumbers: [...new Set([...(existing.roomNumbers || []), ...mergedRooms])] } : {})
+          });
+        });
+        await Promise.all(updatePromises);
+      };
+
+      await moveRecordsByTenantId('payments');
+      await moveRecordsByTenantId('paymentSubmissions');
+      await moveRecordsByTenantId('electricityReadings');
+
+      // 3) Ensure merged rooms point to target tenant
+      const roomsRef = collection(db, 'rooms');
+      for (const roomNumber of mergedRooms) {
+        const roomAsNumber = Number.parseInt(roomNumber, 10);
+        const queryCandidates = [
+          query(roomsRef, where('roomNumber', '==', roomNumber))
+        ];
+        if (Number.isFinite(roomAsNumber)) {
+          queryCandidates.unshift(query(roomsRef, where('roomNumber', '==', roomAsNumber)));
+        }
+
+        let roomSnapshot = null;
+        for (const roomQuery of queryCandidates) {
+          const snapshot = await getDocs(roomQuery);
+          if (!snapshot.empty) {
+            roomSnapshot = snapshot;
+            break;
+          }
+        }
+
+        if (!roomSnapshot?.empty) {
+          await updateDoc(roomSnapshot.docs[0].ref, {
+            status: 'filled',
+            currentTenantId: targetTenant.id,
+            lastStatusUpdatedAt: new Date().toISOString()
+          });
+        }
+      }
+
+      // 4) Deactivate source tenant (keep audit/history)
+      await updateDoc(doc(db, 'tenants', sourceTenant.id), {
+        isActive: false,
+        assignedRooms: [],
+        roomNumber: '',
+        mergedIntoTenantId: targetTenant.id,
+        mergedIntoTenantName: targetTenant.name,
+        mergedAt: new Date().toISOString()
+      });
+
+      setMergeSourceTenantId('');
+      setMergeTargetTenantId('');
+      await fetchData();
+      await showAlert('Tenant accounts merged successfully.', { title: 'Merge Complete', intent: 'success' });
+    } catch (error) {
+      console.error('Error merging tenants:', error);
+      await showAlert('Failed to merge tenant accounts. Please try again.', { title: 'Merge Failed', intent: 'error' });
+    } finally {
+      setMergingTenants(false);
+    }
   };
 
   const handleDeleteTenant = async (tenantRecord) => {
@@ -431,6 +553,58 @@ const Tenants = () => {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Merge Tenant Accounts */}
+      <div className="card mb-6 border-2 border-amber-200 bg-amber-50">
+        <h3 className="text-lg font-bold text-amber-900 mb-3">🧩 Merge Duplicate Tenants</h3>
+        <p className="text-sm text-amber-800 mb-3">
+          Use this when the same person was added twice. Source tenant will be deactivated and records will move to target tenant.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="block text-xs font-semibold text-amber-900 mb-1">Target Tenant (keep this)</label>
+            <select
+              value={mergeTargetTenantId}
+              onChange={(event) => setMergeTargetTenantId(event.target.value)}
+              disabled={mergingTenants}
+              className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white"
+            >
+              <option value="">Select target tenant</option>
+              {tenants.map((tenant) => (
+                <option key={`target_${tenant.id}`} value={tenant.id}>
+                  {tenant.name} ({getAssignedRooms(tenant).join(', ') || '-'}) {tenant.isActive ? '' : '[Inactive]'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-amber-900 mb-1">Source Tenant (merge this into target)</label>
+            <select
+              value={mergeSourceTenantId}
+              onChange={(event) => setMergeSourceTenantId(event.target.value)}
+              disabled={mergingTenants}
+              className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white"
+            >
+              <option value="">Select source tenant</option>
+              {tenants.map((tenant) => (
+                <option key={`source_${tenant.id}`} value={tenant.id}>
+                  {tenant.name} ({getAssignedRooms(tenant).join(', ') || '-'}) {tenant.isActive ? '' : '[Inactive]'}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <button
+          onClick={mergeTenantAccounts}
+          disabled={mergingTenants}
+          className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
+        >
+          {mergingTenants ? 'Merging...' : 'Merge Tenants'}
+        </button>
       </div>
 
       {/* Tenants List */}

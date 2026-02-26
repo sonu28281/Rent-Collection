@@ -50,6 +50,7 @@ const TenantPortal = () => {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [previousMeterReadings, setPreviousMeterReadings] = useState({});
   const [currentMeterReadings, setCurrentMeterReadings] = useState({});
+  const [selectedMeterRoomTab, setSelectedMeterRoomTab] = useState('all');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
@@ -87,6 +88,18 @@ const TenantPortal = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const roomTabs = (roomsData || []).map((entry) => String(entry.roomNumber));
+    if (roomTabs.length <= 1) {
+      setSelectedMeterRoomTab('all');
+      return;
+    }
+
+    if (!roomTabs.includes(selectedMeterRoomTab)) {
+      setSelectedMeterRoomTab(roomTabs[0]);
+    }
+  }, [roomsData, selectedMeterRoomTab]);
 
   const showToast = (message, type = 'info') => {
     setToast({ message, type });
@@ -920,6 +933,7 @@ const TenantPortal = () => {
           source: 'payment_history',
           date: record.paidDate || record.paymentDate || record.paidAt || record.createdAt || null,
           monthLabel: record.year && record.month ? `${getMonthName(Number(record.month))} ${record.year}` : 'Unknown',
+          roomNumber: String(record.roomNumber ?? room?.roomNumber ?? tenant?.roomNumber ?? ''),
           previousReading,
           currentReading,
           unitsConsumed: Number.isFinite(unitsConsumed) ? unitsConsumed : Math.max(0, currentReading - previousReading),
@@ -948,6 +962,7 @@ const TenantPortal = () => {
           monthLabel: dateObj && !Number.isNaN(dateObj.getTime())
             ? dateObj.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
             : 'Unknown',
+          roomNumber: String(reading.roomNumber ?? room?.roomNumber ?? tenant?.roomNumber ?? ''),
           previousReading,
           currentReading,
           unitsConsumed: Number.isFinite(unitsConsumed) ? unitsConsumed : Math.max(0, currentReading - previousReading),
@@ -975,6 +990,68 @@ const TenantPortal = () => {
     });
 
     return deduped;
+  };
+
+  const getMonthlyPaymentGroups = () => {
+    const grouped = paymentRecords.reduce((accumulator, record) => {
+      const year = Number(record.year || 0);
+      const month = Number(record.month || 0);
+      const key = `${year}-${month}`;
+
+      if (!accumulator[key]) {
+        accumulator[key] = {
+          key,
+          year,
+          month,
+          records: [],
+          totalRent: 0,
+          totalElectricity: 0,
+          totalAmount: 0,
+          paidAmount: 0,
+          status: 'paid',
+          paidAt: null,
+          notes: ''
+        };
+      }
+
+      const rent = Number(record.rent || 0);
+      const electricity = Number(record.electricity ?? record.electricityAmount ?? 0);
+      const paidAmount = Number(record.paidAmount || 0);
+      const total = rent + electricity;
+
+      accumulator[key].records.push(record);
+      accumulator[key].totalRent += rent;
+      accumulator[key].totalElectricity += electricity;
+      accumulator[key].totalAmount += total;
+      accumulator[key].paidAmount += paidAmount;
+
+      if (record.paidAt && (!accumulator[key].paidAt || new Date(record.paidAt) > new Date(accumulator[key].paidAt))) {
+        accumulator[key].paidAt = record.paidAt;
+      }
+
+      if (!accumulator[key].notes && record.notes) {
+        accumulator[key].notes = record.notes;
+      }
+
+      if (record.status === 'overdue') {
+        accumulator[key].status = 'overdue';
+      } else if (record.status === 'pending' && accumulator[key].status !== 'overdue') {
+        accumulator[key].status = 'pending';
+      }
+
+      return accumulator;
+    }, {});
+
+    return Object.values(grouped)
+      .map((group) => ({
+        ...group,
+        records: [...group.records].sort((a, b) => Number(a.roomNumber) - Number(b.roomNumber))
+      }))
+      .sort((a, b) => {
+        const yearDiff = Number(b.year) - Number(a.year);
+        if (yearDiff !== 0) return yearDiff;
+        return Number(b.month) - Number(a.month);
+      });
   };
 
   const isRentElectricityPaidRecord = (record) => {
@@ -1590,14 +1667,52 @@ const TenantPortal = () => {
 
             {/* Meter History Access - Read Only */}
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+              {(() => {
+                const fullTimeline = getMeterHistoryTimeline();
+                const roomTabs = (roomsData || []).map((entry) => String(entry.roomNumber));
+                const hasRoomTabs = roomTabs.length > 1;
+                const filteredTimeline = hasRoomTabs && selectedMeterRoomTab !== 'all'
+                  ? fullTimeline.filter((entry) => String(entry.roomNumber) === String(selectedMeterRoomTab))
+                  : fullTimeline;
+
+                return (
+                  <>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-gray-800">📚 Meter Reading History</h2>
                 <span className="text-xs sm:text-sm text-gray-600">
-                  {getMeterHistoryTimeline().length} record{getMeterHistoryTimeline().length !== 1 ? 's' : ''}
+                  {filteredTimeline.length} record{filteredTimeline.length !== 1 ? 's' : ''}
                 </span>
               </div>
 
-              {getMeterHistoryTimeline().length === 0 ? (
+              {hasRoomTabs && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <button
+                    onClick={() => setSelectedMeterRoomTab('all')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                      selectedMeterRoomTab === 'all'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    All Meters
+                  </button>
+                  {roomTabs.map((roomNumber) => (
+                    <button
+                      key={`meter_tab_${roomNumber}`}
+                      onClick={() => setSelectedMeterRoomTab(roomNumber)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                        selectedMeterRoomTab === roomNumber
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      MTR {roomNumber}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {filteredTimeline.length === 0 ? (
                 <div className="text-center py-6 bg-gray-50 rounded-lg">
                   <p className="text-sm text-gray-600">No meter history available yet.</p>
                 </div>
@@ -1606,6 +1721,7 @@ const TenantPortal = () => {
                   <table className="w-full text-xs sm:text-sm">
                     <thead className="bg-gray-50 sticky top-0">
                       <tr>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-700">Old</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-700">Current</th>
@@ -1614,8 +1730,9 @@ const TenantPortal = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {getMeterHistoryTimeline().map((entry) => (
+                      {filteredTimeline.map((entry) => (
                         <tr key={entry.id} className="border-t border-gray-100">
+                          <td className="px-3 py-2 font-semibold text-gray-700">{entry.roomNumber || '-'}</td>
                           <td className="px-3 py-2">
                             <div className="font-semibold text-gray-800">{entry.monthLabel}</div>
                             <div className="text-[10px] text-gray-500">
@@ -1632,14 +1749,22 @@ const TenantPortal = () => {
                   </table>
                 </div>
               )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Payment Records - Collapsible Mobile-Friendly Cards */}
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+              {(() => {
+                const monthlyPaymentGroups = getMonthlyPaymentGroups();
+
+                return (
+                  <>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-gray-800">💰 Payment History</h2>
                 <span className="text-xs sm:text-sm text-gray-600">
-                  {paymentRecords.length} record{paymentRecords.length !== 1 ? 's' : ''}
+                  {monthlyPaymentGroups.length} month{monthlyPaymentGroups.length !== 1 ? 's' : ''}
                 </span>
               </div>
 
@@ -1660,7 +1785,7 @@ const TenantPortal = () => {
               })()}
 
               {paymentRecords.length > 0 && (() => {
-                const paidWithElectricity = paymentRecords.filter(isRentElectricityPaidRecord);
+                const paidWithElectricity = monthlyPaymentGroups.filter((group) => group.status === 'paid' && Number(group.totalElectricity || 0) > 0);
                 const lastElectricityPaid = paidWithElectricity[0] || null;
 
                 return (
@@ -1685,14 +1810,15 @@ const TenantPortal = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {paymentRecords.map((record) => {
-                    const total = (record.rent || 0) + (record.electricity || 0);
-                    const isPaid = record.status === 'paid';
-                    const isPending = record.status === 'pending';
-                    const isOverdue = record.status === 'overdue';
-                    const isExpanded = expandedCard === record.id;
-                    const isRentElectricityPaid = isRentElectricityPaidRecord(record);
-                    const isOnlyRentPaid = isOnlyRentPaidRecord(record);
+                  {monthlyPaymentGroups.map((group) => {
+                    const total = group.totalAmount;
+                    const isPaid = group.status === 'paid';
+                    const isPending = group.status === 'pending';
+                    const isOverdue = group.status === 'overdue';
+                    const groupCardId = `group_${group.year}_${group.month}`;
+                    const isExpanded = expandedCard === groupCardId;
+                    const isRentElectricityPaid = isPaid && Number(group.totalElectricity || 0) > 0;
+                    const isOnlyRentPaid = isPaid && Number(group.totalElectricity || 0) <= 0;
 
                     const paymentTypeText = isRentElectricityPaid
                       ? 'Rent + Electricity Paid'
@@ -1706,7 +1832,7 @@ const TenantPortal = () => {
                     
                     return (
                       <div 
-                        key={record.id} 
+                        key={groupCardId} 
                         className={`border-2 rounded-lg transition-all cursor-pointer ${
                           isRentElectricityPaid ? 'border-green-300 bg-green-50 hover:bg-green-100' :
                           isOnlyRentPaid ? 'border-amber-300 bg-amber-50 hover:bg-amber-100' :
@@ -1718,7 +1844,7 @@ const TenantPortal = () => {
                       >
                         {/* Compact Header - Always Visible */}
                         <div 
-                          onClick={() => toggleCard(record.id)}
+                          onClick={() => toggleCard(groupCardId)}
                           className="flex items-center justify-between p-3"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -1727,7 +1853,7 @@ const TenantPortal = () => {
                             </span>
                             <div className="flex-1 min-w-0">
                               <h3 className="text-sm sm:text-base font-bold text-gray-800 truncate">
-                                {getMonthName(record.month)} {record.year}
+                                {getMonthName(group.month)} {group.year}
                               </h3>
                               <p className="text-xs text-gray-600">
                                 {paymentTypeText}
@@ -1756,11 +1882,11 @@ const TenantPortal = () => {
                             )}
 
                             {/* Payment Date */}
-                            {record.paidAt && isPaid && (
+                            {group.paidAt && isPaid && (
                               <div className="bg-white/50 rounded p-2">
                                 <p className="text-xs text-gray-600 mb-1">Payment Date:</p>
                                 <p className="text-sm font-semibold text-green-700">
-                                  {new Date(record.paidAt).toLocaleDateString('en-IN', {
+                                  {new Date(group.paidAt).toLocaleDateString('en-IN', {
                                     day: 'numeric',
                                     month: 'short',
                                     year: 'numeric'
@@ -1773,55 +1899,61 @@ const TenantPortal = () => {
                             <div className="grid grid-cols-2 gap-2">
                               <div className="bg-white/50 rounded p-2">
                                 <p className="text-xs text-gray-600 mb-1">Rent</p>
-                                <p className="font-bold text-gray-800 text-sm">₹{(record.rent || 0).toLocaleString('en-IN')}</p>
+                                <p className="font-bold text-gray-800 text-sm">₹{Number(group.totalRent || 0).toLocaleString('en-IN')}</p>
                               </div>
                               <div className="bg-white/50 rounded p-2">
                                 <p className="text-xs text-gray-600 mb-1">Electricity</p>
-                                <p className="font-bold text-gray-800 text-sm">₹{(record.electricity || 0).toLocaleString('en-IN')}</p>
+                                <p className="font-bold text-gray-800 text-sm">₹{Number(group.totalElectricity || 0).toLocaleString('en-IN')}</p>
+                              </div>
+                            </div>
+
+                            {/* Room-wise Breakdown */}
+                            <div className="bg-indigo-50 border border-indigo-200 rounded p-2">
+                              <p className="text-xs font-semibold text-indigo-900 mb-2">🏠 Room-wise Breakout:</p>
+                              <div className="space-y-1">
+                                {group.records.map((recordItem) => (
+                                  <div key={`room_break_${recordItem.id}`} className="grid grid-cols-4 gap-2 text-xs bg-white/70 rounded px-2 py-1">
+                                    <p className="font-semibold text-indigo-900">Room {recordItem.roomNumber || '-'}</p>
+                                    <p>Rent ₹{Number(recordItem.rent || 0).toFixed(2)}</p>
+                                    <p>Elec ₹{Number(recordItem.electricity || 0).toFixed(2)}</p>
+                                    <p className="font-semibold">Total ₹{(Number(recordItem.rent || 0) + Number(recordItem.electricity || 0)).toFixed(2)}</p>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                             
                             {/* Meter Readings */}
-                            {(record.oldReading || record.currentReading || record.units) && (
+                            {group.records.some((recordItem) => recordItem.oldReading || recordItem.currentReading || recordItem.units) && (
                               <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
                                 <p className="text-xs font-semibold text-yellow-900 mb-2">⚡ Meter Details:</p>
-                                <div className="grid grid-cols-3 gap-2 text-xs">
-                                  <div>
-                                    <p className="text-yellow-700">Previous</p>
-                                    <p className="font-mono font-bold text-yellow-900">{record.oldReading || 0}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-yellow-700">Current</p>
-                                    <p className="font-mono font-bold text-yellow-900">{record.currentReading || 0}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-yellow-700">Units</p>
-                                    <p className="font-mono font-bold text-yellow-900">{record.units || 0}</p>
-                                  </div>
+                                <div className="space-y-1 text-xs">
+                                  {group.records.map((recordItem) => (
+                                    <div key={`meter_${recordItem.id}`} className="grid grid-cols-4 gap-2 bg-white/70 rounded px-2 py-1">
+                                      <p className="font-semibold text-yellow-900">R{recordItem.roomNumber || '-'}</p>
+                                      <p>Prev {recordItem.oldReading || 0}</p>
+                                      <p>Curr {recordItem.currentReading || 0}</p>
+                                      <p>Units {recordItem.units || recordItem.unitsConsumed || 0}</p>
+                                    </div>
+                                  ))}
                                 </div>
-                                {record.ratePerUnit && (
-                                  <p className="text-xs text-yellow-700 mt-1">
-                                    Rate: ₹{record.ratePerUnit}/unit
-                                  </p>
-                                )}
                               </div>
                             )}
                             
                             {/* Payment Method */}
-                            {record.paymentMethod && isPaid && (
+                            {group.records.some((recordItem) => recordItem.paymentMethod) && isPaid && (
                               <div className="bg-white/50 rounded p-2">
                                 <p className="text-xs text-gray-600 mb-1">Payment Method:</p>
                                 <p className="text-sm font-semibold text-gray-800">
-                                  💳 {record.paymentMethod}
+                                  💳 {group.records.find((recordItem) => recordItem.paymentMethod)?.paymentMethod}
                                 </p>
                               </div>
                             )}
                             
                             {/* Notes */}
-                            {record.notes && (
+                            {group.notes && (
                               <div className="bg-white/50 rounded p-2">
                                 <p className="text-xs text-gray-600 mb-1">📝 Note:</p>
-                                <p className="text-sm text-gray-700 italic">{record.notes}</p>
+                                <p className="text-sm text-gray-700 italic">{group.notes}</p>
                               </div>
                             )}
                           </div>
@@ -1831,6 +1963,9 @@ const TenantPortal = () => {
                   })}
                 </div>
               )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Contact & Support Info */}

@@ -23,6 +23,9 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
+  const normalizePhone = (value) => String(value || '').replace(/\D/g, '');
+  const normalizeName = (value) => String(value || '').trim().toLowerCase();
+
   useEffect(() => {
     if (tenant) {
       const tenantAssignedRooms = Array.isArray(tenant.assignedRooms) && tenant.assignedRooms.length > 0
@@ -59,6 +62,31 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
     return [];
   };
 
+  const isSamePerson = (tenantRecord, draftName, draftPhone) => {
+    const tenantPhone = normalizePhone(tenantRecord?.phone);
+    const inputPhone = normalizePhone(draftPhone);
+    if (tenantPhone && inputPhone && tenantPhone === inputPhone) {
+      return true;
+    }
+
+    const tenantName = normalizeName(tenantRecord?.name);
+    const inputName = normalizeName(draftName);
+    return Boolean(tenantName && inputName && tenantName === inputName);
+  };
+
+  const getConflictingTenantForRoom = (roomNumber) => {
+    return tenants.find((tenantRecord) => {
+      if (!tenantRecord?.isActive) return false;
+      if (tenant && tenantRecord.id === tenant.id) return false;
+
+      const assignedRooms = getTenantAssignedRooms(tenantRecord);
+      const hasRoom = assignedRooms.includes(String(roomNumber));
+      if (!hasRoom) return false;
+
+      return !isSamePerson(tenantRecord, formData.name, formData.phone);
+    }) || null;
+  };
+
   const generateUniqueToken = () => {
     // Generate a 48-character hex token
     const array = new Uint8Array(24);
@@ -84,6 +112,17 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
       newErrors.phone = 'Phone is required';
     } else if (!/^[0-9]{10}$/.test(formData.phone.replace(/\s/g, ''))) {
       newErrors.phone = 'Phone must be 10 digits';
+    } else {
+      const inputPhone = normalizePhone(formData.phone);
+      const duplicatePhoneTenant = tenants.find((tenantRecord) => {
+        if (!tenantRecord?.isActive) return false;
+        if (tenant && tenantRecord.id === tenant.id) return false;
+        return normalizePhone(tenantRecord.phone) === inputPhone;
+      });
+
+      if (duplicatePhoneTenant && !tenant) {
+        newErrors.phone = `This phone is already active under ${duplicatePhoneTenant.name}. Edit existing tenant or use Merge Duplicate Tenants.`;
+      }
     }
 
     const selectedRooms = (formData.assignedRooms || []).map((room) => String(room));
@@ -92,15 +131,7 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
       newErrors.assignedRooms = 'At least one room must be selected';
     } else {
       // Check if any selected room is already assigned to another active tenant
-      const isRoomOccupied = tenants.some(
-        (t) => {
-          if (!t?.isActive) return false;
-          if (tenant && t.id === tenant.id) return false;
-
-          const occupiedRooms = getTenantAssignedRooms(t);
-          return selectedRooms.some((selectedRoom) => occupiedRooms.includes(selectedRoom));
-        }
-      );
+      const isRoomOccupied = selectedRooms.some((selectedRoom) => Boolean(getConflictingTenantForRoom(selectedRoom)));
       
       if (isRoomOccupied) {
         newErrors.assignedRooms = 'One or more selected rooms are already occupied by another active tenant';
@@ -149,6 +180,11 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
 
   const toggleAssignedRoom = (roomNumber) => {
     const roomAsString = String(roomNumber);
+    const conflictingTenant = getConflictingTenantForRoom(roomAsString);
+    if (conflictingTenant) {
+      return;
+    }
+
     const currentSelection = formData.assignedRooms || [];
     const nextSelection = currentSelection.includes(roomAsString)
       ? currentSelection.filter((room) => room !== roomAsString)
@@ -213,6 +249,9 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
         }
         
         await updateDoc(doc(db, 'tenants', tenant.id), tenantData);
+
+        // Auto-clean duplicate same-person tenant entries (remove overlapping rooms)
+        await reconcileDuplicateAssignments(normalizedAssignedRooms, tenant.id, formData.name, formData.phone);
         
         // Update room status for all assigned rooms
         await updateRoomStatusForAssignments(normalizedAssignedRooms, formData.isActive, {
@@ -240,6 +279,9 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
         tenantData.kycPanUrl = null;
         
         const newTenantRef = await addDoc(collection(db, 'tenants'), tenantData);
+
+        // Auto-clean duplicate same-person tenant entries (remove overlapping rooms)
+        await reconcileDuplicateAssignments(normalizedAssignedRooms, newTenantRef.id, formData.name, formData.phone);
         
         // Update room status for all assigned rooms
         await updateRoomStatusForAssignments(normalizedAssignedRooms, formData.isActive, {
@@ -257,6 +299,34 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const reconcileDuplicateAssignments = async (newAssignedRooms, currentTenantId, draftName, draftPhone) => {
+    const roomsSet = new Set((newAssignedRooms || []).map((room) => String(room)));
+    if (roomsSet.size === 0) return;
+
+    const updatePromises = tenants
+      .filter((tenantRecord) => {
+        if (!tenantRecord?.isActive) return false;
+        if (tenantRecord.id === currentTenantId) return false;
+        if (!isSamePerson(tenantRecord, draftName, draftPhone)) return false;
+
+        const assignedRooms = getTenantAssignedRooms(tenantRecord);
+        return assignedRooms.some((room) => roomsSet.has(String(room)));
+      })
+      .map(async (tenantRecord) => {
+        const assignedRooms = getTenantAssignedRooms(tenantRecord);
+        const remainingRooms = assignedRooms.filter((room) => !roomsSet.has(String(room)));
+
+        await updateDoc(doc(db, 'tenants', tenantRecord.id), {
+          assignedRooms: remainingRooms,
+          roomNumber: remainingRooms[0] || '',
+          isActive: remainingRooms.length > 0 ? tenantRecord.isActive : false,
+          updatedAt: new Date().toISOString()
+        });
+      });
+
+    await Promise.all(updatePromises);
   };
 
   const syncTenantNameAcrossCollections = async ({ tenantId, oldName, newName, oldRoomNumber, newRoomNumber }) => {
@@ -477,21 +547,29 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
               </label>
               <div className={`border rounded-lg p-3 max-h-52 overflow-y-auto ${errors.assignedRooms ? 'border-red-500' : 'border-gray-300'}`}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {availableRooms.map((room) => {
+                  {rooms
+                    .slice()
+                    .sort((a, b) => Number(a.roomNumber) - Number(b.roomNumber))
+                    .map((room) => {
                     const roomValue = String(room.roomNumber);
                     const checked = (formData.assignedRooms || []).includes(roomValue);
+                    const conflictingTenant = getConflictingTenantForRoom(roomValue);
+                    const isDisabled = Boolean(conflictingTenant) && !checked;
+
                     return (
-                      <label key={room.id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <label key={room.id} className={`flex items-center gap-2 text-sm ${isDisabled ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 cursor-pointer'}`}>
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleAssignedRoom(roomValue)}
-                          disabled={loading}
+                          disabled={loading || isDisabled}
                           className="w-4 h-4 text-primary rounded"
                         />
                         <span>
                           Room {room.roomNumber} - Floor {room.floor}
-                          {(room.status || 'vacant') === 'vacant' ? ' (Vacant)' : ' (Assigned)'}
+                          {conflictingTenant
+                            ? ` (Assigned: ${conflictingTenant.name})`
+                            : ((room.status || 'vacant') === 'vacant' ? ' (Vacant)' : ' (Assigned)')}
                         </span>
                       </label>
                     );
