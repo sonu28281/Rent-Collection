@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { VALID_ROOM_NUMBERS, MAX_ROOMS, validateRoomCount, findDuplicateRooms, findInvalidRooms } from '../utils/roomValidation';
+import { VALID_ROOM_NUMBERS } from '../utils/roomValidation';
 
 /**
  * Check and Remove Duplicate Rooms & Tenants
@@ -209,7 +209,7 @@ const CheckDuplicates = () => {
             <h3 className="font-bold text-red-900 mb-3">⚠️ Duplicate Rooms Found:</h3>
             <div className="space-y-2">
               {Object.entries(roomGroups)
-                .filter(([_, group]) => group.length > 1)
+                .filter(([, group]) => group.length > 1)
                 .map(([roomNumber, group]) => (
                   <div key={roomNumber} className="bg-white rounded p-2 border border-red-200">
                     <p className="font-semibold text-red-800">
@@ -234,7 +234,7 @@ const CheckDuplicates = () => {
             <h3 className="font-bold text-red-900 mb-3">⚠️ Duplicate Tenants Found:</h3>
             <div className="space-y-2">
               {Object.entries(tenantGroups)
-                .filter(([_, group]) => group.length > 1)
+                .filter(([, group]) => group.length > 1)
                 .map(([roomNumber, group]) => (
                   <div key={roomNumber} className="bg-white rounded p-2 border border-red-200">
                     <p className="font-semibold text-red-800">

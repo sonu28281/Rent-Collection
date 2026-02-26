@@ -119,7 +119,7 @@ const UpdateCheckInDates = () => {
             </div>
             <div className="ml-3">
               <p className="text-sm text-yellow-700">
-                <strong>Warning:</strong> This will update check-in dates for tenants who don't have one set.
+                <strong>Warning:</strong> This will update check-in dates for tenants who don&apos;t have one set.
                 It will use the date of their first payment record as the check-in date.
               </p>
             </div>

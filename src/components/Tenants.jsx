@@ -780,7 +780,6 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
   
   // Calculate totals
   const totalCollected = payments.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
-  const totalBilled = payments.reduce((sum, p) => sum + ((p.rent || 0) + (p.electricity || 0)), 0);
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { collection, getDocs, doc, setDoc, writeBatch, query } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useDialog } from './ui/DialogProvider';
 

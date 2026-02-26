@@ -21,7 +21,7 @@ import TenantHistory from './components/TenantHistory';
 import ImportLogsPage from './components/ImportLogsPage';
 import PaymentsReset from './components/PaymentsReset';
 import DatabaseCleanup from './components/DatabaseCleanup';
-import UpdateCheckInDates from './components/UpdateCheckInDates';
+import VacancyReport from './components/VacancyReport';
 import DialogProvider from './components/ui/DialogProvider';
 
 function App() {
@@ -129,6 +129,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><HistoryManager /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/vacancy-report" 
+            element={
+              <ProtectedRoute>
+                <Layout><VacancyReport /></Layout>
               </ProtectedRoute>
             } 
           />

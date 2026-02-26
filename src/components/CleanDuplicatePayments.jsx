@@ -66,8 +66,8 @@ const CleanDuplicatePayments = () => {
       });
 
       // Count duplicates
-      const jan2026Duplicates = Object.entries(jan2026ByRoom).filter(([_, payments]) => payments.length > 1);
-      const feb2026Duplicates = Object.entries(feb2026ByRoom).filter(([_, payments]) => payments.length > 1);
+      const jan2026Duplicates = Object.entries(jan2026ByRoom).filter(([, payments]) => payments.length > 1);
+      const feb2026Duplicates = Object.entries(feb2026ByRoom).filter(([, payments]) => payments.length > 1);
 
       setPaymentStats({
         jan2026: {
@@ -413,7 +413,7 @@ const CleanDuplicatePayments = () => {
 
             <div className="bg-blue-50 border border-blue-300 rounded-lg p-4">
               <p className="text-blue-800 font-semibold">
-                ✅ Cleanup completed! Click "Re-check" to verify.
+                ✅ Cleanup completed! Click &quot;Re-check&quot; to verify.
               </p>
             </div>
           </div>

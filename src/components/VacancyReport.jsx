@@ -1,40 +1,85 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const VacancyReport = () => {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [allPayments, setAllPayments] = useState([]);
   const [yearlyReport, setYearlyReport] = useState([]);
   const [roomVacancy, setRoomVacancy] = useState([]);
   const [totalRooms, setTotalRooms] = useState(0);
 
-  const MONTHS = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-  ];
+  const getYearMonth = (payment) => {
+    const explicitYear = Number(payment?.year);
+    const explicitMonth = Number(payment?.month);
 
-  useEffect(() => {
-    loadVacancyData();
-  }, []);
+    if (Number.isFinite(explicitYear) && Number.isFinite(explicitMonth) && explicitMonth >= 1 && explicitMonth <= 12) {
+      return { year: explicitYear, month: explicitMonth };
+    }
 
-  const loadVacancyData = async () => {
+    const fallbackDate = payment?.paidDate || payment?.paymentDate || payment?.date || payment?.createdAt || payment?.paidAt;
+    if (!fallbackDate) {
+      return null;
+    }
+
+    const parsedDate = new Date(fallbackDate);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return null;
+    }
+
+    return {
+      year: parsedDate.getFullYear(),
+      month: parsedDate.getMonth() + 1
+    };
+  };
+
+  const loadVacancyData = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
-      // Load all payments
+      // Load canonical room list first (source of truth)
+      const roomsRef = collection(db, 'rooms');
+      const roomsSnapshot = await getDocs(roomsRef);
+      const roomNumbersFromRooms = roomsSnapshot.docs
+        .map((docSnap) => docSnap.data()?.roomNumber)
+        .filter((roomNumber) => roomNumber !== undefined && roomNumber !== null && roomNumber !== '')
+        .map((roomNumber) => Number(roomNumber))
+        .filter((roomNumber) => Number.isFinite(roomNumber))
+        .sort((a, b) => a - b);
+
+      // Load all payments (ordered query first, fallback to plain read if index/order fails)
       const paymentsRef = collection(db, 'payments');
-      const q = query(paymentsRef, orderBy('year', 'asc'), orderBy('month', 'asc'));
-      const snapshot = await getDocs(q);
+      let snapshot;
+      try {
+        const q = query(paymentsRef, orderBy('year', 'asc'), orderBy('month', 'asc'));
+        snapshot = await getDocs(q);
+      } catch (orderedQueryError) {
+        console.warn('Ordered payments query failed, falling back to unordered read:', orderedQueryError);
+        snapshot = await getDocs(paymentsRef);
+      }
       
-      const payments = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const payments = snapshot.docs
+        .map((doc) => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .sort((a, b) => {
+          const aYearMonth = getYearMonth(a);
+          const bYearMonth = getYearMonth(b);
+
+          const aSortValue = aYearMonth ? (aYearMonth.year * 100 + aYearMonth.month) : 0;
+          const bSortValue = bYearMonth ? (bYearMonth.year * 100 + bYearMonth.month) : 0;
+
+          return aSortValue - bSortValue;
+        });
 
       setAllPayments(payments);
 
-      // Get unique room numbers
-      const uniqueRooms = [...new Set(payments.map(p => p.roomNumber))].sort((a, b) => a - b);
+      // Canonical room list for vacancy math; fallback to payments if rooms collection is empty
+      const uniqueRooms = roomNumbersFromRooms.length > 0
+        ? roomNumbersFromRooms
+        : [...new Set(payments.map((p) => Number(p.roomNumber)).filter((roomNumber) => Number.isFinite(roomNumber)))].sort((a, b) => a - b);
       setTotalRooms(uniqueRooms.length);
 
       // Calculate yearly vacancy report
@@ -47,22 +92,32 @@ const VacancyReport = () => {
 
     } catch (error) {
       console.error('Error loading vacancy data:', error);
+      setLoadError(error?.message || 'Unable to load vacancy data right now.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadVacancyData();
+  }, [loadVacancyData]);
 
   const calculateYearlyVacancy = (payments, uniqueRooms) => {
     // Group by year and month
     const groupedByYear = {};
     
     payments.forEach(payment => {
-      const year = payment.year;
+      const yearMonth = getYearMonth(payment);
+      if (!yearMonth) {
+        return;
+      }
+
+      const year = String(yearMonth.year);
       if (!groupedByYear[year]) {
         groupedByYear[year] = {};
       }
       
-      const month = payment.month;
+      const month = String(yearMonth.month);
       if (!groupedByYear[year][month]) {
         groupedByYear[year][month] = new Set();
       }
@@ -71,7 +126,7 @@ const VacancyReport = () => {
       const isVacant = payment.roomStatus === 'vacant' || (Number(payment.rent) || 0) === 0;
       
       if (!isVacant) {
-        groupedByYear[year][month].add(payment.roomNumber);
+        groupedByYear[year][month].add(String(payment.roomNumber));
       }
     });
 
@@ -122,7 +177,8 @@ const VacancyReport = () => {
     const roomStats = {};
 
     uniqueRooms.forEach(roomNumber => {
-      const roomPayments = payments.filter(p => p.roomNumber === roomNumber);
+      const roomKey = String(roomNumber);
+      const roomPayments = payments.filter((p) => String(p.roomNumber) === roomKey);
       
       const vacantMonths = roomPayments.filter(p => 
         p.roomStatus === 'vacant' || (Number(p.rent) || 0) === 0
@@ -137,7 +193,8 @@ const VacancyReport = () => {
       const vacantYears = [...new Set(
         roomPayments
           .filter(p => p.roomStatus === 'vacant' || (Number(p.rent) || 0) === 0)
-          .map(p => p.year)
+          .map((p) => getYearMonth(p)?.year)
+          .filter((year) => Number.isFinite(year))
       )].sort();
 
       roomStats[roomNumber] = {
@@ -200,7 +257,16 @@ const VacancyReport = () => {
             <br />
             Import historical data or check if payments collection has data.
           </p>
+          {loadError && (
+            <p className="text-sm text-red-700 mb-4">Error: {loadError}</p>
+          )}
           <div className="flex gap-3 justify-center">
+            <button
+              onClick={loadVacancyData}
+              className="bg-gray-700 hover:bg-gray-800 text-white font-semibold py-2 px-6 rounded-lg"
+            >
+              🔄 Retry
+            </button>
             <button
               onClick={() => window.location.href = '/import'}
               className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg"

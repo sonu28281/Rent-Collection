@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, addDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
@@ -16,11 +16,7 @@ const VerifyPayments = () => {
   const normalizeUtr = (value) => String(value || '').replace(/\s+/g, '').toUpperCase();
   const isValidUtr = (value) => /^[A-Z0-9]{10,30}$/.test(value);
 
-  useEffect(() => {
-    fetchSubmissions();
-  }, [filter]);
-
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = useCallback(async () => {
     try {
       setLoading(true);
       const submissionsRef = collection(db, 'paymentSubmissions');
@@ -49,7 +45,11 @@ const VerifyPayments = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter, showAlert]);
+
+  useEffect(() => {
+    fetchSubmissions();
+  }, [fetchSubmissions]);
 
   const handleApprove = async (submission) => {
     const approved = await showConfirm(

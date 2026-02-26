@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, query } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const Settings = () => {

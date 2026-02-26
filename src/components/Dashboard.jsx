@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../AuthContext';
 import { getDashboardStats, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary, getTodaysCollection } from '../utils/financial';
 
 const Dashboard = () => {
   const { currentUser } = useAuth();
-  const navigate = useNavigate();
   
   // State for month navigation
   const now = new Date();
@@ -26,22 +24,16 @@ const Dashboard = () => {
   const [todaysCollection, setTodaysCollection] = useState({ amount: 0, count: 0, date: '' });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  useEffect(() => {
-    if (selectedYear) {
-      fetchMonthlyData(selectedYear);
+  const fetchMonthData = useCallback(async () => {
+    try {
+      const monthSummary = await getCurrentMonthDetailedSummary(selectedMonth, selectedMonthYear);
+      setCurrentMonthSummary(monthSummary);
+    } catch (error) {
+      console.error('Error fetching month data:', error);
     }
-  }, [selectedYear]);
-
-  // Refetch when selected month/year changes
-  useEffect(() => {
-    fetchMonthData();
   }, [selectedMonth, selectedMonthYear]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [statsData, yearlyIncome, todaysData] = await Promise.all([
@@ -68,16 +60,22 @@ const Dashboard = () => {
       console.error('Error fetching dashboard data:', error);
       setLoading(false);
     }
-  };
+  }, [fetchMonthData]);
 
-  const fetchMonthData = async () => {
-    try {
-      const monthSummary = await getCurrentMonthDetailedSummary(selectedMonth, selectedMonthYear);
-      setCurrentMonthSummary(monthSummary);
-    } catch (error) {
-      console.error('Error fetching month data:', error);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (selectedYear) {
+      fetchMonthlyData(selectedYear);
     }
-  };
+  }, [selectedYear]);
+
+  // Refetch when selected month/year changes
+  useEffect(() => {
+    fetchMonthData();
+  }, [fetchMonthData]);
 
   const fetchMonthlyData = async (year) => {
     try {
@@ -252,7 +250,7 @@ const Dashboard = () => {
               <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-purple-700 text-sm font-semibold mb-1">Today's Collection</p>
+                    <p className="text-purple-700 text-sm font-semibold mb-1">Today&apos;s Collection</p>
                     <p className="text-2xl font-bold text-purple-900">
                       {loading ? '...' : `₹${todaysCollection.amount.toLocaleString('en-IN')}`}
                     </p>

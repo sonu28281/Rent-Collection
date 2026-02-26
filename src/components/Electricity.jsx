@@ -77,14 +77,6 @@ const Electricity = () => {
     }
   };
 
-  const getLatestReading = (tenantId) => {
-    const tenantReadings = meterReadings
-      .filter(r => r.tenantId === tenantId)
-      .sort((a, b) => new Date(b.readingDate) - new Date(a.readingDate));
-    
-    return tenantReadings[0] || null;
-  };
-
   const getMonthLabelFromDate = (value) => {
     if (!value) return 'Unknown Month';
     const date = new Date(value);
@@ -97,56 +89,6 @@ const Electricity = () => {
     const first = candidates.find(Boolean);
     const parsed = first ? new Date(first) : new Date(0);
     return Number.isNaN(parsed.getTime()) ? new Date(0) : parsed;
-  };
-
-  const getLatestReadingFromPayments = (tenant) => {
-    const tenantName = (tenant.name || '').trim().toLowerCase();
-    const roomNumberAsString = String(tenant.roomNumber);
-    const roomNumberAsNumber = Number.parseInt(tenant.roomNumber, 10);
-
-    const matched = paymentRecords
-      .filter((payment) => {
-        const paymentTenantName = (payment.tenantNameSnapshot || payment.tenantName || '').trim().toLowerCase();
-        const paymentRoomNumber = payment.roomNumber;
-
-        const roomMatch = String(paymentRoomNumber) === roomNumberAsString ||
-          (Number.isFinite(roomNumberAsNumber) && Number(paymentRoomNumber) === roomNumberAsNumber);
-
-        const tenantMatch = payment.tenantId === tenant.id || paymentTenantName === tenantName;
-
-        return roomMatch && tenantMatch;
-      })
-      .map((payment) => {
-        const previousReading = Number(payment.oldReading ?? payment.previousReading);
-        const currentReading = Number(payment.currentReading ?? payment.meterReading);
-        const unitsConsumed = Number(payment.units ?? payment.unitsConsumed ?? 0);
-        const totalCharge = Number(payment.electricity ?? payment.electricityAmount ?? 0);
-
-        const validReadings = Number.isFinite(previousReading) && Number.isFinite(currentReading) && currentReading >= previousReading;
-        const validElectricity = totalCharge > 0 || unitsConsumed > 0;
-
-        if (!validReadings || !validElectricity) {
-          return null;
-        }
-
-        return {
-          id: `payment_${payment.id}`,
-          tenantId: tenant.id,
-          tenantName: tenant.name,
-          roomNumber: tenant.roomNumber,
-          readingDate: payment.paidDate || payment.paymentDate || payment.createdAt || payment.paidAt,
-          previousReading,
-          currentReading,
-          unitsConsumed: Number.isFinite(unitsConsumed) ? unitsConsumed : Math.max(0, currentReading - previousReading),
-          ratePerUnit: Number(payment.ratePerUnit) || null,
-          totalCharge,
-          source: 'payments'
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => toDateValue(b) - toDateValue(a));
-
-    return matched[0] || null;
   };
 
   const getPaymentReadingHistory = (tenant) => {

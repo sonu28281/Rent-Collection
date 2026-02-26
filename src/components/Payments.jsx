@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, query, where, orderBy, updateDoc, doc } from 'firebase/firestore';
+import { useState, useEffect, useCallback } from 'react';
+import { collection, getDocs, addDoc, query, where, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const Payments = () => {
@@ -16,11 +16,7 @@ const Payments = () => {
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
-  useEffect(() => {
-    fetchData();
-  }, [selectedMonth, selectedYear]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -61,7 +57,11 @@ const Payments = () => {
       setError('Failed to load data. Please try again.');
       setLoading(false);
     }
-  };
+  }, [selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleRecordPayment = (tenant) => {
     setSelectedTenant(tenant);

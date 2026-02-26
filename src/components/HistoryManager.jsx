@@ -9,7 +9,6 @@ import {
   updateDoc,
   writeBatch,
   getDocs,
-  deleteDoc,
   serverTimestamp 
 } from 'firebase/firestore';
 import { db, auth } from '../firebase';
@@ -20,7 +19,7 @@ const HistoryManager = () => {
   const [years, setYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState('all');
-  const [selectedFloor, setSelectedFloor] = useState('all'); // New floor filter
+  const [selectedFloor] = useState('all'); // New floor filter
   const [payments, setPayments] = useState([]);
   const [filteredPayments, setFilteredPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,7 +91,7 @@ const HistoryManager = () => {
     if (isAdmin) {
       fetchYears();
     }
-  }, [isAdmin]);
+  }, [isAdmin, selectedYear]);
 
   // Real-time Payments Listener
   useEffect(() => {
@@ -730,8 +729,6 @@ const HistoryManager = () => {
                   const electricity = payment.electricity || (units * ratePerUnit);
                   const total = payment.total || payment.totalAmount || (rent + electricity);
                   const paidAmount = payment.paidAmount || 0;
-                  const floor = payment.floor || (payment.roomNumber < 200 ? 1 : 2);
-                  
                   const tenantName = payment.roomStatus === 'vacant'
                     ? ''
                     : (payment.tenantNameSnapshot || payment.tenantName || 'Unknown');

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import SubmitPayment from './SubmitPayment';
 import googlePayLogo from '../assets/payment-icons/google-pay.svg';
@@ -51,7 +51,7 @@ const TenantPortal = () => {
   const [previousMeterReadings, setPreviousMeterReadings] = useState({});
   const [currentMeterReadings, setCurrentMeterReadings] = useState({});
   const [selectedMeterRoomTab, setSelectedMeterRoomTab] = useState('all');
-  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentProcessing] = useState(false);
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
   
@@ -615,14 +615,6 @@ const TenantPortal = () => {
     return { units, electricityAmount };
   };
 
-  // Handle meter reading submit
-  const handleMeterReadingSubmit = () => {
-    const payable = getPayableAmount();
-    if (!payable) {
-      alert('⚠️ Enter valid Previous and Current meter readings for all assigned rooms');
-    }
-  };
-  
   // Copy UPI ID to clipboard
   const copyUPIId = () => {
     if (activeUPI?.upiId) {
@@ -910,17 +902,6 @@ const TenantPortal = () => {
     return Number.isFinite(reading) ? reading : 0;
   };
 
-  // Get status badge
-  const getStatusBadge = (status) => {
-    const badges = {
-      paid: { text: 'Paid', class: 'bg-green-100 text-green-800' },
-      pending: { text: 'Pending', class: 'bg-yellow-100 text-yellow-800' },
-      overdue: { text: 'Overdue', class: 'bg-red-100 text-red-800' }
-    };
-    const badge = badges[status] || { text: status, class: 'bg-gray-100 text-gray-800' };
-    return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${badge.class}`}>{badge.text}</span>;
-  };
-
   // Get month name
   const getMonthName = (monthNum) => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1062,18 +1043,6 @@ const TenantPortal = () => {
         if (yearDiff !== 0) return yearDiff;
         return Number(b.month) - Number(a.month);
       });
-  };
-
-  const isRentElectricityPaidRecord = (record) => {
-    const electricityAmount = Number(record.electricity ?? record.electricityAmount ?? 0);
-    const units = Number(record.units ?? record.unitsConsumed ?? 0);
-    return record.status === 'paid' && (electricityAmount > 0 || units > 0);
-  };
-
-  const isOnlyRentPaidRecord = (record) => {
-    const electricityAmount = Number(record.electricity ?? record.electricityAmount ?? 0);
-    const units = Number(record.units ?? record.unitsConsumed ?? 0);
-    return record.status === 'paid' && electricityAmount <= 0 && units <= 0;
   };
 
   const getPaidAmountSummary = () => {
@@ -1251,7 +1220,6 @@ const TenantPortal = () => {
             {/* Due Date Alert - Mobile Optimized with Smart Logic */}
             {(() => {
               const dueInfo = getNextDueDate();
-              const electricityHealth = getElectricityBillingHealth();
               const statusColors = {
                 paid: 'from-green-500 to-emerald-600',
                 pending: 'from-amber-500 to-orange-600',
@@ -2004,11 +1972,11 @@ const TenantPortal = () => {
               <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-4">
                 <h3 className="font-bold mb-3 text-sm">📋 Payment Instructions:</h3>
                 <ul className="text-xs sm:text-sm text-white/90 space-y-2">
-                  <li>✓ "Make Payment Now" button shows only when payment is due</li>
+                  <li>✓ &quot;Make Payment Now&quot; button shows only when payment is due</li>
                   <li>✓ Once paid, button is hidden and shows ✅ confirmation</li>
                   <li>✓ Enter current meter reading before payment</li>
                   <li>✓ Scan QR code or use UPI ID to pay</li>
-                  <li>✓ After payment, click "Submit Payment for Verification"</li>
+                  <li>✓ After payment, click &quot;Submit Payment for Verification&quot;</li>
                   <li>✓ Admin will verify within 24 hours</li>
                 </ul>
               </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { VALID_ROOM_NUMBERS, isValidRoomNumber } from '../utils/roomValidation';
+import { isValidRoomNumber } from '../utils/roomValidation';
 
 /**
  * Add 2026 Payment Records
@@ -11,12 +11,6 @@ import { VALID_ROOM_NUMBERS, isValidRoomNumber } from '../utils/roomValidation';
 const Add2026Payments = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  useEffect(() => {
-    if (autoRun && !loading && !result) {
-      handleAdd2026Payments();
-      setAutoRun(false);
-    }
-  }, [autoRun, loading, result]);
 
   const tenants = [
     // Floor 1
@@ -211,7 +205,7 @@ const Add2026Payments = () => {
               <h3 className="font-semibold text-yellow-900 mb-2">⚠️ Already have duplicate payments?</h3>
               <p className="text-yellow-800 text-sm mb-2">
                 If you accidentally ran this tool multiple times and now have 24 payments instead of 12,
-                use the <strong>"Clean Duplicate Payments"</strong> tool to fix it.
+                use the <strong>&quot;Clean Duplicate Payments&quot;</strong> tool to fix it.
               </p>
               <p className="text-yellow-700 text-xs">
                 Settings → Clean Duplicate Payments

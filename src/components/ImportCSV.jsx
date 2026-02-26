@@ -94,7 +94,7 @@ const ImportCSV = () => {
     return mapped;
   };
 
-  const calculateRecordData = (row, rowIndex) => {
+  const calculateRecordData = (row) => {
     const warnings = [];
     
     // Map columns
@@ -276,7 +276,7 @@ const ImportCSV = () => {
             
             for (let i = 0; i < data.length; i++) {
               try {
-                const result = calculateRecordData(data[i], i + 1);
+                const result = calculateRecordData(data[i]);
                 processedRows.push({
                   rowNumber: i + 1,
                   ...result.data,
@@ -459,21 +459,21 @@ const ImportCSV = () => {
               <div>
                 <div className="font-semibold mb-1">Excel Column → System Field:</div>
                 <ul className="space-y-1 text-xs">
-                  <li>• "Room No." → roomNumber</li>
-                  <li>• "Tenant Name" → tenantName</li>
-                  <li>• "Year" → year</li>
-                  <li>• "Month" → month (1-12)</li>
-                  <li>• "Date" → date</li>
+                  <li>• &quot;Room No.&quot; → roomNumber</li>
+                  <li>• &quot;Tenant Name&quot; → tenantName</li>
+                  <li>• &quot;Year&quot; → year</li>
+                  <li>• &quot;Month&quot; → month (1-12)</li>
+                  <li>• &quot;Date&quot; → date</li>
                 </ul>
               </div>
               <div>
                 <div className="font-semibold mb-1">&nbsp;</div>
                 <ul className="space-y-1 text-xs">
-                  <li>• "Rent" → rent</li>
-                  <li>• "Reading (Prev.)" → oldReading</li>
-                  <li>• "Reading (Curr.)" → currentReading</li>
-                  <li>• "Price/Unit" → ratePerUnit</li>
-                  <li>• "Paid" → paidAmount</li>
+                  <li>• &quot;Rent&quot; → rent</li>
+                  <li>• &quot;Reading (Prev.)&quot; → oldReading</li>
+                  <li>• &quot;Reading (Curr.)&quot; → currentReading</li>
+                  <li>• &quot;Price/Unit&quot; → ratePerUnit</li>
+                  <li>• &quot;Paid&quot; → paidAmount</li>
                 </ul>
               </div>
             </div>
