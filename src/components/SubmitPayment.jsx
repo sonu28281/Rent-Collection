@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, limit, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const SubmitPayment = ({ tenant, room, electricityRate = 9, onClose, onSuccess }) => {
@@ -16,6 +16,95 @@ const SubmitPayment = ({ tenant, room, electricityRate = 9, onClose, onSuccess }
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const normalizeUtr = (value) => value.replace(/\s+/g, '').toUpperCase();
+
+  const isValidUtr = (value) => /^[A-Z0-9]{10,30}$/.test(value);
+
+  const compressImageToDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxWidth = 1280;
+        const scale = Math.min(1, maxWidth / img.width);
+        const width = Math.round(img.width * scale);
+        const height = Math.round(img.height * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Image processing failed'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        let quality = 0.8;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        while (dataUrl.length > 350000 && quality > 0.45) {
+          quality -= 0.1;
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+
+        if (dataUrl.length > 450000) {
+          reject(new Error('Screenshot file is too large. Please upload a smaller image.'));
+          return;
+        }
+
+        resolve(dataUrl);
+      };
+
+      img.onerror = () => reject(new Error('Invalid image file'));
+      img.src = reader.result;
+    };
+
+    reader.onerror = () => reject(new Error('Failed to read image file'));
+    reader.readAsDataURL(file);
+  });
+
+  const checkDuplicateUtr = async (normalizedUtr) => {
+    const submissionsRef = collection(db, 'paymentSubmissions');
+    const submissionsQuery = query(submissionsRef, where('utr', '==', normalizedUtr), limit(1));
+    const submissionsSnapshot = await getDocs(submissionsQuery);
+
+    if (!submissionsSnapshot.empty) {
+      return true;
+    }
+
+    const paymentsRef = collection(db, 'payments');
+    const paymentsQuery = query(paymentsRef, where('utr', '==', normalizedUtr), limit(1));
+    const paymentsSnapshot = await getDocs(paymentsQuery);
+
+    return !paymentsSnapshot.empty;
+  };
+
+  const handleScreenshotFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setFormData({ ...formData, screenshot: '' });
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please upload a valid image file for payment screenshot');
+      return;
+    }
+
+    setError('');
+
+    try {
+      const compressedDataUrl = await compressImageToDataUrl(file);
+      setFormData({ ...formData, screenshot: compressedDataUrl });
+    } catch (imgError) {
+      setFormData({ ...formData, screenshot: '' });
+      setError(imgError.message || 'Failed to process screenshot');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,9 +127,27 @@ const SubmitPayment = ({ tenant, room, electricityRate = 9, onClose, onSuccess }
       return;
     }
 
+    const normalizedUtr = normalizeUtr(formData.utr || '');
+    if (!isValidUtr(normalizedUtr)) {
+      setError('Please enter a valid UTR/Transaction ID (10-30 letters/numbers)');
+      return;
+    }
+
+    if (!formData.screenshot) {
+      setError('Payment screenshot is required for verification');
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError('');
+
+      const duplicateUtr = await checkDuplicateUtr(normalizedUtr);
+      if (duplicateUtr) {
+        setError('This UTR/Transaction ID already exists. Please check and enter correct UTR.');
+        setSubmitting(false);
+        return;
+      }
 
       const unitsConsumed = currentReading - previousReading;
       const calculatedElectricity = unitsConsumed * electricityRate;
@@ -62,8 +169,8 @@ const SubmitPayment = ({ tenant, room, electricityRate = 9, onClose, onSuccess }
         unitsConsumed: unitsConsumed,
         
         paidDate: formData.paidDate,
-        utr: formData.utr.trim(),
-        screenshot: formData.screenshot.trim(),
+        utr: normalizedUtr,
+        screenshot: formData.screenshot,
         notes: formData.notes.trim(),
         
         // Status
@@ -232,25 +339,36 @@ const SubmitPayment = ({ tenant, room, electricityRate = 9, onClose, onSuccess }
               value={formData.utr}
               onChange={(e) => setFormData({ ...formData, utr: e.target.value })}
               className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
-              placeholder="Enter 12-digit UTR number from payment"
+              placeholder="Enter UTR/Txn ID (10-30 letters/numbers)"
+              minLength={10}
+              maxLength={30}
               required
             />
           </div>
 
-          {/* Screenshot URL */}
+          {/* Screenshot Proof */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              📸 Payment Screenshot URL (Optional)
+              📸 Payment Screenshot (Required) <span className="text-red-500">*</span>
             </label>
             <input
-              type="url"
-              value={formData.screenshot}
-              onChange={(e) => setFormData({ ...formData, screenshot: e.target.value })}
+              type="file"
+              accept="image/*"
+              onChange={handleScreenshotFileChange}
               className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="https://example.com/screenshot.jpg"
+              required
             />
+            {formData.screenshot && (
+              <div className="mt-3">
+                <img
+                  src={formData.screenshot}
+                  alt="Payment proof preview"
+                  className="max-h-56 w-auto rounded-lg border border-gray-300"
+                />
+              </div>
+            )}
             <p className="text-xs text-gray-500 mt-1">
-              💡 Upload to Google Drive/Imgur and paste link, or share on WhatsApp
+              💡 Please upload the payment confirmation screenshot from your phone gallery
             </p>
           </div>
 
@@ -276,6 +394,7 @@ const SubmitPayment = ({ tenant, room, electricityRate = 9, onClose, onSuccess }
               <li>✓ Verification usually takes less than 24 hours</li>
               <li>✓ You'll see "Verified" status once approved</li>
               <li>✓ Meter reading will be updated</li>
+              <li>✓ Duplicate UTR submissions are automatically blocked</li>
             </ul>
           </div>
 

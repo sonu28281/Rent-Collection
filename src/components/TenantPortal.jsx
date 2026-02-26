@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import SubmitPayment from './SubmitPayment';
+import googlePayLogo from '../assets/payment-icons/google-pay.svg';
+import phonePeLogo from '../assets/payment-icons/phonepe.svg';
 
 /**
  * Tenant Portal - Username/Password Login
@@ -574,6 +576,35 @@ const TenantPortal = () => {
     openSpecificUPIApp('generic');
   };
 
+  const getLastMonthClosingReading = () => {
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+    const currentYear = today.getFullYear();
+
+    const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
+    const lastMonthPayment = paymentRecords.find((record) => {
+      const recordYear = typeof record.year === 'string' ? parseInt(record.year, 10) : record.year;
+      const recordMonth = typeof record.month === 'string' ? parseInt(record.month, 10) : record.month;
+      return recordYear === lastMonthYear && recordMonth === lastMonth;
+    });
+
+    const candidateReadings = [
+      lastMonthPayment?.meterReading,
+      lastMonthPayment?.currentReading,
+      room?.currentReading,
+      room?.previousReading,
+      0
+    ];
+
+    const reading = candidateReadings
+      .map((value) => Number(value))
+      .find((value) => Number.isFinite(value) && value >= 0);
+
+    return Number.isFinite(reading) ? reading : 0;
+  };
+
   // Get status badge
   const getStatusBadge = (status) => {
     const badges = {
@@ -763,6 +794,7 @@ const TenantPortal = () => {
               const isCurrentMonthPaid = dueInfo.status === 'paid';
               const isVerificationPending = dueInfo.status === 'pending';
               const shouldDisablePayment = isCurrentMonthPaid || isVerificationPending;
+              const oldReadingForThisMonth = getLastMonthClosingReading();
               
               return (
                 <>
@@ -777,7 +809,7 @@ const TenantPortal = () => {
                           alert('⚠️ Payment setup not available. Please contact property manager.');
                           return;
                         }
-                        setPreviousMeterReading(String(room?.currentReading || 0));
+                        setPreviousMeterReading(String(oldReadingForThisMonth));
                         setCurrentMeterReading('');
                         setShowPaymentForm(true);
                       }}
@@ -868,7 +900,7 @@ const TenantPortal = () => {
                     />
                   </div>
                   <p className="text-xs text-gray-600 mt-2">
-                    Previous reading is auto-filled from room data (tenant cannot edit) | Rate: ₹{globalElectricityRate}/unit
+                    Previous reading is auto-filled from last month closing reading (tenant cannot edit) | Rate: ₹{globalElectricityRate}/unit
                   </p>
                 </div>
 
@@ -922,28 +954,30 @@ const TenantPortal = () => {
                       <button
                         onClick={() => openSpecificUPIApp('gpay')}
                         disabled={paymentProcessing}
-                        className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-4 px-4 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 sm:py-4 px-4 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <div className="flex flex-col items-center leading-tight gap-1">
-                          <span className="inline-flex items-center gap-2 bg-white/20 px-2 py-1 rounded-full text-xs font-semibold">
-                            <span>🟦</span>
-                            <span>Google Pay</span>
-                          </span>
-                          <span className="text-xs font-semibold text-blue-100">Pay ₹{getPayableAmount().totalAmount.toFixed(2)}</span>
+                        <div className="flex flex-col items-center leading-tight gap-1.5 sm:gap-2">
+                          <img
+                            src={googlePayLogo}
+                            alt="Google Pay"
+                            className="h-7 sm:h-8 w-auto bg-white rounded-full px-1.5 py-1"
+                          />
+                          <span className="text-xs font-bold text-blue-50">Pay ₹{getPayableAmount().totalAmount.toFixed(2)}</span>
                         </div>
                       </button>
 
                       <button
                         onClick={() => openSpecificUPIApp('phonepe')}
                         disabled={paymentProcessing}
-                        className="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white font-bold py-4 px-4 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white font-bold py-3 sm:py-4 px-4 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <div className="flex flex-col items-center leading-tight gap-1">
-                          <span className="inline-flex items-center gap-2 bg-white/20 px-2 py-1 rounded-full text-xs font-semibold">
-                            <span>🟣</span>
-                            <span>PhonePe</span>
-                          </span>
-                          <span className="text-xs font-semibold text-purple-100">Pay ₹{getPayableAmount().totalAmount.toFixed(2)}</span>
+                        <div className="flex flex-col items-center leading-tight gap-1.5 sm:gap-2">
+                          <img
+                            src={phonePeLogo}
+                            alt="PhonePe"
+                            className="h-7 sm:h-8 w-auto bg-white rounded-full px-1.5 py-1"
+                          />
+                          <span className="text-xs font-bold text-purple-50">Pay ₹{getPayableAmount().totalAmount.toFixed(2)}</span>
                         </div>
                       </button>
                     </div>
@@ -1015,16 +1049,16 @@ const TenantPortal = () => {
                       <p className="font-mono font-bold text-yellow-900">{room.currentReading || 0}</p>
                     </div>
                     <div>
-                      <p className="text-yellow-700 mb-1">Previous</p>
-                      <p className="font-mono font-bold text-yellow-900">{room.previousReading || 0}</p>
+                      <p className="text-yellow-700 mb-1">Old (This Month)</p>
+                      <p className="font-mono font-bold text-yellow-900">{getLastMonthClosingReading()}</p>
                     </div>
                   </div>
-                  {room.currentReading > 0 && room.previousReading >= 0 && (
+                  {room.currentReading > 0 && getLastMonthClosingReading() >= 0 && (
                     <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-yellow-200">
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                         <span className="text-xs sm:text-sm text-yellow-700">Units Consumed:</span>
                         <span className="text-base sm:text-lg font-bold text-yellow-900">
-                          {room.currentReading - room.previousReading} units
+                          {Math.max(0, (Number(room.currentReading) || 0) - getLastMonthClosingReading())} units
                         </span>
                       </div>
                     </div>

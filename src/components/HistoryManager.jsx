@@ -157,6 +157,7 @@ const HistoryManager = () => {
       ratePerUnit: payment.ratePerUnit || 0,
       paidAmount: payment.paidAmount || 0,
       tenantNameSnapshot: payment.tenantNameSnapshot || payment.tenantName || '',
+      roomStatus: payment.roomStatus || 'occupied',
     });
   };
 
@@ -172,6 +173,10 @@ const HistoryManager = () => {
       const currentReading = Number(editData.currentReading) || 0;
       const ratePerUnit = Number(editData.ratePerUnit) || 0;
       const paidAmount = Number(editData.paidAmount) || 0;
+      const roomStatus = editData.roomStatus === 'vacant' ? 'vacant' : 'occupied';
+      const tenantNameSnapshot = roomStatus === 'vacant'
+        ? ''
+        : (editData.tenantNameSnapshot || '').trim();
       
       // Calculate units (defensive check)
       let units = currentReading - oldReading;
@@ -205,7 +210,8 @@ const HistoryManager = () => {
         totalAmount: total, // legacy field
         paidAmount,
         status,
-        tenantNameSnapshot: editData.tenantNameSnapshot,
+        roomStatus,
+        tenantNameSnapshot,
         updatedAt: serverTimestamp()
       });
 
@@ -726,7 +732,9 @@ const HistoryManager = () => {
                   const paidAmount = payment.paidAmount || 0;
                   const floor = payment.floor || (payment.roomNumber < 200 ? 1 : 2);
                   
-                  const tenantName = payment.tenantNameSnapshot || payment.tenantName || 'Unknown';
+                  const tenantName = payment.roomStatus === 'vacant'
+                    ? ''
+                    : (payment.tenantNameSnapshot || payment.tenantName || 'Unknown');
                   const isAutoAssigned = payment.assignedFrom2022 === true;
                   
                   return (
@@ -743,31 +751,42 @@ const HistoryManager = () => {
                       <td className="px-3 py-3 font-semibold">{payment.roomNumber}</td>
                       
                       <td className="px-3 py-3">
-                        {payment.roomStatus ? (
+                        {isEditing ? (
+                          <select
+                            value={editData.roomStatus}
+                            onChange={(e) => setEditData({ ...editData, roomStatus: e.target.value })}
+                            className="px-2 py-1 border border-gray-300 rounded text-xs"
+                          >
+                            <option value="occupied">Occupied</option>
+                            <option value="vacant">Vacant</option>
+                          </select>
+                        ) : (
                           <span className={`inline-flex items-center whitespace-nowrap px-2 py-1 rounded-full text-xs font-semibold leading-none ${
-                            payment.roomStatus === 'vacant' 
+                            (payment.roomStatus || 'occupied') === 'vacant'
                               ? 'bg-gray-100 text-gray-800'
                               : 'bg-green-100 text-green-800'
                           }`}>
-                            {payment.roomStatus === 'vacant' ? '⬜ Vacant' : '✅ Filled'}
+                            {(payment.roomStatus || 'occupied') === 'vacant' ? '⬜ Vacant' : '✅ Occupied'}
                           </span>
-                        ) : (
-                          <span className="text-gray-400 text-xs">-</span>
                         )}
                       </td>
                       
                       <td className="px-3 py-3">
                         {isEditing ? (
-                          <input
-                            type="text"
-                            value={editData.tenantNameSnapshot}
-                            onChange={(e) => setEditData({...editData, tenantNameSnapshot: e.target.value})}
-                            className="w-full px-2 py-1 border border-gray-300 rounded"
-                          />
+                          editData.roomStatus === 'vacant' ? (
+                            <span className="text-gray-400 italic">-</span>
+                          ) : (
+                            <input
+                              type="text"
+                              value={editData.tenantNameSnapshot}
+                              onChange={(e) => setEditData({...editData, tenantNameSnapshot: e.target.value})}
+                              className="w-full px-2 py-1 border border-gray-300 rounded"
+                            />
+                          )
                         ) : (
                           <div>
                             <div className={isAutoAssigned ? 'font-semibold text-blue-700' : ''}>
-                              {tenantName}
+                              {tenantName || '-'}
                             </div>
                             {isAutoAssigned && (
                               <span className="text-xs text-blue-600">Auto-populated</span>
@@ -775,7 +794,7 @@ const HistoryManager = () => {
                           </div>
                         )}
                       </td>
-                      
+
                       <td className="px-3 py-3 text-right">
                         {isEditing ? (
                           <input

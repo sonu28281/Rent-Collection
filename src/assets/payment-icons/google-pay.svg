@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" role="img" aria-labelledby="gpayTitle gpayDesc">
+  <title id="gpayTitle">Google Pay</title>
+  <desc id="gpayDesc">Google Pay style mark for payment button</desc>
+  <rect x="1" y="1" width="238" height="78" rx="39" fill="#fff" stroke="#E5E7EB" stroke-width="2"/>
+  <g transform="translate(22 16)">
+    <circle cx="24" cy="24" r="20" fill="#fff"/>
+    <path fill="#4285F4" d="M44 24.6c0-1.4-.1-2.4-.4-3.4H24v6.6h9.9c-.2 1.6-1.3 4.1-3.8 5.7l-.1.2 5.6 4.3.4.1c3.6-3.4 5.1-8.2 5.1-13.5z"/>
+    <path fill="#34A853" d="M24 40.8c4.8 0 8.9-1.6 11.8-4.3L30.2 32c-1.5 1-3.5 1.7-6.2 1.7-4.7 0-8.7-3.1-10.1-7.4l-.2.1-5.8 4.5-.1.2c2.9 5.8 9 9.7 16.2 9.7z"/>
+    <path fill="#FBBC05" d="M13.7 26.3c-.4-1.1-.6-2.3-.6-3.6s.2-2.5.6-3.6l-.1-.2-5.9-4.6-.2.1C6.3 17 5.6 19.8 5.6 22.7s.7 5.7 1.9 8.1l6.2-4.5z"/>
+    <path fill="#EA4335" d="M24 11.7c3.4 0 5.6 1.5 6.9 2.6l5-4.9C32.8 6.5 29 4.8 24 4.8c-7.2 0-13.3 3.9-16.2 9.7l6.1 4.7c1.5-4.3 5.4-7.5 10.1-7.5z"/>
+  </g>
+  <text x="82" y="49" fill="#1F2937" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" letter-spacing="0.2">Google Pay</text>
+</svg>

@@ -325,14 +325,29 @@ const VerifyPayments = () => {
                 {submission.screenshot && (
                   <div className="mb-4">
                     <label className="text-xs text-gray-500 font-semibold block mb-2">Screenshot</label>
-                    <a 
-                      href={submission.screenshot} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline text-sm"
-                    >
-                      📸 View Screenshot
-                    </a>
+                    {submission.screenshot.startsWith('data:image') ? (
+                      <a
+                        href={submission.screenshot}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block"
+                      >
+                        <img
+                          src={submission.screenshot}
+                          alt="Payment screenshot"
+                          className="max-h-56 w-auto rounded-lg border border-gray-300"
+                        />
+                      </a>
+                    ) : (
+                      <a 
+                        href={submission.screenshot} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline text-sm"
+                      >
+                        📸 View Screenshot
+                      </a>
+                    )}
                   </div>
                 )}
 
