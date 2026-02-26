@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import SubmitPayment from './SubmitPayment';
@@ -19,13 +19,18 @@ import phonePeLogo from '../assets/payment-icons/phonepe.svg';
  * - Added detailed console logging for debugging
  */
 const TenantPortal = () => {
+  const REMEMBER_ME_KEY = 'tenant_portal_saved_login_v1';
+
   // Login state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
     const DEFAULT_ELECTRICITY_RATE = 9; // Default electricity rate
+  const [installPromptEvent, setInstallPromptEvent] = useState(null);
+  const [isAppInstalled, setIsAppInstalled] = useState(false);
 
   // Tenant data state
   const [tenant, setTenant] = useState(null);
@@ -48,42 +53,128 @@ const TenantPortal = () => {
   // Submit payment modal state
   const [showSubmitPayment, setShowSubmitPayment] = useState(false);
 
-  // Handle login
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    setIsAppInstalled(isStandalone);
+
+    const onBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event);
+    };
+
+    const onAppInstalled = () => {
+      setIsAppInstalled(true);
+      setInstallPromptEvent(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    window.addEventListener('appinstalled', onAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', onAppInstalled);
+    };
+  }, []);
+
+  const saveRememberedLogin = (savedUsername, savedPassword) => {
+    localStorage.setItem(REMEMBER_ME_KEY, JSON.stringify({
+      username: savedUsername,
+      password: savedPassword,
+      rememberMe: true
+    }));
+  };
+
+  const clearRememberedLogin = () => {
+    localStorage.removeItem(REMEMBER_ME_KEY);
+  };
+
+  const performLogin = async (inputUsername, inputPassword, options = {}) => {
+    const trimmedUsername = inputUsername.trim();
+    const { silent = false } = options;
+
     setLoggingIn(true);
-    setLoginError('');
+    if (!silent) {
+      setLoginError('');
+    }
 
     try {
-      // Query for tenant with matching username and password
       const tenantsRef = collection(db, 'tenants');
       const loginQuery = query(
         tenantsRef,
-        where('username', '==', username.trim()),
-        where('password', '==', password),
+        where('username', '==', trimmedUsername),
+        where('password', '==', inputPassword),
         where('isActive', '==', true)
       );
-      
+
       const snapshot = await getDocs(loginQuery);
 
       if (snapshot.empty) {
-        setLoginError('Invalid username or password. Please check and try again.');
-        setLoggingIn(false);
-        return;
+        if (!silent) {
+          setLoginError('Invalid username or password. Please check and try again.');
+        }
+        return false;
       }
 
       const tenantData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
       setTenant(tenantData);
       setIsLoggedIn(true);
 
-      // Fetch tenant's data
+      if (rememberMe) {
+        saveRememberedLogin(trimmedUsername, inputPassword);
+      } else {
+        clearRememberedLogin();
+      }
+
       await fetchTenantData(tenantData);
+      return true;
     } catch (error) {
       console.error('Login error:', error);
-      setLoginError('Login failed. Please try again.');
+      if (!silent) {
+        setLoginError('Login failed. Please try again.');
+      }
+      return false;
     } finally {
       setLoggingIn(false);
     }
+  };
+
+  useEffect(() => {
+    try {
+      const savedRaw = localStorage.getItem(REMEMBER_ME_KEY);
+      if (!savedRaw) {
+        return;
+      }
+
+      const saved = JSON.parse(savedRaw);
+      if (!saved?.rememberMe || !saved?.username || !saved?.password) {
+        clearRememberedLogin();
+        return;
+      }
+
+      setRememberMe(true);
+      setUsername(saved.username);
+      setPassword(saved.password);
+      performLogin(saved.username, saved.password, { silent: true });
+    } catch (error) {
+      console.error('Remember me load error:', error);
+      clearRememberedLogin();
+    }
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!installPromptEvent) {
+      return;
+    }
+
+    installPromptEvent.prompt();
+    await installPromptEvent.userChoice;
+    setInstallPromptEvent(null);
+  };
+
+  // Handle login
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    await performLogin(username, password);
   };
 
   // Fetch tenant data after login
@@ -638,6 +729,19 @@ const TenantPortal = () => {
 
             {/* Login Form */}
             <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
+              {installPromptEvent && !isAppInstalled && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                  <p className="text-xs sm:text-sm text-indigo-800 mb-2">📱 Install app on your phone for one-tap access every month.</p>
+                  <button
+                    type="button"
+                    onClick={handleInstallApp}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg text-sm"
+                  >
+                    Add to Home Screen
+                  </button>
+                </div>
+              )}
+
               {/* Username */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -653,6 +757,23 @@ const TenantPortal = () => {
                   autoFocus
                 />
               </div>
+
+              {/* Remember Me */}
+              <label className="flex items-center gap-2 text-sm text-gray-700 select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setRememberMe(checked);
+                    if (!checked) {
+                      clearRememberedLogin();
+                    }
+                  }}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Remember me on this phone
+              </label>
 
               {/* Password */}
               <div>
@@ -819,15 +940,6 @@ const TenantPortal = () => {
                     </button>
                   )}
                   
-                  {/* Already Paid Message */}
-                  {isCurrentMonthPaid && (
-                    <div className="w-full bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg p-4 mb-3 text-center">
-                      <div className="text-3xl mb-2">✅</div>
-                      <p className="text-green-800 font-bold text-lg mb-1">Payment Already Done!</p>
-                      <p className="text-green-700 text-sm">Your current month payment is complete. Thank you!</p>
-                    </div>
-                  )}
-
                   {/* Pending Verification Message */}
                   {isVerificationPending && (
                     <div className="w-full bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-lg p-4 mb-3 text-center">

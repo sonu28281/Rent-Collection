@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="42" fill="#2563eb"/>
+  <text x="96" y="82" text-anchor="middle" fill="#ffffff" font-size="64" font-family="Arial, Helvetica, sans-serif">🏠</text>
+  <text x="96" y="126" text-anchor="middle" fill="#dbeafe" font-size="24" font-family="Arial, Helvetica, sans-serif" font-weight="700">Rent</text>
+  <text x="96" y="152" text-anchor="middle" fill="#dbeafe" font-size="20" font-family="Arial, Helvetica, sans-serif" font-weight="700">Portal</text>
+</svg>
