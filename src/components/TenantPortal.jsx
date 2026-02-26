@@ -35,6 +35,7 @@ const TenantPortal = () => {
   // Tenant data state
   const [tenant, setTenant] = useState(null);
   const [room, setRoom] = useState(null);
+  const [roomsData, setRoomsData] = useState([]);
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [meterHistoryRecords, setMeterHistoryRecords] = useState([]);
   const [activeUPI, setActiveUPI] = useState(null);
@@ -47,8 +48,8 @@ const TenantPortal = () => {
   
   // Payment form state
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [previousMeterReading, setPreviousMeterReading] = useState('');
-  const [currentMeterReading, setCurrentMeterReading] = useState('');
+  const [previousMeterReadings, setPreviousMeterReadings] = useState({});
+  const [currentMeterReadings, setCurrentMeterReadings] = useState({});
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
@@ -109,6 +110,16 @@ const TenantPortal = () => {
 
   const clearRememberedLogin = () => {
     localStorage.removeItem(REMEMBER_ME_KEY);
+  };
+
+  const getAssignedRoomNumbers = (tenantData) => {
+    if (Array.isArray(tenantData?.assignedRooms) && tenantData.assignedRooms.length > 0) {
+      return tenantData.assignedRooms.map((roomNumber) => String(roomNumber));
+    }
+    if (tenantData?.roomNumber !== undefined && tenantData?.roomNumber !== null && tenantData?.roomNumber !== '') {
+      return [String(tenantData.roomNumber)];
+    }
+    return [];
   };
 
   const performLogin = async (inputUsername, inputPassword, options = {}) => {
@@ -208,19 +219,12 @@ const TenantPortal = () => {
       console.log('👤 Fetching data for tenant:', {
         name: tenantData.name,
         roomNumber: tenantData.roomNumber,
-        roomNumberType: typeof tenantData.roomNumber
+        assignedRooms: getAssignedRoomNumbers(tenantData)
       });
+
+      const assignedRooms = getAssignedRoomNumbers(tenantData);
       
-      // Convert roomNumber to appropriate type for queries
-      const roomNumberAsNumber = typeof tenantData.roomNumber === 'string' 
-        ? parseInt(tenantData.roomNumber, 10) 
-        : tenantData.roomNumber;
-      const roomNumberAsString = String(tenantData.roomNumber);
-      
-      console.log('🔢 Converted room numbers:', {
-        asNumber: roomNumberAsNumber,
-        asString: roomNumberAsString
-      });
+      console.log('🔢 Assigned room numbers:', assignedRooms);
 
       // Fetch global electricity rate from settings
       const settingsRef = collection(db, 'settings');
@@ -233,32 +237,35 @@ const TenantPortal = () => {
         setGlobalElectricityRate(DEFAULT_ELECTRICITY_RATE);
       }
       
-      // Fetch room details - try both number and string
+      // Fetch all assigned room details (number/string tolerant)
       const roomsRef = collection(db, 'rooms');
-      let roomQuery = query(roomsRef, where('roomNumber', '==', roomNumberAsNumber));
-      let roomSnapshot = await getDocs(roomQuery);
-      
-      console.log('🏠 Room query result (number):', roomSnapshot.size);
-      
-      // If not found with number, try with string
-      if (roomSnapshot.empty) {
-        console.log('⚠️ Room not found with number, trying string...');
-        roomQuery = query(roomsRef, where('roomNumber', '==', roomNumberAsString));
-        roomSnapshot = await getDocs(roomQuery);
-        console.log('🏠 Room query result (string):', roomSnapshot.size);
+      const fetchedRooms = [];
+
+      for (const assignedRoom of assignedRooms) {
+        const roomAsNumber = Number.parseInt(assignedRoom, 10);
+        const roomQueries = [query(roomsRef, where('roomNumber', '==', assignedRoom))];
+
+        if (Number.isFinite(roomAsNumber)) {
+          roomQueries.unshift(query(roomsRef, where('roomNumber', '==', roomAsNumber)));
+        }
+
+        let foundRoom = null;
+        for (const roomQuery of roomQueries) {
+          const roomSnapshot = await getDocs(roomQuery);
+          if (!roomSnapshot.empty) {
+            foundRoom = { id: roomSnapshot.docs[0].id, ...roomSnapshot.docs[0].data() };
+            break;
+          }
+        }
+
+        if (foundRoom) {
+          fetchedRooms.push(foundRoom);
+        }
       }
-      
-      if (!roomSnapshot.empty) {
-        const roomData = { id: roomSnapshot.docs[0].id, ...roomSnapshot.docs[0].data() };
-        console.log('✅ Room found:', {
-          roomNumber: roomData.roomNumber,
-          currentReading: roomData.currentReading,
-          rent: roomData.rent
-        });
-        setRoom(roomData);
-      } else {
-        console.log('❌ Room not found!');
-      }
+
+      fetchedRooms.sort((a, b) => Number(a.roomNumber) - Number(b.roomNumber));
+      setRoomsData(fetchedRooms);
+      setRoom(fetchedRooms[0] || null);
 
       // Fetch payment records - Try multiple approaches
       const paymentsRef = collection(db, 'payments');
@@ -266,32 +273,25 @@ const TenantPortal = () => {
       console.log('🔍 Fetching payments for tenant:', {
         tenantId: tenantData.id,
         tenantName: tenantData.name,
-        roomNumber: roomNumberAsNumber
+        assignedRooms
       });
-      
-      // Fetch BOTH number AND string roomNumber types (merge results)
-      // This handles historical payments (number) AND new payments (string)
-      const numberQuery = query(
-        paymentsRef, 
-        where('roomNumber', '==', roomNumberAsNumber)
+
+      const roomSnapshots = await Promise.all(
+        assignedRooms.flatMap((assignedRoom) => {
+          const roomAsNumber = Number.parseInt(assignedRoom, 10);
+          const queryList = [getDocs(query(paymentsRef, where('roomNumber', '==', assignedRoom)))];
+          if (Number.isFinite(roomAsNumber)) {
+            queryList.push(getDocs(query(paymentsRef, where('roomNumber', '==', roomAsNumber))));
+          }
+          return queryList;
+        })
       );
-      const stringQuery = query(
-        paymentsRef, 
-        where('roomNumber', '==', roomNumberAsString)
-      );
-      
-      const [numberSnapshot, stringSnapshot] = await Promise.all([
-        getDocs(numberQuery),
-        getDocs(stringQuery)
-      ]);
-      
-      console.log('📊 Payments with roomNumber as NUMBER:', numberSnapshot.size);
-      console.log('📊 Payments with roomNumber as STRING:', stringSnapshot.size);
-      
+
       // Merge both results, avoid duplicates by tracking IDs
       const paymentDocs = new Map();
-      numberSnapshot.forEach(doc => paymentDocs.set(doc.id, doc));
-      stringSnapshot.forEach(doc => paymentDocs.set(doc.id, doc));
+      roomSnapshots.forEach((snapshot) => {
+        snapshot.forEach((doc) => paymentDocs.set(doc.id, doc));
+      });
       
       console.log('📊 Total unique payments:', paymentDocs.size);
       
@@ -448,12 +448,15 @@ const TenantPortal = () => {
     setIsLoggedIn(false);
     setTenant(null);
     setRoom(null);
+    setRoomsData([]);
     setPaymentRecords([]);
     setMeterHistoryRecords([]);
     setPendingSubmissions([]);
     setActiveUPI(null);
     setUsername('');
     setPassword('');
+    setPreviousMeterReadings({});
+    setCurrentMeterReadings({});
   };
 
   // Calculate next due date and payment status
@@ -601,17 +604,9 @@ const TenantPortal = () => {
 
   // Handle meter reading submit
   const handleMeterReadingSubmit = () => {
-    const oldReading = Number(previousMeterReading);
-    const currentReading = Number(currentMeterReading);
-
-    if (!Number.isFinite(oldReading) || oldReading < 0) {
-      alert('⚠️ Please enter a valid previous reading');
-      return;
-    }
-
-    if (!Number.isFinite(currentReading) || currentReading < oldReading) {
-      alert('⚠️ Current reading must be greater than or equal to previous reading');
-      return;
+    const payable = getPayableAmount();
+    if (!payable) {
+      alert('⚠️ Enter valid Previous and Current meter readings for all assigned rooms');
     }
   };
   
@@ -627,25 +622,59 @@ const TenantPortal = () => {
   };
 
   const getPayableAmount = () => {
-    const oldReading = Number(previousMeterReading);
-    const currentReading = Number(currentMeterReading);
+    const effectiveRooms = roomsData.length > 0
+      ? roomsData
+      : (room ? [room] : []);
 
-    if (!Number.isFinite(oldReading) || oldReading < 0) {
+    if (effectiveRooms.length === 0) {
       return null;
     }
 
-    if (!Number.isFinite(currentReading) || currentReading < oldReading) {
-      return null;
+    const perRoom = [];
+    let rentAmount = 0;
+    let totalUnits = 0;
+    let electricityAmount = 0;
+
+    for (const roomEntry of effectiveRooms) {
+      const roomKey = String(roomEntry.roomNumber);
+      const oldReading = Number(previousMeterReadings[roomKey]);
+      const currentReading = Number(currentMeterReadings[roomKey]);
+
+      if (!Number.isFinite(oldReading) || oldReading < 0) {
+        return null;
+      }
+
+      if (!Number.isFinite(currentReading) || currentReading < oldReading) {
+        return null;
+      }
+
+      const roomRent = Number(roomEntry?.rent ?? 0);
+      const { units, electricityAmount: roomElectricity } = calculateElectricity(oldReading, currentReading);
+
+      rentAmount += roomRent;
+      totalUnits += units;
+      electricityAmount += roomElectricity;
+
+      perRoom.push({
+        roomNumber: roomEntry.roomNumber,
+        oldReading,
+        currentReading,
+        units,
+        rentAmount: roomRent,
+        electricityAmount: roomElectricity,
+        totalAmount: roomRent + roomElectricity
+      });
     }
 
-    const { units, electricityAmount } = calculateElectricity(oldReading, currentReading);
-    const rentAmount = tenant?.currentRent || room?.rent || 0;
+    if (!rentAmount && tenant?.currentRent) {
+      rentAmount = Number(tenant.currentRent) || 0;
+    }
+
     const totalAmount = rentAmount + electricityAmount;
 
     return {
-      oldReading,
-      currentReading,
-      units,
+      perRoom,
+      units: totalUnits,
       rentAmount,
       electricityAmount,
       totalAmount
@@ -686,7 +715,7 @@ const TenantPortal = () => {
     const payable = getPayableAmount();
 
     if (!payable) {
-      alert('⚠️ Enter valid Previous and Current meter readings first');
+      alert('⚠️ Enter valid Previous and Current meter readings for all assigned rooms first');
       return;
     }
 
@@ -697,7 +726,8 @@ const TenantPortal = () => {
 
     const { rentAmount, electricityAmount, totalAmount } = payable;
 
-    const params = `pa=${encodeURIComponent(activeUPI.upiId)}&pn=${encodeURIComponent(activeUPI.nickname || 'Property Owner')}&am=${totalAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Room ${tenant.roomNumber} - Rent+Electricity`)}`;
+    const roomLabel = payable.perRoom.map((entry) => entry.roomNumber).join(', ');
+    const params = `pa=${encodeURIComponent(activeUPI.upiId)}&pn=${encodeURIComponent(activeUPI.nickname || 'Property Owner')}&am=${totalAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Rooms ${roomLabel} - Rent+Electricity`)}`;
     const genericUpiLink = `upi://pay?${params}`;
 
     const { isAndroid, likelyInAppBrowser } = getBrowserContext();
@@ -831,11 +861,22 @@ const TenantPortal = () => {
     };
   };
 
-  const getLastMonthClosingReading = () => {
+  const getLastMonthClosingReading = (roomNumber = null) => {
+    const roomMatch = roomNumber !== null
+      ? paymentRecords
+          .filter((record) => String(record.roomNumber) === String(roomNumber))
+          .sort((a, b) => getMonthIndex(Number(b.year), Number(b.month)) - getMonthIndex(Number(a.year), Number(a.month)))[0]
+      : null;
+
+    const roomEntry = roomNumber !== null
+      ? roomsData.find((entry) => String(entry.roomNumber) === String(roomNumber))
+      : room;
+
     const candidateReadings = [
+      roomMatch ? Number(roomMatch.currentReading ?? roomMatch.meterReading ?? roomMatch.oldReading ?? roomMatch.previousReading) : null,
       getElectricityBillingHealth().snapshot?.currentReading,
-      room?.currentReading,
-      room?.previousReading,
+      roomEntry?.currentReading,
+      roomEntry?.previousReading,
       0
     ];
 
@@ -1231,7 +1272,9 @@ const TenantPortal = () => {
               const isCurrentMonthPaid = dueInfo.status === 'paid';
               const isVerificationPending = dueInfo.status === 'pending';
               const shouldDisablePayment = isCurrentMonthPaid || isVerificationPending;
-              const oldReadingForThisMonth = getLastMonthClosingReading();
+              const effectiveRooms = roomsData.length > 0
+                ? roomsData
+                : (room ? [room] : []);
               
               return (
                 <>
@@ -1246,8 +1289,18 @@ const TenantPortal = () => {
                           alert('⚠️ Payment setup not available. Please contact property manager.');
                           return;
                         }
-                        setPreviousMeterReading(String(oldReadingForThisMonth));
-                        setCurrentMeterReading('');
+
+                        const initialPrevious = {};
+                        const initialCurrent = {};
+                        effectiveRooms.forEach((roomEntry) => {
+                          const roomKey = String(roomEntry.roomNumber);
+                          const oldReading = getLastMonthClosingReading(roomEntry.roomNumber);
+                          initialPrevious[roomKey] = String(oldReading);
+                          initialCurrent[roomKey] = '';
+                        });
+
+                        setPreviousMeterReadings(initialPrevious);
+                        setCurrentMeterReadings(initialCurrent);
                         setShowPaymentForm(true);
                       }}
                       className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 touch-manipulation mb-3"
@@ -1287,8 +1340,8 @@ const TenantPortal = () => {
                   <button
                     onClick={() => {
                       setShowPaymentForm(false);
-                      setPreviousMeterReading('');
-                      setCurrentMeterReading('');
+                      setPreviousMeterReadings({});
+                      setCurrentMeterReadings({});
                     }}
                     className="text-gray-500 hover:text-gray-700 font-bold text-xl"
                   >
@@ -1309,26 +1362,44 @@ const TenantPortal = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     ⚡ Enter Meter Readings
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input
-                      type="number"
-                      value={previousMeterReading}
-                      placeholder="Previous Reading"
-                      className="px-4 py-3 text-lg font-mono border-2 border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                      min="0"
-                      readOnly
-                    />
-                    <input
-                      type="number"
-                      value={currentMeterReading}
-                      onChange={(e) => setCurrentMeterReading(e.target.value)}
-                      placeholder="Current Reading"
-                      className="px-4 py-3 text-lg font-mono border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      min={Number(previousMeterReading) || 0}
-                    />
+                  <div className="space-y-3">
+                    {(roomsData.length > 0 ? roomsData : (room ? [room] : [])).map((roomEntry) => {
+                      const roomKey = String(roomEntry.roomNumber);
+                      const oldReading = previousMeterReadings[roomKey] || '';
+                      const currentReading = currentMeterReadings[roomKey] || '';
+
+                      return (
+                        <div key={roomKey} className="bg-white rounded-lg border border-yellow-200 p-3">
+                          <p className="text-sm font-semibold text-gray-800 mb-2">Room {roomEntry.roomNumber}</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input
+                              type="number"
+                              value={oldReading}
+                              placeholder="Previous Reading"
+                              className="px-4 py-3 text-lg font-mono border-2 border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
+                              min="0"
+                              readOnly
+                            />
+                            <input
+                              type="number"
+                              value={currentReading}
+                              onChange={(event) => {
+                                setCurrentMeterReadings((prev) => ({
+                                  ...prev,
+                                  [roomKey]: event.target.value
+                                }));
+                              }}
+                              placeholder="Current Reading"
+                              className="px-4 py-3 text-lg font-mono border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                              min={Number(oldReading) || 0}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                   <p className="text-xs text-gray-600 mt-2">
-                    Previous reading is auto-filled from last month closing reading (tenant cannot edit) | Rate: ₹{globalElectricityRate}/unit
+                    Previous reading is auto-filled room-wise from last month closing readings (tenant cannot edit) | Rate: ₹{globalElectricityRate}/unit
                   </p>
                 </div>
 
@@ -1339,7 +1410,7 @@ const TenantPortal = () => {
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span>Rent:</span>
-                        <span className="font-bold">₹{(tenant?.currentRent || room?.rent || 0).toLocaleString('en-IN')}</span>
+                        <span className="font-bold">₹{getPayableAmount().rentAmount.toLocaleString('en-IN')}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Electricity ({getPayableAmount().units} units):</span>
@@ -1467,43 +1538,52 @@ const TenantPortal = () => {
               <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-3 sm:mb-4">📍 Room Information</h2>
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
-                  <p className="text-xs sm:text-sm text-blue-700 mb-1">Room Number</p>
-                  <p className="text-xl sm:text-2xl font-bold text-blue-900">{room?.roomNumber || tenant?.roomNumber}</p>
+                  <p className="text-xs sm:text-sm text-blue-700 mb-1">Assigned Rooms</p>
+                  <p className="text-xl sm:text-2xl font-bold text-blue-900">
+                    {(roomsData.length > 0 ? roomsData.map((entry) => entry.roomNumber).join(', ') : (room?.roomNumber || tenant?.roomNumber || '-'))}
+                  </p>
                 </div>
                 <div className="bg-green-50 rounded-lg p-3 sm:p-4">
-                  <p className="text-xs sm:text-sm text-green-700 mb-1">Monthly Rent</p>
-                  <p className="text-xl sm:text-2xl font-bold text-green-900">₹{(tenant?.currentRent || room?.rent || 0).toLocaleString('en-IN')}</p>
+                  <p className="text-xs sm:text-sm text-green-700 mb-1">Total Monthly Rent</p>
+                  <p className="text-xl sm:text-2xl font-bold text-green-900">
+                    ₹{(
+                      (roomsData.length > 0
+                        ? roomsData.reduce((sum, entry) => sum + (Number(entry?.rent) || 0), 0)
+                        : (Number(tenant?.currentRent) || Number(room?.rent) || 0)
+                      )
+                    ).toLocaleString('en-IN')}
+                  </p>
                 </div>
               </div>
 
               {/* Electricity Info - Mobile Optimized */}
-              {room && (
+              {(roomsData.length > 0 ? roomsData : (room ? [room] : [])).length > 0 && (
                 <div className="mt-3 sm:mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4">
                   <h3 className="font-semibold text-yellow-900 mb-2 sm:mb-3 text-sm sm:text-base">⚡ Electricity Meter</h3>
-                  <div className="grid grid-cols-3 gap-2 sm:gap-3 text-xs sm:text-sm">
-                    <div>
-                      <p className="text-yellow-700 mb-1">Meter No.</p>
-                      <p className="font-mono font-bold text-yellow-900 text-xs sm:text-sm break-all">{room.electricityMeterNo || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-yellow-700 mb-1">Current</p>
-                      <p className="font-mono font-bold text-yellow-900">{room.currentReading || 0}</p>
-                    </div>
-                    <div>
-                      <p className="text-yellow-700 mb-1">Old (This Month)</p>
-                      <p className="font-mono font-bold text-yellow-900">{getLastMonthClosingReading()}</p>
-                    </div>
-                  </div>
-                  {room.currentReading > 0 && getLastMonthClosingReading() >= 0 && (
-                    <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-yellow-200">
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                        <span className="text-xs sm:text-sm text-yellow-700">Units Consumed:</span>
-                        <span className="text-base sm:text-lg font-bold text-yellow-900">
-                          {Math.max(0, (Number(room.currentReading) || 0) - getLastMonthClosingReading())} units
-                        </span>
+                  <div className="space-y-2">
+                    {(roomsData.length > 0 ? roomsData : (room ? [room] : [])).map((roomEntry) => (
+                      <div key={String(roomEntry.roomNumber)} className="bg-white rounded-lg border border-yellow-200 p-2 sm:p-3">
+                        <div className="grid grid-cols-4 gap-2 sm:gap-3 text-xs sm:text-sm">
+                          <div>
+                            <p className="text-yellow-700 mb-1">Room</p>
+                            <p className="font-bold text-yellow-900">{roomEntry.roomNumber}</p>
+                          </div>
+                          <div>
+                            <p className="text-yellow-700 mb-1">Meter No.</p>
+                            <p className="font-mono font-bold text-yellow-900 text-xs sm:text-sm break-all">{roomEntry.electricityMeterNo || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-yellow-700 mb-1">Current</p>
+                            <p className="font-mono font-bold text-yellow-900">{roomEntry.currentReading || 0}</p>
+                          </div>
+                          <div>
+                            <p className="text-yellow-700 mb-1">Old (This Month)</p>
+                            <p className="font-mono font-bold text-yellow-900">{getLastMonthClosingReading(roomEntry.roomNumber)}</p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -1787,6 +1867,7 @@ const TenantPortal = () => {
           <SubmitPayment
             tenant={tenant}
             room={room}
+            rooms={roomsData}
             electricityRate={globalElectricityRate}
             onClose={() => setShowSubmitPayment(false)}
             onSuccess={() => {

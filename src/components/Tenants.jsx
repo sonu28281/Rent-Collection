@@ -78,7 +78,17 @@ const Tenants = () => {
     fetchData();
   };
 
-  const handleDeleteTenant = async (tenantId, roomNumber) => {
+  const getAssignedRooms = (tenantRecord) => {
+    if (Array.isArray(tenantRecord?.assignedRooms) && tenantRecord.assignedRooms.length > 0) {
+      return tenantRecord.assignedRooms.map((room) => String(room));
+    }
+    if (tenantRecord?.roomNumber !== undefined && tenantRecord?.roomNumber !== null && tenantRecord?.roomNumber !== '') {
+      return [String(tenantRecord.roomNumber)];
+    }
+    return [];
+  };
+
+  const handleDeleteTenant = async (tenantRecord) => {
     const confirmed = await showConfirm('Are you sure you want to delete this tenant?', {
       title: 'Delete Tenant',
       confirmLabel: 'Delete',
@@ -90,19 +100,37 @@ const Tenants = () => {
 
     try {
       // Delete tenant
-      await deleteDoc(doc(db, 'tenants', tenantId));
+      await deleteDoc(doc(db, 'tenants', tenantRecord.id));
       
-      // Update room status to vacant if tenant had a room
-      if (roomNumber) {
+      // Update all assigned rooms to vacant
+      const assignedRooms = getAssignedRooms(tenantRecord);
+      if (assignedRooms.length > 0) {
         const roomsRef = collection(db, 'rooms');
-        const roomQuery = query(roomsRef, where('roomNumber', '==', roomNumber));
-        const roomSnapshot = await getDocs(roomQuery);
-        
-        if (!roomSnapshot.empty) {
-          const roomDoc = roomSnapshot.docs[0];
-          await updateDoc(doc(db, 'rooms', roomDoc.id), {
-            status: 'vacant'
-          });
+        for (const roomNumber of assignedRooms) {
+          const roomNumberAsNumber = Number.parseInt(roomNumber, 10);
+          const queryCandidates = [
+            query(roomsRef, where('roomNumber', '==', roomNumber))
+          ];
+          if (Number.isFinite(roomNumberAsNumber)) {
+            queryCandidates.unshift(query(roomsRef, where('roomNumber', '==', roomNumberAsNumber)));
+          }
+
+          let roomSnapshot = null;
+          for (const roomQuery of queryCandidates) {
+            const snapshot = await getDocs(roomQuery);
+            if (!snapshot.empty) {
+              roomSnapshot = snapshot;
+              break;
+            }
+          }
+
+          if (!roomSnapshot?.empty) {
+            const roomDoc = roomSnapshot.docs[0];
+            await updateDoc(doc(db, 'rooms', roomDoc.id), {
+              status: 'vacant',
+              currentTenantId: null
+            });
+          }
         }
       }
       
@@ -120,8 +148,7 @@ const Tenants = () => {
     
     try {
       const paymentsRef = collection(db, 'payments');
-      const roomNumberAsNumber = Number.parseInt(tenant.roomNumber, 10);
-      const roomNumberAsString = String(tenant.roomNumber);
+      const assignedRooms = getAssignedRooms(tenant);
 
       const paymentDocs = new Map();
 
@@ -132,14 +159,16 @@ const Tenants = () => {
         tenantIdSnapshot.forEach((doc) => paymentDocs.set(doc.id, doc));
       }
 
-      // 2) Fallback by room number (supports old records with no tenantId)
-      const roomQueries = [
-        query(paymentsRef, where('roomNumber', '==', roomNumberAsString))
-      ];
+      // 2) Fallback by assigned room numbers (supports old records with no tenantId)
+      const roomQueries = [];
+      assignedRooms.forEach((roomNumber) => {
+        roomQueries.push(query(paymentsRef, where('roomNumber', '==', roomNumber)));
 
-      if (Number.isFinite(roomNumberAsNumber)) {
-        roomQueries.push(query(paymentsRef, where('roomNumber', '==', roomNumberAsNumber)));
-      }
+        const roomNumberAsNumber = Number.parseInt(roomNumber, 10);
+        if (Number.isFinite(roomNumberAsNumber)) {
+          roomQueries.push(query(paymentsRef, where('roomNumber', '==', roomNumberAsNumber)));
+        }
+      });
 
       const roomSnapshots = await Promise.all(roomQueries.map((roomQuery) => getDocs(roomQuery)));
       roomSnapshots.forEach((snapshot) => {
@@ -189,13 +218,13 @@ const Tenants = () => {
     
     // Floor filter
     let matchesFloorFilter = true;
+    const assignedRoomNumbers = getAssignedRooms(tenant).map((room) => Number.parseInt(room, 10));
+
     if (floorFilter === 'floor1') {
-      const roomNum = parseInt(tenant.roomNumber);
-      matchesFloorFilter = roomNum >= 101 && roomNum <= 106;
+      matchesFloorFilter = assignedRoomNumbers.some((roomNum) => roomNum >= 101 && roomNum <= 106);
     }
     if (floorFilter === 'floor2') {
-      const roomNum = parseInt(tenant.roomNumber);
-      matchesFloorFilter = roomNum >= 201 && roomNum <= 206;
+      matchesFloorFilter = assignedRoomNumbers.some((roomNum) => roomNum >= 201 && roomNum <= 206);
     }
     
     return matchesActiveFilter && matchesFloorFilter;
@@ -207,7 +236,9 @@ const Tenants = () => {
   };
 
   const sortedTenants = [...filteredTenants].sort((a, b) => {
-    const roomDiff = getRoomNumberValue(a.roomNumber) - getRoomNumberValue(b.roomNumber);
+    const primaryRoomA = getAssignedRooms(a)[0] || a.roomNumber;
+    const primaryRoomB = getAssignedRooms(b)[0] || b.roomNumber;
+    const roomDiff = getRoomNumberValue(primaryRoomA) - getRoomNumberValue(primaryRoomB);
     if (roomDiff !== 0) return roomDiff;
     return (a.name || '').localeCompare(b.name || '');
   });
@@ -217,12 +248,12 @@ const Tenants = () => {
     active: tenants.filter(t => t.isActive).length,
     inactive: tenants.filter(t => !t.isActive).length,
     floor1: tenants.filter(t => {
-      const roomNum = parseInt(t.roomNumber);
-      return roomNum >= 101 && roomNum <= 106;
+      const assignedRoomNumbers = getAssignedRooms(t).map((room) => Number.parseInt(room, 10));
+      return assignedRoomNumbers.some((roomNum) => roomNum >= 101 && roomNum <= 106);
     }).length,
     floor2: tenants.filter(t => {
-      const roomNum = parseInt(t.roomNumber);
-      return roomNum >= 201 && roomNum <= 206;
+      const assignedRoomNumbers = getAssignedRooms(t).map((room) => Number.parseInt(room, 10));
+      return assignedRoomNumbers.some((roomNum) => roomNum >= 201 && roomNum <= 206);
     }).length
   };
 
@@ -427,7 +458,7 @@ const Tenants = () => {
               key={tenant.id}
               tenant={tenant}
               onEdit={() => handleEditTenant(tenant)}
-              onDelete={() => handleDeleteTenant(tenant.id, tenant.roomNumber)}
+              onDelete={() => handleDeleteTenant(tenant)}
               onViewHistory={() => handleViewHistory(tenant)}
             />
           ))}
@@ -479,7 +510,7 @@ const Tenants = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                        🏠 {tenant.roomNumber || '-'}
+                        🏠 {getAssignedRooms(tenant).join(', ') || tenant.roomNumber || '-'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -498,7 +529,7 @@ const Tenants = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <code className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">
-                        {tenant.username || tenant.roomNumber}
+                        {tenant.username || getAssignedRooms(tenant)[0] || tenant.roomNumber}
                       </code>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -530,7 +561,7 @@ const Tenants = () => {
                           ✏️
                         </button>
                         <button 
-                          onClick={() => handleDeleteTenant(tenant.id, tenant.roomNumber)}
+                          onClick={() => handleDeleteTenant(tenant)}
                           className="text-red-600 hover:text-red-900 font-medium"
                           title="Delete"
                         >
@@ -699,6 +730,10 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
 const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
   const { showAlert, showPrompt } = useDialog();
   const isActive = tenant.isActive;
+  const assignedRooms = Array.isArray(tenant?.assignedRooms) && tenant.assignedRooms.length > 0
+    ? tenant.assignedRooms.map((room) => String(room))
+    : (tenant?.roomNumber ? [String(tenant.roomNumber)] : []);
+  const primaryRoom = assignedRooms[0] || tenant.roomNumber;
   
   // Calculate living duration
   const calculateDuration = () => {
@@ -735,7 +770,8 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
   // Copy credentials to clipboard
   const copyCredentials = async () => {
     const portalUrl = `${window.location.origin}/tenant-portal`;
-    const text = `🏠 Tenant Portal Access\n\nPortal URL: ${portalUrl}\n\nRoom: ${tenant.roomNumber}\nUsername: ${tenant.username}\nPassword: ${tenant.password}\n\n📱 Login and check your payment status!`;
+    const roomLabel = assignedRooms.length > 0 ? assignedRooms.join(', ') : String(tenant.roomNumber || '-');
+    const text = `🏠 Tenant Portal Access\n\nPortal URL: ${portalUrl}\n\nRooms: ${roomLabel}\nUsername: ${tenant.username || primaryRoom}\nPassword: ${tenant.password || 'password'}\n\n📱 Login and check your payment status!`;
     try {
       await navigator.clipboard.writeText(text);
       await showAlert('✅ Credentials & Portal URL copied!\n\nShare these with the tenant.', {
@@ -771,9 +807,9 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
             }`}>
               {isActive ? '✅ Active' : '📋 Inactive'}
             </span>
-            {tenant.roomNumber && (
+            {assignedRooms.length > 0 && (
               <span className="px-3 py-1 rounded-full text-sm font-semibold bg-blue-500 text-white">
-                🏠 Room {tenant.roomNumber}
+                🏠 Room {assignedRooms.join(', ')}
               </span>
             )}
             {duration && (
@@ -846,7 +882,7 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <span className="text-blue-600 font-semibold">User:</span>
-            <span className="font-mono font-bold text-blue-900">{tenant.username || tenant.roomNumber}</span>
+            <span className="font-mono font-bold text-blue-900">{tenant.username || primaryRoom}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-blue-600 font-semibold">Pass:</span>

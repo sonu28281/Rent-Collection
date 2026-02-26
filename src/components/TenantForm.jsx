@@ -7,6 +7,7 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
     name: '',
     phone: '',
     roomNumber: '',
+    assignedRooms: [],
     checkInDate: '',
     checkOutDate: '',
     dueDate: 20,
@@ -24,11 +25,16 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
 
   useEffect(() => {
     if (tenant) {
+      const tenantAssignedRooms = Array.isArray(tenant.assignedRooms) && tenant.assignedRooms.length > 0
+        ? tenant.assignedRooms
+        : (tenant.roomNumber !== undefined && tenant.roomNumber !== null && tenant.roomNumber !== '' ? [tenant.roomNumber] : []);
+
       // Editing existing tenant
       setFormData({
         name: tenant.name || '',
         phone: tenant.phone || '',
         roomNumber: tenant.roomNumber || '',
+        assignedRooms: tenantAssignedRooms.map((room) => String(room)),
         checkInDate: tenant.checkInDate ? tenant.checkInDate.split('T')[0] : '',
         checkOutDate: tenant.checkOutDate ? tenant.checkOutDate.split('T')[0] : '',
         dueDate: tenant.dueDate || 20,
@@ -42,6 +48,16 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
       });
     }
   }, [tenant]);
+
+  const getTenantAssignedRooms = (tenantRecord) => {
+    if (Array.isArray(tenantRecord?.assignedRooms) && tenantRecord.assignedRooms.length > 0) {
+      return tenantRecord.assignedRooms.map((room) => String(room));
+    }
+    if (tenantRecord?.roomNumber !== undefined && tenantRecord?.roomNumber !== null && tenantRecord?.roomNumber !== '') {
+      return [String(tenantRecord.roomNumber)];
+    }
+    return [];
+  };
 
   const generateUniqueToken = () => {
     // Generate a 48-character hex token
@@ -70,18 +86,24 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
       newErrors.phone = 'Phone must be 10 digits';
     }
 
-    if (!formData.roomNumber) {
-      newErrors.roomNumber = 'Room selection is required';
+    const selectedRooms = (formData.assignedRooms || []).map((room) => String(room));
+
+    if (selectedRooms.length === 0) {
+      newErrors.assignedRooms = 'At least one room must be selected';
     } else {
-      // Check if room is already assigned to another active tenant
+      // Check if any selected room is already assigned to another active tenant
       const isRoomOccupied = tenants.some(
-        t => t.roomNumber === formData.roomNumber && 
-        t.isActive && 
-        (!tenant || t.id !== tenant.id)
+        (t) => {
+          if (!t?.isActive) return false;
+          if (tenant && t.id === tenant.id) return false;
+
+          const occupiedRooms = getTenantAssignedRooms(t);
+          return selectedRooms.some((selectedRoom) => occupiedRooms.includes(selectedRoom));
+        }
       );
       
       if (isRoomOccupied) {
-        newErrors.roomNumber = 'This room is already occupied by another tenant';
+        newErrors.assignedRooms = 'One or more selected rooms are already occupied by another active tenant';
       }
     }
 
@@ -125,6 +147,27 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
     }
   };
 
+  const toggleAssignedRoom = (roomNumber) => {
+    const roomAsString = String(roomNumber);
+    const currentSelection = formData.assignedRooms || [];
+    const nextSelection = currentSelection.includes(roomAsString)
+      ? currentSelection.filter((room) => room !== roomAsString)
+      : [...currentSelection, roomAsString];
+
+    const sortedSelection = [...new Set(nextSelection)]
+      .sort((a, b) => Number(a) - Number(b));
+
+    setFormData((prev) => ({
+      ...prev,
+      assignedRooms: sortedSelection,
+      roomNumber: sortedSelection[0] || ''
+    }));
+
+    if (errors.assignedRooms) {
+      setErrors((prev) => ({ ...prev, assignedRooms: '' }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -135,10 +178,16 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
     setLoading(true);
 
     try {
+      const normalizedAssignedRooms = [...new Set((formData.assignedRooms || []).map((room) => String(room)))]
+        .sort((a, b) => Number(a) - Number(b));
+
+      const primaryRoomNumber = normalizedAssignedRooms[0] || String(formData.roomNumber || '');
+
       const tenantData = {
         name: formData.name.trim(),
         phone: formData.phone.trim(),
-        roomNumber: formData.roomNumber,
+        roomNumber: primaryRoomNumber,
+        assignedRooms: normalizedAssignedRooms,
         checkInDate: new Date(formData.checkInDate).toISOString(),
         checkOutDate: formData.checkOutDate ? new Date(formData.checkOutDate).toISOString() : null,
         dueDate: Number.parseInt(formData.dueDate, 10),
@@ -155,6 +204,7 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
       if (tenant) {
         const oldName = (tenant.name || '').trim();
         const newName = formData.name.trim();
+        const oldAssignedRooms = getTenantAssignedRooms(tenant);
 
         // Update existing tenant
         // Generate uniqueToken if it doesn't exist (for older tenants)
@@ -164,25 +214,19 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
         
         await updateDoc(doc(db, 'tenants', tenant.id), tenantData);
         
-        // Update room status (handle room change and active status change)
-        const oldRoomNumber = tenant.roomNumber;
-        const roomChanged = oldRoomNumber !== formData.roomNumber;
-        
-        if (roomChanged) {
-          // Room changed: update both old and new room
-          await updateRoomStatus(formData.roomNumber, formData.isActive, oldRoomNumber);
-        } else {
-          // Same room: update status based on isActive
-          await updateRoomStatus(formData.roomNumber, formData.isActive);
-        }
+        // Update room status for all assigned rooms
+        await updateRoomStatusForAssignments(normalizedAssignedRooms, formData.isActive, {
+          oldAssignedRooms,
+          tenantId: tenant.id
+        });
 
         if (oldName && newName && oldName !== newName) {
           await syncTenantNameAcrossCollections({
             tenantId: tenant.id,
             oldName,
             newName,
-            oldRoomNumber,
-            newRoomNumber: formData.roomNumber
+            oldRoomNumber: oldAssignedRooms[0] || tenant.roomNumber,
+            newRoomNumber: primaryRoomNumber
           });
         }
         
@@ -195,10 +239,13 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
         tenantData.kycAadharUrl = null;
         tenantData.kycPanUrl = null;
         
-        await addDoc(collection(db, 'tenants'), tenantData);
+        const newTenantRef = await addDoc(collection(db, 'tenants'), tenantData);
         
-        // Update room status
-        await updateRoomStatus(formData.roomNumber, formData.isActive);
+        // Update room status for all assigned rooms
+        await updateRoomStatusForAssignments(normalizedAssignedRooms, formData.isActive, {
+          oldAssignedRooms: [],
+          tenantId: newTenantRef.id
+        });
         
         alert('Tenant added successfully!');
       }
@@ -288,70 +335,72 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
     }
   };
 
-  const updateRoomStatus = async (roomNumber, isOccupied, oldRoomNumber = null) => {
+  const updateRoomStatusForAssignments = async (assignedRooms, isOccupied, options = {}) => {
     try {
       const user = auth.currentUser;
       const roomsRef = collection(db, 'rooms');
-      
-      // Update new room status to filled
-      if (roomNumber) {
-        const roomQuery = query(roomsRef, where('roomNumber', '==', roomNumber));
-        const roomSnapshot = await getDocs(roomQuery);
-        
-        if (!roomSnapshot.empty) {
-          const roomDoc = roomSnapshot.docs[0];
-          const oldStatus = roomDoc.data().status || 'vacant';
-          const newStatus = isOccupied ? 'filled' : 'vacant';
-          
-          await updateDoc(doc(db, 'rooms', roomDoc.id), {
-            status: newStatus,
-            lastStatusUpdatedAt: serverTimestamp(),
-            lastStatusUpdatedBy: user?.uid || 'system',
-            ...(isOccupied ? { currentTenantId: tenant?.id || null } : { currentTenantId: null })
-          });
 
-          // Log status change
-          await addDoc(collection(db, 'roomStatusLogs'), {
-            roomId: roomDoc.id,
-            roomNumber: roomNumber,
-            oldStatus,
-            newStatus,
-            changedBy: user?.uid || 'system',
-            changedByEmail: user?.email || 'system',
-            changedAt: serverTimestamp(),
-            remark: isOccupied ? 'Tenant assigned' : 'Tenant removed/checkout'
-          });
+      const normalizeRoomList = (roomsList) => [...new Set((roomsList || [])
+        .filter((room) => room !== undefined && room !== null && room !== '')
+        .map((room) => String(room))
+      )];
+
+      const targetRooms = normalizeRoomList(assignedRooms);
+      const oldRooms = normalizeRoomList(options.oldAssignedRooms);
+      const roomsToVacate = oldRooms.filter((room) => !targetRooms.includes(room));
+      const roomsToAssign = targetRooms;
+
+      const updateRoomByNumber = async (roomNumber, status, remark) => {
+        const asNumber = Number.parseInt(roomNumber, 10);
+        const queryCandidates = [
+          query(roomsRef, where('roomNumber', '==', roomNumber))
+        ];
+
+        if (Number.isFinite(asNumber)) {
+          queryCandidates.unshift(query(roomsRef, where('roomNumber', '==', asNumber)));
         }
+
+        let roomSnapshot = null;
+        for (const roomQuery of queryCandidates) {
+          const snapshot = await getDocs(roomQuery);
+          if (!snapshot.empty) {
+            roomSnapshot = snapshot;
+            break;
+          }
+        }
+
+        if (!roomSnapshot || roomSnapshot.empty) {
+          return;
+        }
+
+        const roomDoc = roomSnapshot.docs[0];
+        const oldStatus = roomDoc.data().status || 'vacant';
+
+        await updateDoc(doc(db, 'rooms', roomDoc.id), {
+          status,
+          lastStatusUpdatedAt: serverTimestamp(),
+          lastStatusUpdatedBy: user?.uid || 'system',
+          currentTenantId: status === 'filled' && isOccupied ? (options.tenantId || null) : null
+        });
+
+        await addDoc(collection(db, 'roomStatusLogs'), {
+          roomId: roomDoc.id,
+          roomNumber,
+          oldStatus,
+          newStatus: status,
+          changedBy: user?.uid || 'system',
+          changedByEmail: user?.email || 'system',
+          changedAt: serverTimestamp(),
+          remark
+        });
+      };
+
+      for (const roomNumber of roomsToAssign) {
+        await updateRoomByNumber(roomNumber, isOccupied ? 'filled' : 'vacant', isOccupied ? 'Tenant assigned (multi-room)' : 'Tenant removed/checkout');
       }
 
-      // Update old room status to vacant if room was changed
-      if (oldRoomNumber && oldRoomNumber !== roomNumber) {
-        const oldRoomQuery = query(roomsRef, where('roomNumber', '==', oldRoomNumber));
-        const oldRoomSnapshot = await getDocs(oldRoomQuery);
-        
-        if (!oldRoomSnapshot.empty) {
-          const oldRoomDoc = oldRoomSnapshot.docs[0];
-          const oldStatus = oldRoomDoc.data().status || 'filled';
-          
-          await updateDoc(doc(db, 'rooms', oldRoomDoc.id), {
-            status: 'vacant',
-            lastStatusUpdatedAt: serverTimestamp(),
-            lastStatusUpdatedBy: user?.uid || 'system',
-            currentTenantId: null
-          });
-
-          // Log status change
-          await addDoc(collection(db, 'roomStatusLogs'), {
-            roomId: oldRoomDoc.id,
-            roomNumber: oldRoomNumber,
-            oldStatus,
-            newStatus: 'vacant',
-            changedBy: user?.uid || 'system',
-            changedByEmail: user?.email || 'system',
-            changedAt: serverTimestamp(),
-            remark: 'Tenant moved to different room'
-          });
-        }
+      for (const roomNumber of roomsToVacate) {
+        await updateRoomByNumber(roomNumber, 'vacant', 'Tenant moved to different room');
       }
     } catch (error) {
       console.error('Error updating room status:', error);
@@ -359,8 +408,10 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
   };
 
   const availableRooms = rooms.filter(room => {
-    // Show vacant rooms or the current tenant's room
-    return room.status === 'vacant' || (tenant && room.roomNumber === tenant.roomNumber);
+    // Show vacant rooms or currently assigned rooms (when editing)
+    const roomString = String(room.roomNumber);
+    const selectedRooms = (formData.assignedRooms || []).map((value) => String(value));
+    return room.status === 'vacant' || selectedRooms.includes(roomString);
   });
 
   return (
@@ -422,24 +473,35 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Room Number *
+                Assigned Rooms *
               </label>
-              <select
-                name="roomNumber"
-                value={formData.roomNumber}
-                onChange={handleChange}
-                className={`input-field ${errors.roomNumber ? 'border-red-500' : ''}`}
-                disabled={loading}
-              >
-                <option value="">Select a room</option>
-                {availableRooms.map(room => (
-                  <option key={room.id} value={room.roomNumber}>
-                    Room {room.roomNumber} - Floor {room.floor} 
-                    {(room.status || 'vacant') === 'vacant' ? ' (Vacant)' : ' (Currently Assigned)'}
-                  </option>
-                ))}
-              </select>
-              {errors.roomNumber && <p className="text-red-500 text-sm mt-1">{errors.roomNumber}</p>}
+              <div className={`border rounded-lg p-3 max-h-52 overflow-y-auto ${errors.assignedRooms ? 'border-red-500' : 'border-gray-300'}`}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {availableRooms.map((room) => {
+                    const roomValue = String(room.roomNumber);
+                    const checked = (formData.assignedRooms || []).includes(roomValue);
+                    return (
+                      <label key={room.id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleAssignedRoom(roomValue)}
+                          disabled={loading}
+                          className="w-4 h-4 text-primary rounded"
+                        />
+                        <span>
+                          Room {room.roomNumber} - Floor {room.floor}
+                          {(room.status || 'vacant') === 'vacant' ? ' (Vacant)' : ' (Assigned)'}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Selected: {(formData.assignedRooms || []).length > 0 ? (formData.assignedRooms || []).join(', ') : 'None'}
+              </p>
+              {errors.assignedRooms && <p className="text-red-500 text-sm mt-1">{errors.assignedRooms}</p>}
             </div>
           </div>
 

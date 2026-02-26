@@ -71,6 +71,7 @@ const VerifyPayments = () => {
       return;
     }
 
+    const hasRoomBreakdown = Array.isArray(submission.roomBreakdown) && submission.roomBreakdown.length > 0;
     const previousReading = Number(submission.previousReading ?? 0);
     const currentReading = Number(submission.meterReading ?? submission.currentReading ?? 0);
     const unitsConsumed = Number.isFinite(currentReading) && Number.isFinite(previousReading)
@@ -80,41 +81,104 @@ const VerifyPayments = () => {
     try {
       setProcessing(true);
 
-      // Create payment record
-      await addDoc(collection(db, 'payments'), {
-        tenantId: submission.tenantId,
-        tenantNameSnapshot: submission.tenantName,
-        roomNumber: submission.roomNumber,
-        year: submission.year,
-        month: submission.month,
-        rent: submission.rentAmount,
-        electricity: submission.electricityAmount,
-        paidAmount: submission.paidAmount,
-        oldReading: previousReading,
-        currentReading,
-        previousReading,
-        meterReading: currentReading,
-        units: unitsConsumed,
-        unitsConsumed,
-        paidDate: submission.paidDate,
-        paymentMethod: 'UPI',
-        utr: normalizedUtr,
-        screenshot: submission.screenshot,
-        notes: submission.notes,
-        status: 'paid',
-        sourceSubmissionId: submission.id,
-        createdAt: new Date().toISOString(),
-        verifiedBy: currentUser?.email || 'admin',
-        verifiedAt: new Date().toISOString()
-      });
+      const submissionGroupId = `sub_${submission.id}`;
+      const nowIso = new Date().toISOString();
 
-      // Update room meter reading if provided
-      if (submission.meterReading && submission.meterReading > 0) {
-        const roomRef = doc(db, 'rooms', submission.roomNumber);
-        await updateDoc(roomRef, {
-          currentReading: submission.meterReading,
-          lastUpdated: new Date().toISOString()
+      if (hasRoomBreakdown) {
+        for (const roomEntry of submission.roomBreakdown) {
+          const roomPrevious = Number(roomEntry.previousReading ?? 0);
+          const roomCurrent = Number(roomEntry.currentReading ?? roomEntry.meterReading ?? 0);
+          const roomUnits = Number.isFinite(roomCurrent) && Number.isFinite(roomPrevious)
+            ? Math.max(0, roomCurrent - roomPrevious)
+            : Number(roomEntry.unitsConsumed ?? 0);
+          const roomRent = Number(roomEntry.rentAmount ?? 0);
+          const roomElectricity = Number(roomEntry.electricityAmount ?? 0);
+          const roomTotal = Number(roomEntry.totalAmount ?? (roomRent + roomElectricity));
+          const roomNumber = roomEntry.roomNumber;
+
+          await addDoc(collection(db, 'payments'), {
+            tenantId: submission.tenantId,
+            tenantNameSnapshot: submission.tenantName,
+            roomNumber,
+            year: submission.year,
+            month: submission.month,
+            rent: roomRent,
+            electricity: roomElectricity,
+            paidAmount: roomTotal,
+            oldReading: roomPrevious,
+            currentReading: roomCurrent,
+            previousReading: roomPrevious,
+            meterReading: roomCurrent,
+            units: roomUnits,
+            unitsConsumed: roomUnits,
+            paidDate: submission.paidDate,
+            paymentMethod: 'UPI',
+            utr: normalizedUtr,
+            screenshot: submission.screenshot,
+            notes: submission.notes,
+            status: 'paid',
+            isMultiRoomPayment: true,
+            sourceSubmissionId: submission.id,
+            submissionGroupId,
+            createdAt: nowIso,
+            verifiedBy: currentUser?.email || 'admin',
+            verifiedAt: nowIso
+          });
+
+          if (Number.isFinite(roomCurrent) && roomCurrent > 0) {
+            const roomsRef = collection(db, 'rooms');
+            const roomQuery = query(roomsRef, where('roomNumber', '==', roomNumber));
+            const roomSnapshot = await getDocs(roomQuery);
+
+            if (!roomSnapshot.empty) {
+              await updateDoc(doc(db, 'rooms', roomSnapshot.docs[0].id), {
+                currentReading: roomCurrent,
+                lastUpdated: nowIso
+              });
+            }
+          }
+        }
+      } else {
+        await addDoc(collection(db, 'payments'), {
+          tenantId: submission.tenantId,
+          tenantNameSnapshot: submission.tenantName,
+          roomNumber: submission.roomNumber,
+          year: submission.year,
+          month: submission.month,
+          rent: submission.rentAmount,
+          electricity: submission.electricityAmount,
+          paidAmount: submission.paidAmount,
+          oldReading: previousReading,
+          currentReading,
+          previousReading,
+          meterReading: currentReading,
+          units: unitsConsumed,
+          unitsConsumed,
+          paidDate: submission.paidDate,
+          paymentMethod: 'UPI',
+          utr: normalizedUtr,
+          screenshot: submission.screenshot,
+          notes: submission.notes,
+          status: 'paid',
+          sourceSubmissionId: submission.id,
+          createdAt: nowIso,
+          verifiedBy: currentUser?.email || 'admin',
+          verifiedAt: nowIso
         });
+
+        // Update room meter reading if provided
+        if (submission.meterReading && submission.meterReading > 0) {
+          const roomsRef = collection(db, 'rooms');
+          const roomQuery = query(roomsRef, where('roomNumber', '==', submission.roomNumber));
+          const roomSnapshot = await getDocs(roomQuery);
+
+          if (!roomSnapshot.empty) {
+            await updateDoc(doc(db, 'rooms', roomSnapshot.docs[0].id), {
+              currentReading: submission.meterReading,
+              lastUpdated: nowIso
+            });
+          }
+        }
       }
 
       // Update submission status
@@ -320,7 +384,9 @@ const VerifyPayments = () => {
               <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold">{submission.tenantName}</h3>
-                  <p className="text-sm text-white text-opacity-90">Room {submission.roomNumber}</p>
+                  <p className="text-sm text-white text-opacity-90">
+                    Room{Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 1 ? 's' : ''} {Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 0 ? submission.roomNumbers.join(', ') : submission.roomNumber}
+                  </p>
                 </div>
                 <div className="text-right">
                   {getStatusBadge(submission.status)}
@@ -362,6 +428,40 @@ const VerifyPayments = () => {
                     <p className="text-sm font-bold">{submission.previousReading} → {submission.meterReading} ({submission.unitsConsumed} units)</p>
                   </div>
                 </div>
+
+                {Array.isArray(submission.roomBreakdown) && submission.roomBreakdown.length > 0 && (
+                  <div className="mb-4">
+                    <label className="text-xs text-gray-500 font-semibold block mb-2">Room-wise Breakdown</label>
+                    <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                      <table className="w-full text-xs sm:text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-3 py-2 text-left">Room</th>
+                            <th className="px-3 py-2 text-right">Old</th>
+                            <th className="px-3 py-2 text-right">Current</th>
+                            <th className="px-3 py-2 text-right">Units</th>
+                            <th className="px-3 py-2 text-right">Rent</th>
+                            <th className="px-3 py-2 text-right">Electricity</th>
+                            <th className="px-3 py-2 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {submission.roomBreakdown.map((entry, index) => (
+                            <tr key={`${submission.id}_room_${index}`} className="border-t border-gray-100">
+                              <td className="px-3 py-2 font-semibold">{entry.roomNumber}</td>
+                              <td className="px-3 py-2 text-right font-mono">{entry.previousReading}</td>
+                              <td className="px-3 py-2 text-right font-mono">{entry.currentReading}</td>
+                              <td className="px-3 py-2 text-right">{entry.unitsConsumed ?? Math.max(0, Number(entry.currentReading || 0) - Number(entry.previousReading || 0))}</td>
+                              <td className="px-3 py-2 text-right">₹{Number(entry.rentAmount || 0).toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right">₹{Number(entry.electricityAmount || 0).toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right font-semibold">₹{Number(entry.totalAmount || (Number(entry.rentAmount || 0) + Number(entry.electricityAmount || 0))).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
                 {submission.notes && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
@@ -416,13 +516,15 @@ const VerifyPayments = () => {
                     >
                       ✅ Approve & Record
                     </button>
-                    <button
-                      onClick={() => handleEdit(submission)}
-                      disabled={processing}
-                      className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
-                    >
-                      ✏️ Edit
-                    </button>
+                    {(!Array.isArray(submission.roomBreakdown) || submission.roomBreakdown.length === 0) && (
+                      <button
+                        onClick={() => handleEdit(submission)}
+                        disabled={processing}
+                        className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
+                      >
+                        ✏️ Edit
+                      </button>
+                    )}
                     <button
                       onClick={() => handleReject(submission)}
                       disabled={processing}
