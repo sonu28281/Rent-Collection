@@ -36,6 +36,7 @@ const TenantPortal = () => {
   const [tenant, setTenant] = useState(null);
   const [room, setRoom] = useState(null);
   const [paymentRecords, setPaymentRecords] = useState([]);
+  const [meterHistoryRecords, setMeterHistoryRecords] = useState([]);
   const [activeUPI, setActiveUPI] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pendingSubmissions, setPendingSubmissions] = useState([]);
@@ -377,6 +378,18 @@ const TenantPortal = () => {
       // Show all records, not just 12
       setPaymentRecords(records);
 
+      // Fetch dedicated meter history entries for this tenant
+      const readingsRef = collection(db, 'electricityReadings');
+      const readingsByTenantIdQuery = query(readingsRef, where('tenantId', '==', tenantData.id));
+      const readingsSnapshot = await getDocs(readingsByTenantIdQuery);
+
+      const meterHistory = [];
+      readingsSnapshot.forEach((doc) => {
+        meterHistory.push({ id: doc.id, ...doc.data(), source: 'meter_reading' });
+      });
+
+      setMeterHistoryRecords(meterHistory);
+
       // Fetch pending submissions for current tenant and month
       const submissionsRef = collection(db, 'paymentSubmissions');
       const currentDate = new Date();
@@ -414,6 +427,7 @@ const TenantPortal = () => {
     setTenant(null);
     setRoom(null);
     setPaymentRecords([]);
+    setMeterHistoryRecords([]);
     setPendingSubmissions([]);
     setActiveUPI(null);
     setUsername('');
@@ -789,6 +803,103 @@ const TenantPortal = () => {
   const getMonthName = (monthNum) => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return months[monthNum - 1] || monthNum;
+  };
+
+  const getMeterHistoryTimeline = () => {
+    const fromPayments = paymentRecords
+      .map((record) => {
+        const previousReading = Number(record.oldReading ?? record.previousReading);
+        const currentReading = Number(record.currentReading ?? record.meterReading);
+        const unitsConsumed = Number(record.units ?? record.unitsConsumed ?? 0);
+        const electricityAmount = Number(record.electricity ?? record.electricityAmount ?? 0);
+
+        const hasReadings = Number.isFinite(previousReading) && Number.isFinite(currentReading) && currentReading >= previousReading;
+        if (!hasReadings) return null;
+
+        return {
+          id: `payment_${record.id}`,
+          source: 'payment_history',
+          date: record.paidDate || record.paymentDate || record.paidAt || record.createdAt || null,
+          monthLabel: record.year && record.month ? `${getMonthName(Number(record.month))} ${record.year}` : 'Unknown',
+          previousReading,
+          currentReading,
+          unitsConsumed: Number.isFinite(unitsConsumed) ? unitsConsumed : Math.max(0, currentReading - previousReading),
+          electricityAmount: Number.isFinite(electricityAmount) ? electricityAmount : 0
+        };
+      })
+      .filter(Boolean);
+
+    const fromMeterReadings = meterHistoryRecords
+      .map((reading) => {
+        const previousReading = Number(reading.previousReading);
+        const currentReading = Number(reading.currentReading);
+        const unitsConsumed = Number(reading.unitsConsumed ?? 0);
+        const totalCharge = Number(reading.totalCharge ?? 0);
+
+        const hasReadings = Number.isFinite(previousReading) && Number.isFinite(currentReading) && currentReading >= previousReading;
+        if (!hasReadings) return null;
+
+        const readingDate = reading.readingDate || reading.createdAt || null;
+        const dateObj = readingDate ? new Date(readingDate) : null;
+
+        return {
+          id: `reading_${reading.id}`,
+          source: 'meter_reading',
+          date: readingDate,
+          monthLabel: dateObj && !Number.isNaN(dateObj.getTime())
+            ? dateObj.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+            : 'Unknown',
+          previousReading,
+          currentReading,
+          unitsConsumed: Number.isFinite(unitsConsumed) ? unitsConsumed : Math.max(0, currentReading - previousReading),
+          electricityAmount: Number.isFinite(totalCharge) ? totalCharge : 0
+        };
+      })
+      .filter(Boolean);
+
+    const merged = [...fromMeterReadings, ...fromPayments]
+      .sort((a, b) => {
+        const aTime = a.date ? new Date(a.date).getTime() : 0;
+        const bTime = b.date ? new Date(b.date).getTime() : 0;
+        return bTime - aTime;
+      });
+
+    const seen = new Set();
+    const deduped = [];
+
+    merged.forEach((item) => {
+      const key = `${item.monthLabel}_${item.previousReading}_${item.currentReading}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push(item);
+      }
+    });
+
+    return deduped;
+  };
+
+  const isRentElectricityPaidRecord = (record) => {
+    const electricityAmount = Number(record.electricity ?? record.electricityAmount ?? 0);
+    const units = Number(record.units ?? record.unitsConsumed ?? 0);
+    return record.status === 'paid' && (electricityAmount > 0 || units > 0);
+  };
+
+  const isOnlyRentPaidRecord = (record) => {
+    const electricityAmount = Number(record.electricity ?? record.electricityAmount ?? 0);
+    const units = Number(record.units ?? record.unitsConsumed ?? 0);
+    return record.status === 'paid' && electricityAmount <= 0 && units <= 0;
+  };
+
+  const getPaidAmountSummary = () => {
+    return paymentRecords.reduce((acc, record) => {
+      if (record.status !== 'paid') {
+        return acc;
+      }
+
+      acc.rentPaid += Number(record.rent || 0);
+      acc.electricityPaid += Number(record.electricity ?? record.electricityAmount ?? 0);
+      return acc;
+    }, { rentPaid: 0, electricityPaid: 0 });
   };
 
   // ============ LOGIN SCREEN ============
@@ -1312,6 +1423,52 @@ const TenantPortal = () => {
               )}
             </div>
 
+            {/* Meter History Access - Read Only */}
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-800">📚 Meter Reading History</h2>
+                <span className="text-xs sm:text-sm text-gray-600">
+                  {getMeterHistoryTimeline().length} record{getMeterHistoryTimeline().length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {getMeterHistoryTimeline().length === 0 ? (
+                <div className="text-center py-6 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600">No meter history available yet.</p>
+                </div>
+              ) : (
+                <div className="max-h-72 overflow-y-auto border border-gray-200 rounded-lg">
+                  <table className="w-full text-xs sm:text-sm">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Old</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Current</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Units</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Electricity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getMeterHistoryTimeline().map((entry) => (
+                        <tr key={entry.id} className="border-t border-gray-100">
+                          <td className="px-3 py-2">
+                            <div className="font-semibold text-gray-800">{entry.monthLabel}</div>
+                            <div className="text-[10px] text-gray-500">
+                              {entry.source === 'meter_reading' ? 'meter record' : 'payment history'}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono">{entry.previousReading}</td>
+                          <td className="px-3 py-2 text-right font-mono">{entry.currentReading}</td>
+                          <td className="px-3 py-2 text-right">{entry.unitsConsumed}</td>
+                          <td className="px-3 py-2 text-right font-semibold">₹{Number(entry.electricityAmount || 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
             {/* Payment Records - Collapsible Mobile-Friendly Cards */}
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
               <div className="flex items-center justify-between mb-4">
@@ -1320,6 +1477,40 @@ const TenantPortal = () => {
                   {paymentRecords.length} record{paymentRecords.length !== 1 ? 's' : ''}
                 </span>
               </div>
+
+              {paymentRecords.length > 0 && (() => {
+                const summary = getPaidAmountSummary();
+                return (
+                  <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-xs text-blue-700 font-semibold mb-1">🏠 Total Rent Paid (Till Date)</p>
+                      <p className="text-lg font-bold text-blue-900">₹{summary.rentPaid.toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                      <p className="text-xs text-purple-700 font-semibold mb-1">⚡ Total Electricity Paid (Till Date)</p>
+                      <p className="text-lg font-bold text-purple-900">₹{summary.electricityPaid.toLocaleString('en-IN')}</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {paymentRecords.length > 0 && (() => {
+                const paidWithElectricity = paymentRecords.filter(isRentElectricityPaidRecord);
+                const lastElectricityPaid = paidWithElectricity[0] || null;
+
+                return (
+                  <div className="mb-4">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <p className="text-xs text-green-700 font-semibold mb-1">✅ Rent + Electricity Paid</p>
+                      <p className="text-sm font-bold text-green-900">
+                        {lastElectricityPaid
+                          ? `Last: ${getMonthName(lastElectricityPaid.month)} ${lastElectricityPaid.year}`
+                          : 'No electricity-paid month yet'}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
               
               {paymentRecords.length === 0 ? (
                 <div className="text-center py-6 sm:py-8 bg-gray-50 rounded-lg">
@@ -1335,11 +1526,25 @@ const TenantPortal = () => {
                     const isPending = record.status === 'pending';
                     const isOverdue = record.status === 'overdue';
                     const isExpanded = expandedCard === record.id;
+                    const isRentElectricityPaid = isRentElectricityPaidRecord(record);
+                    const isOnlyRentPaid = isOnlyRentPaidRecord(record);
+
+                    const paymentTypeText = isRentElectricityPaid
+                      ? 'Rent + Electricity Paid'
+                      : isOnlyRentPaid
+                      ? 'Rent Paid • Electricity Pending'
+                      : isPaid
+                      ? 'Paid'
+                      : isPending
+                      ? 'Pending'
+                      : 'Overdue';
                     
                     return (
                       <div 
                         key={record.id} 
                         className={`border-2 rounded-lg transition-all cursor-pointer ${
+                          isRentElectricityPaid ? 'border-green-300 bg-green-50 hover:bg-green-100' :
+                          isOnlyRentPaid ? 'border-amber-300 bg-amber-50 hover:bg-amber-100' :
                           isPaid ? 'border-green-300 bg-green-50 hover:bg-green-100' :
                           isPending ? 'border-yellow-300 bg-yellow-50 hover:bg-yellow-100' :
                           isOverdue ? 'border-red-300 bg-red-50 hover:bg-red-100' :
@@ -1353,14 +1558,14 @@ const TenantPortal = () => {
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
                             <span className="text-xl flex-shrink-0">
-                              {isPaid ? '✅' : isPending ? '⏳' : '❌'}
+                              {isRentElectricityPaid ? '✅' : isOnlyRentPaid ? '⚠️' : isPaid ? '✅' : isPending ? '⏳' : '❌'}
                             </span>
                             <div className="flex-1 min-w-0">
                               <h3 className="text-sm sm:text-base font-bold text-gray-800 truncate">
                                 {getMonthName(record.month)} {record.year}
                               </h3>
                               <p className="text-xs text-gray-600">
-                                {isPaid ? 'Paid' : isPending ? 'Pending' : 'Overdue'}
+                                {paymentTypeText}
                               </p>
                             </div>
                           </div>
@@ -1377,6 +1582,14 @@ const TenantPortal = () => {
                         {/* Expanded Details - Show on Click */}
                         {isExpanded && (
                           <div className="px-3 pb-3 space-y-3 border-t border-gray-200 pt-3">
+                            {isOnlyRentPaid && (
+                              <div className="bg-amber-50 border border-amber-200 rounded p-2">
+                                <p className="text-xs font-semibold text-amber-900">
+                                  ⚠️ Rent payment received for this month. Electricity bill is still pending.
+                                </p>
+                              </div>
+                            )}
+
                             {/* Payment Date */}
                             {record.paidAt && isPaid && (
                               <div className="bg-white/50 rounded p-2">

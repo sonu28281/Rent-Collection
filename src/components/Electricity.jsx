@@ -103,6 +103,13 @@ const Electricity = () => {
     return tenantReadings[0] || null;
   };
 
+  const getMonthLabelFromDate = (value) => {
+    if (!value) return 'Unknown Month';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Unknown Month';
+    return date.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+  };
+
   const toDateValue = (record) => {
     const candidates = [record.readingDate, record.paidDate, record.paymentDate, record.createdAt, record.paidAt];
     const first = candidates.find(Boolean);
@@ -160,13 +167,89 @@ const Electricity = () => {
     return matched[0] || null;
   };
 
-  const getEffectiveLatestReading = (tenant) => {
-    const liveReading = getLatestReading(tenant.id);
-    if (liveReading) {
-      return { ...liveReading, source: 'electricityReadings' };
-    }
+  const getPaymentReadingHistory = (tenant) => {
+    const tenantName = (tenant.name || '').trim().toLowerCase();
+    const roomNumberAsString = String(tenant.roomNumber);
+    const roomNumberAsNumber = Number.parseInt(tenant.roomNumber, 10);
 
-    return getLatestReadingFromPayments(tenant);
+    return paymentRecords
+      .filter((payment) => {
+        const paymentTenantName = (payment.tenantNameSnapshot || payment.tenantName || '').trim().toLowerCase();
+        const paymentRoomNumber = payment.roomNumber;
+
+        const roomMatch = String(paymentRoomNumber) === roomNumberAsString ||
+          (Number.isFinite(roomNumberAsNumber) && Number(paymentRoomNumber) === roomNumberAsNumber);
+
+        const tenantMatch = payment.tenantId === tenant.id || paymentTenantName === tenantName;
+
+        return roomMatch && tenantMatch;
+      })
+      .map((payment) => {
+        const previousReading = Number(payment.oldReading ?? payment.previousReading);
+        const currentReading = Number(payment.currentReading ?? payment.meterReading);
+        const unitsConsumed = Number(payment.units ?? payment.unitsConsumed ?? 0);
+        const totalCharge = Number(payment.electricity ?? payment.electricityAmount ?? 0);
+
+        const validReadings = Number.isFinite(previousReading) && Number.isFinite(currentReading) && currentReading >= previousReading;
+        const validElectricity = totalCharge > 0 || unitsConsumed > 0;
+
+        if (!validReadings || !validElectricity) {
+          return null;
+        }
+
+        const recordDate = payment.paidDate || payment.paymentDate || payment.createdAt || payment.paidAt;
+
+        return {
+          id: `payment_${payment.id}`,
+          tenantId: tenant.id,
+          tenantName: tenant.name,
+          roomNumber: tenant.roomNumber,
+          readingDate: recordDate,
+          monthLabel: payment.year && payment.month
+            ? `${new Date(Number(payment.year), Number(payment.month) - 1, 1).toLocaleDateString('en-IN', { month: 'short' })} ${payment.year}`
+            : getMonthLabelFromDate(recordDate),
+          previousReading,
+          currentReading,
+          unitsConsumed: Number.isFinite(unitsConsumed) ? unitsConsumed : Math.max(0, currentReading - previousReading),
+          ratePerUnit: Number(payment.ratePerUnit) || null,
+          totalCharge,
+          source: 'payments'
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => toDateValue(b) - toDateValue(a));
+  };
+
+  const getTenantMeterHistory = (tenant) => {
+    const directReadings = meterReadings
+      .filter((reading) => reading.tenantId === tenant.id)
+      .map((reading) => ({
+        ...reading,
+        monthLabel: getMonthLabelFromDate(reading.readingDate),
+        source: 'electricityReadings'
+      }));
+
+    const paymentBasedReadings = getPaymentReadingHistory(tenant);
+
+    const history = [...directReadings, ...paymentBasedReadings].sort((a, b) => toDateValue(b) - toDateValue(a));
+
+    const deduped = [];
+    const seen = new Set();
+
+    history.forEach((item) => {
+      const dedupeKey = `${item.monthLabel}_${item.currentReading}_${item.previousReading}`;
+      if (!seen.has(dedupeKey)) {
+        seen.add(dedupeKey);
+        deduped.push(item);
+      }
+    });
+
+    return deduped;
+  };
+
+  const getEffectiveLatestReading = (tenant) => {
+    const history = getTenantMeterHistory(tenant);
+    return history[0] || null;
   };
 
   const getRoomInfo = (roomNumber) => {
@@ -278,6 +361,7 @@ const Electricity = () => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredTenants.map(tenant => {
+            const readingHistory = getTenantMeterHistory(tenant);
             const latestReading = getEffectiveLatestReading(tenant);
             const roomInfo = getRoomInfo(tenant.roomNumber);
             
@@ -327,6 +411,7 @@ const Electricity = () => {
                         <p className="text-sm font-semibold text-green-700">
                           {new Date(latestReading.readingDate).toLocaleDateString('en-IN')}
                         </p>
+                        <p className="text-[11px] text-green-700 font-semibold mt-1">{latestReading.monthLabel || getMonthLabelFromDate(latestReading.readingDate)}</p>
                         {latestReading.source === 'payments' && (
                           <p className="text-[11px] text-orange-600 font-semibold mt-1">from payment history</p>
                         )}
@@ -349,6 +434,48 @@ const Electricity = () => {
                     <p className="text-sm text-yellow-700">📊 No readings recorded yet</p>
                   </div>
                 )}
+
+                {/* Historical Reading Timeline */}
+                <div className="bg-white border border-gray-200 rounded-lg p-3 mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-gray-800">📚 Historical Readings</p>
+                    <span className="text-xs text-gray-500">{readingHistory.length} records</span>
+                  </div>
+
+                  {readingHistory.length === 0 ? (
+                    <p className="text-xs text-gray-500">No historical readings available.</p>
+                  ) : (
+                    <div className="max-h-56 overflow-y-auto border border-gray-100 rounded-md">
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-2 py-1 text-left text-gray-600">Month</th>
+                            <th className="px-2 py-1 text-right text-gray-600">Old</th>
+                            <th className="px-2 py-1 text-right text-gray-600">Current</th>
+                            <th className="px-2 py-1 text-right text-gray-600">Units</th>
+                            <th className="px-2 py-1 text-right text-gray-600">Charge</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {readingHistory.map((reading) => (
+                            <tr key={reading.id} className="border-t border-gray-100">
+                              <td className="px-2 py-1.5">
+                                <div className="font-semibold text-gray-800">{reading.monthLabel || getMonthLabelFromDate(reading.readingDate)}</div>
+                                <div className="text-[10px] text-gray-500">
+                                  {reading.source === 'payments' ? 'payment history' : 'meter reading'}
+                                </div>
+                              </td>
+                              <td className="px-2 py-1.5 text-right font-mono">{Number(reading.previousReading || 0).toFixed(0)}</td>
+                              <td className="px-2 py-1.5 text-right font-mono">{Number(reading.currentReading || 0).toFixed(0)}</td>
+                              <td className="px-2 py-1.5 text-right">{Number(reading.unitsConsumed || 0).toFixed(0)}</td>
+                              <td className="px-2 py-1.5 text-right font-semibold">₹{Number(reading.totalCharge || 0).toFixed(0)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
 
                 <button
                   onClick={() => handleAddReading(tenant)}
