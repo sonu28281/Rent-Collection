@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import TenantForm from './TenantForm';
+import { useDialog } from './ui/DialogProvider';
 
 const Tenants = () => {
+  const { showConfirm, showAlert } = useDialog();
   const [tenants, setTenants] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -77,7 +79,12 @@ const Tenants = () => {
   };
 
   const handleDeleteTenant = async (tenantId, roomNumber) => {
-    if (!window.confirm('Are you sure you want to delete this tenant?')) {
+    const confirmed = await showConfirm('Are you sure you want to delete this tenant?', {
+      title: 'Delete Tenant',
+      confirmLabel: 'Delete',
+      intent: 'warning'
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -100,10 +107,10 @@ const Tenants = () => {
       }
       
       fetchData();
-      alert('Tenant deleted successfully');
+      await showAlert('Tenant deleted successfully', { title: 'Deleted', intent: 'success' });
     } catch (err) {
       console.error('Error deleting tenant:', err);
-      alert('Failed to delete tenant. Please try again.');
+      await showAlert('Failed to delete tenant. Please try again.', { title: 'Delete Failed', intent: 'error' });
     }
   };
 
@@ -162,7 +169,7 @@ const Tenants = () => {
       setPaymentHistory(payments);
     } catch (err) {
       console.error('Error fetching payment history:', err);
-      alert('Failed to load payment history');
+      await showAlert('Failed to load payment history', { title: 'History Error', intent: 'error' });
       setPaymentHistory([]);
     } finally {
       setLoadingHistory(false);
@@ -690,6 +697,7 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
 };
 
 const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
+  const { showAlert, showPrompt } = useDialog();
   const isActive = tenant.isActive;
   
   // Calculate living duration
@@ -725,12 +733,22 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
   const duration = calculateDuration();
   
   // Copy credentials to clipboard
-  const copyCredentials = () => {
+  const copyCredentials = async () => {
     const portalUrl = `${window.location.origin}/tenant-portal`;
     const text = `🏠 Tenant Portal Access\n\nPortal URL: ${portalUrl}\n\nRoom: ${tenant.roomNumber}\nUsername: ${tenant.username}\nPassword: ${tenant.password}\n\n📱 Login and check your payment status!`;
-    navigator.clipboard.writeText(text)
-      .then(() => alert('✅ Credentials & Portal URL copied!\n\nShare these with the tenant.'))
-      .catch(() => prompt('Copy these credentials:', text));
+    try {
+      await navigator.clipboard.writeText(text);
+      await showAlert('✅ Credentials & Portal URL copied!\n\nShare these with the tenant.', {
+        title: 'Copied',
+        intent: 'success'
+      });
+    } catch {
+      await showPrompt('Copy these credentials manually:', {
+        title: 'Manual Copy',
+        defaultValue: text,
+        confirmLabel: 'Close'
+      });
+    }
   };
   
   return (

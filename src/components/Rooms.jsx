@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, doc, updateDoc, addDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { validateRoomCount } from '../utils/roomValidation';
+import { useDialog } from './ui/DialogProvider';
 
 const Rooms = () => {
+  const { showConfirm } = useDialog();
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -121,7 +123,12 @@ const Rooms = () => {
       return;
     }
 
-    if (!confirm(`Update ${selectedRooms.size} room(s) to "${newStatus}"?`)) {
+    const confirmed = await showConfirm(`Update ${selectedRooms.size} room(s) to "${newStatus}"?`, {
+      title: 'Confirm Bulk Update',
+      confirmLabel: 'Update',
+      intent: 'warning'
+    });
+    if (!confirmed) {
       return;
     }
 

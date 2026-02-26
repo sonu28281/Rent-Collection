@@ -300,7 +300,7 @@ const SetupTenants2026 = () => {
                             navigator.clipboard.writeText(tenant.portalLink)
                               .then(() => alert(`✅ Link copied!\n\nRoom ${tenant.roomNumber} - ${tenant.tenantName}\n\nYou can now paste this link in WhatsApp or SMS to share with the tenant.`))
                               .catch(() => {
-                                prompt('Copy this link manually:', tenant.portalLink);
+                                alert(`Clipboard access blocked. Please copy this link manually:\n\n${tenant.portalLink}`);
                               });
                           }}
                           className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"

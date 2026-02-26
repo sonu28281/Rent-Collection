@@ -2,14 +2,19 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, addDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
+import { useDialog } from './ui/DialogProvider';
 
 const VerifyPayments = () => {
   const { currentUser } = useAuth();
+  const { showAlert, showConfirm, showPrompt } = useDialog();
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending'); // pending, verified, rejected, all
   const [editingSubmission, setEditingSubmission] = useState(null);
   const [processing, setProcessing] = useState(false);
+
+  const normalizeUtr = (value) => String(value || '').replace(/\s+/g, '').toUpperCase();
+  const isValidUtr = (value) => /^[A-Z0-9]{10,30}$/.test(value);
 
   useEffect(() => {
     fetchSubmissions();
@@ -40,16 +45,37 @@ const VerifyPayments = () => {
       setSubmissions(data);
     } catch (error) {
       console.error('Error fetching submissions:', error);
-      alert('Failed to load submissions');
+      await showAlert('Failed to load submissions', { title: 'Load Error', intent: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
   const handleApprove = async (submission) => {
-    if (!window.confirm(`Approve payment from ${submission.tenantName} (Room ${submission.roomNumber})?\n\nAmount: ₹${submission.paidAmount}`)) {
+    const approved = await showConfirm(
+      `Approve payment from ${submission.tenantName} (Room ${submission.roomNumber})?\n\nAmount: ₹${submission.paidAmount}`,
+      { title: 'Approve Payment', confirmLabel: 'Approve', intent: 'warning' }
+    );
+    if (!approved) {
       return;
     }
+
+    const normalizedUtr = normalizeUtr(submission.utr);
+    if (!isValidUtr(normalizedUtr)) {
+      await showAlert('Cannot approve: valid UTR is required (10-30 letters/numbers).', { title: 'Approval Blocked', intent: 'error' });
+      return;
+    }
+
+    if (!submission.screenshot) {
+      await showAlert('Cannot approve: payment screenshot proof is missing.', { title: 'Approval Blocked', intent: 'error' });
+      return;
+    }
+
+    const previousReading = Number(submission.previousReading ?? 0);
+    const currentReading = Number(submission.meterReading ?? submission.currentReading ?? 0);
+    const unitsConsumed = Number.isFinite(currentReading) && Number.isFinite(previousReading)
+      ? Math.max(0, currentReading - previousReading)
+      : 0;
 
     try {
       setProcessing(true);
@@ -64,11 +90,19 @@ const VerifyPayments = () => {
         rent: submission.rentAmount,
         electricity: submission.electricityAmount,
         paidAmount: submission.paidAmount,
+        oldReading: previousReading,
+        currentReading,
+        previousReading,
+        meterReading: currentReading,
+        units: unitsConsumed,
+        unitsConsumed,
         paidDate: submission.paidDate,
         paymentMethod: 'UPI',
-        utr: submission.utr,
+        utr: normalizedUtr,
+        screenshot: submission.screenshot,
         notes: submission.notes,
         status: 'paid',
+        sourceSubmissionId: submission.id,
         createdAt: new Date().toISOString(),
         verifiedBy: currentUser?.email || 'admin',
         verifiedAt: new Date().toISOString()
@@ -86,39 +120,49 @@ const VerifyPayments = () => {
       // Update submission status
       await updateDoc(doc(db, 'paymentSubmissions', submission.id), {
         status: 'verified',
+        utr: normalizedUtr,
         verifiedBy: currentUser?.email || 'admin',
         verifiedAt: new Date().toISOString()
       });
 
-      alert('✅ Payment approved and recorded successfully!');
+      await showAlert('✅ Payment approved and recorded successfully!', { title: 'Payment Verified', intent: 'success' });
       fetchSubmissions();
     } catch (error) {
       console.error('Error approving payment:', error);
-      alert('Failed to approve payment. Please try again.');
+      await showAlert('Failed to approve payment. Please try again.', { title: 'Approval Failed', intent: 'error' });
     } finally {
       setProcessing(false);
     }
   };
 
   const handleReject = async (submission) => {
-    const reason = prompt(`Reject payment from ${submission.tenantName}?\n\nEnter reason for rejection:`);
-    if (!reason) return;
+    const reason = await showPrompt(
+      `Reject payment from ${submission.tenantName}?\n\nEnter reason for rejection:`,
+      {
+        title: 'Reject Payment',
+        placeholder: 'Enter rejection reason',
+        required: true,
+        confirmLabel: 'Reject',
+        intent: 'warning'
+      }
+    );
+    if (!reason?.trim()) return;
 
     try {
       setProcessing(true);
 
       await updateDoc(doc(db, 'paymentSubmissions', submission.id), {
         status: 'rejected',
-        rejectionReason: reason,
+        rejectionReason: reason.trim(),
         verifiedBy: currentUser?.email || 'admin',
         verifiedAt: new Date().toISOString()
       });
 
-      alert('❌ Payment submission rejected.');
+      await showAlert('❌ Payment submission rejected.', { title: 'Submission Rejected', intent: 'warning' });
       fetchSubmissions();
     } catch (error) {
       console.error('Error rejecting payment:', error);
-      alert('Failed to reject payment. Please try again.');
+      await showAlert('Failed to reject payment. Please try again.', { title: 'Reject Failed', intent: 'error' });
     } finally {
       setProcessing(false);
     }
@@ -151,30 +195,34 @@ const VerifyPayments = () => {
         updatedAt: new Date().toISOString()
       });
 
-      alert('✅ Submission updated successfully!');
+      await showAlert('✅ Submission updated successfully!', { title: 'Updated', intent: 'success' });
       setEditingSubmission(null);
       fetchSubmissions();
     } catch (error) {
       console.error('Error updating submission:', error);
-      alert('Failed to update submission. Please try again.');
+      await showAlert('Failed to update submission. Please try again.', { title: 'Update Failed', intent: 'error' });
     } finally {
       setProcessing(false);
     }
   };
 
   const handleDelete = async (submission) => {
-    if (!window.confirm(`Delete this submission from ${submission.tenantName}?\n\nThis action cannot be undone.`)) {
+    const confirmed = await showConfirm(
+      `Delete this submission from ${submission.tenantName}?\n\nThis action cannot be undone.`,
+      { title: 'Delete Submission', confirmLabel: 'Delete', intent: 'warning' }
+    );
+    if (!confirmed) {
       return;
     }
 
     try {
       setProcessing(true);
       await deleteDoc(doc(db, 'paymentSubmissions', submission.id));
-      alert('🗑️ Submission deleted.');
+      await showAlert('🗑️ Submission deleted.', { title: 'Deleted', intent: 'success' });
       fetchSubmissions();
     } catch (error) {
       console.error('Error deleting submission:', error);
-      alert('Failed to delete submission. Please try again.');
+      await showAlert('Failed to delete submission. Please try again.', { title: 'Delete Failed', intent: 'error' });
     } finally {
       setProcessing(false);
     }

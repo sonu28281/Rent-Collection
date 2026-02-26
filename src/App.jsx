@@ -22,12 +22,14 @@ import ImportLogsPage from './components/ImportLogsPage';
 import PaymentsReset from './components/PaymentsReset';
 import DatabaseCleanup from './components/DatabaseCleanup';
 import UpdateCheckInDates from './components/UpdateCheckInDates';
+import DialogProvider from './components/ui/DialogProvider';
 
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Routes>
+      <DialogProvider>
+        <Router>
+          <Routes>
           
           {/* Public Tenant Portal Routes */}
           <Route path="/tenant-portal" element={<TenantPortal />} />
@@ -172,8 +174,9 @@ function App() {
           />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </Router>
+          </Routes>
+        </Router>
+      </DialogProvider>
     </AuthProvider>
   );
 }

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { checkPendingIncreases, applyRentIncrease, applyBulkRentIncreases, getRecentRentIncreaseLogs } from '../utils/rentIncrease';
+import { useDialog } from './ui/DialogProvider';
 
 const RentIncrease = () => {
+  const { showConfirm } = useDialog();
   const [pendingIncreases, setPendingIncreases] = useState([]);
   const [recentLogs, setRecentLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +36,11 @@ const RentIncrease = () => {
   };
 
   const handleApplySingle = async (tenantId, tenantData) => {
-    if (!confirm(`Apply rent increase for ${tenantData.name}?\nCurrent: ₹${tenantData.currentRent} → New: ₹${Math.round(tenantData.currentRent * (1 + (tenantData.annualIncreasePercentage || 10) / 100))}`)) {
+    const confirmed = await showConfirm(
+      `Apply rent increase for ${tenantData.name}?\nCurrent: ₹${tenantData.currentRent} → New: ₹${Math.round(tenantData.currentRent * (1 + (tenantData.annualIncreasePercentage || 10) / 100))}`,
+      { title: 'Confirm Rent Increase', confirmLabel: 'Apply Increase', intent: 'warning' }
+    );
+    if (!confirmed) {
       return;
     }
 
@@ -60,7 +66,12 @@ const RentIncrease = () => {
       return;
     }
 
-    if (!confirm(`Apply rent increases for all ${pendingIncreases.length} eligible tenant(s)?`)) {
+    const confirmed = await showConfirm(`Apply rent increases for all ${pendingIncreases.length} eligible tenant(s)?`, {
+      title: 'Confirm Bulk Rent Increase',
+      confirmLabel: 'Apply All',
+      intent: 'warning'
+    });
+    if (!confirmed) {
       return;
     }
 

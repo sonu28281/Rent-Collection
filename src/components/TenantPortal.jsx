@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import SubmitPayment from './SubmitPayment';
@@ -50,6 +50,8 @@ const TenantPortal = () => {
   const [previousMeterReading, setPreviousMeterReading] = useState('');
   const [currentMeterReading, setCurrentMeterReading] = useState('');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
   
   // Submit payment modal state
   const [showSubmitPayment, setShowSubmitPayment] = useState(false);
@@ -76,6 +78,26 @@ const TenantPortal = () => {
       window.removeEventListener('appinstalled', onAppInstalled);
     };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null);
+    }, 3600);
+  };
 
   const saveRememberedLogin = (savedUsername, savedPassword) => {
     localStorage.setItem(REMEMBER_ME_KEY, JSON.stringify({
@@ -630,6 +652,36 @@ const TenantPortal = () => {
     };
   };
 
+  const getBrowserContext = () => {
+    const userAgent = navigator.userAgent || '';
+    const isAndroid = /Android/i.test(userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+
+    const likelyInAppBrowser = /Instagram|FBAN|FBAV|FB_IAB|Messenger|Line|Twitter|wv\)|WebView|WhatsApp/i.test(userAgent)
+      && !/Chrome|CriOS|EdgA|SamsungBrowser|Firefox|OPR/i.test(userAgent);
+
+    return { userAgent, isAndroid, isIOS, likelyInAppBrowser };
+  };
+
+  const openInChrome = () => {
+    const { isAndroid } = getBrowserContext();
+
+    if (!isAndroid) {
+      showToast('Please open this page in Chrome browser, then tap PhonePe / Google Pay.', 'warning');
+      return;
+    }
+
+    try {
+      const currentUrl = new URL(window.location.href);
+      const scheme = currentUrl.protocol.replace(':', '');
+      const pathWithQuery = `${currentUrl.host}${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+      const chromeIntent = `intent://${pathWithQuery}#Intent;scheme=${scheme};package=com.android.chrome;end`;
+      window.location.assign(chromeIntent);
+    } catch {
+      showToast('Please open this page in Chrome manually, then retry payment.', 'warning');
+    }
+  };
+
   const openSpecificUPIApp = (appType) => {
     const payable = getPayableAmount();
 
@@ -648,32 +700,38 @@ const TenantPortal = () => {
     const params = `pa=${encodeURIComponent(activeUPI.upiId)}&pn=${encodeURIComponent(activeUPI.nickname || 'Property Owner')}&am=${totalAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Room ${tenant.roomNumber} - Rent+Electricity`)}`;
     const genericUpiLink = `upi://pay?${params}`;
 
-    let deepLink = genericUpiLink;
-    if (appType === 'gpay') {
-      deepLink = `tez://upi/pay?${params}`;
-    }
-    if (appType === 'phonepe') {
-      deepLink = `phonepe://pay?${params}`;
+    const { isAndroid, likelyInAppBrowser } = getBrowserContext();
+
+    if (likelyInAppBrowser) {
+      showToast('Open this page in Chrome first. In-app browsers may block PhonePe/Google Pay.', 'warning');
     }
 
-    window.location.href = deepLink;
+    const packageMap = {
+      gpay: 'com.google.android.apps.nbu.paisa.user',
+      phonepe: 'com.phonepe.app'
+    };
+
+    const targetPackage = packageMap[appType];
+    const appIntentLink = targetPackage
+      ? `intent://upi/pay?${params}#Intent;scheme=upi;package=${targetPackage};end`
+      : null;
+
+    const primaryLink = isAndroid && appIntentLink ? appIntentLink : genericUpiLink;
+
+    window.location.assign(primaryLink);
 
     setTimeout(() => {
       if (document.visibilityState !== 'hidden') {
-        window.location.href = genericUpiLink;
+        window.location.assign(genericUpiLink);
       }
-    }, 1200);
+    }, isAndroid && appIntentLink ? 1400 : 900);
 
     setTimeout(() => {
-      alert(
-        `📊 Payment Details:\n\n` +
-        `Rent: ₹${rentAmount}\n` +
-        `Electricity: ₹${electricityAmount.toFixed(2)}\n` +
-        `Total: ₹${totalAmount.toFixed(2)}\n\n` +
-        `✅ Amount and UPI ID auto-filled.\n` +
-        `Now just tap "Pay" in your UPI app.`
+      showToast(
+        `Launching payment app. Total ₹${totalAmount.toFixed(2)} (Rent ₹${rentAmount}, Electricity ₹${electricityAmount.toFixed(2)}). If not opened, use Other UPI App or Open in Chrome.`,
+        'success'
       );
-    }, 500);
+    }, 450);
   };
   
   // Open UPI payment link
@@ -1018,6 +1076,20 @@ const TenantPortal = () => {
   // ============ MAIN DASHBOARD (After Login) ============
   return (
     <div className="min-h-screen bg-gray-100">
+      {toast && (
+        <div className="fixed top-3 left-3 right-3 sm:left-auto sm:right-4 sm:max-w-md z-50">
+          <div className={`rounded-lg shadow-lg border px-4 py-3 text-sm font-medium ${
+            toast.type === 'warning'
+              ? 'bg-amber-50 border-amber-300 text-amber-900'
+              : toast.type === 'success'
+                ? 'bg-green-50 border-green-300 text-green-900'
+                : 'bg-blue-50 border-blue-300 text-blue-900'
+          }`}>
+            {toast.message}
+          </div>
+        </div>
+      )}
+
       {/* Header - Mobile Optimized */}
       <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
@@ -1305,6 +1377,19 @@ const TenantPortal = () => {
                       Payable Amount: <span className="text-green-600 text-lg">₹{getPayableAmount().totalAmount.toFixed(2)}</span>
                     </p>
                     <p className="text-xs text-gray-500 mb-3">Choose app and tap once to open with prefilled UPI details</p>
+
+                    {getBrowserContext().likelyInAppBrowser && (
+                      <div className="mb-3 p-3 rounded-lg border border-amber-300 bg-amber-50">
+                        <p className="text-xs font-semibold text-amber-900">⚠️ You are in an in-app browser (WhatsApp/Instagram).</p>
+                        <p className="text-xs text-amber-800 mt-1">PhonePe/Google Pay may fail here. Open this page in Chrome for reliable payment app launch.</p>
+                        <button
+                          onClick={openInChrome}
+                          className="mt-2 w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold py-2 px-3 rounded-md"
+                        >
+                          Open in Chrome
+                        </button>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button

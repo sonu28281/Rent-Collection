@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { collection, getDocs, doc, setDoc, writeBatch, query } from 'firebase/firestore';
 import { db, auth } from '../firebase';
+import { useDialog } from './ui/DialogProvider';
 
 const PaymentsReset = () => {
+  const { showConfirm } = useDialog();
   const [processing, setProcessing] = useState(false);
   const [log, setLog] = useState([]);
   const [completed, setCompleted] = useState(false);
@@ -22,11 +24,20 @@ const PaymentsReset = () => {
       return;
     }
 
-    if (!window.confirm('⚠️ CRITICAL OPERATION\n\nThis will:\n1. Backup ALL payment records\n2. DELETE ALL payment records\n\nThis cannot be undone easily. Are you absolutely sure?')) {
+    const firstConfirm = await showConfirm(
+      '⚠️ CRITICAL OPERATION\n\nThis will:\n1. Backup ALL payment records\n2. DELETE ALL payment records\n\nThis cannot be undone easily. Are you absolutely sure?',
+      { title: 'Critical Operation', confirmLabel: 'Yes, Continue', intent: 'warning' }
+    );
+    if (!firstConfirm) {
       return;
     }
 
-    if (!window.confirm('Final confirmation: Proceed with backup and reset?')) {
+    const secondConfirm = await showConfirm('Final confirmation: Proceed with backup and reset?', {
+      title: 'Final Confirmation',
+      confirmLabel: 'Proceed',
+      intent: 'warning'
+    });
+    if (!secondConfirm) {
       return;
     }
 

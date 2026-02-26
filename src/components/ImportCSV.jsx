@@ -2,8 +2,10 @@ import { useState } from 'react';
 import Papa from 'papaparse';
 import { collection, doc, setDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useDialog } from './ui/DialogProvider';
 
 const ImportCSV = () => {
+  const { showConfirm } = useDialog();
   const [file, setFile] = useState(null);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState(null);
@@ -315,7 +317,11 @@ const ImportCSV = () => {
       return;
     }
 
-    if (!window.confirm(`Import ${parsedData.length} records?\n\n${warnings.length} warnings detected.\n\nExisting records (same room + year + month) will be UPDATED.`)) {
+    const confirmed = await showConfirm(
+      `Import ${parsedData.length} records?\n\n${warnings.length} warnings detected.\n\nExisting records (same room + year + month) will be UPDATED.`,
+      { title: 'Confirm Import', confirmLabel: 'Import Records', intent: 'warning' }
+    );
+    if (!confirmed) {
       return;
     }
 
