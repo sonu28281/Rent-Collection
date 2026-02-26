@@ -19,7 +19,9 @@ const HistoryManager = () => {
   const [years, setYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState('all');
-  const [selectedFloor] = useState('all'); // New floor filter
+  const [selectedFloor, setSelectedFloor] = useState('all');
+  const [tenantFilter, setTenantFilter] = useState('all');
+  const [tenantStatusByName, setTenantStatusByName] = useState({});
   const [payments, setPayments] = useState([]);
   const [filteredPayments, setFilteredPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -125,7 +127,50 @@ const HistoryManager = () => {
     return () => unsubscribe();
   }, [selectedYear, isAdmin]);
 
-  // Filter Payments by Month and Floor
+  // Fetch tenant status map for categorized tenant filter
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const fetchTenantStatus = async () => {
+      try {
+        const tenantsRef = collection(db, 'tenants');
+        const snapshot = await getDocs(tenantsRef);
+        const statusMap = {};
+
+        snapshot.forEach((tenantDoc) => {
+          const tenant = tenantDoc.data();
+          const tenantName = String(tenant.name || tenant.tenantName || '').trim();
+          if (!tenantName) return;
+
+          const normalizedName = tenantName.toLowerCase();
+          const isActive = tenant.isActive !== false;
+
+          if (!(normalizedName in statusMap)) {
+            statusMap[normalizedName] = Boolean(isActive);
+          } else {
+            statusMap[normalizedName] = statusMap[normalizedName] || Boolean(isActive);
+          }
+        });
+
+        setTenantStatusByName(statusMap);
+      } catch (error) {
+        console.error('Error loading tenants for filter:', error);
+      }
+    };
+
+    fetchTenantStatus();
+  }, [isAdmin]);
+
+  const getFloorNumber = (payment) => {
+    const directFloor = Number(payment.floor);
+    if (directFloor === 1 || directFloor === 2) return directFloor;
+
+    const roomNumber = Number(payment.roomNumber);
+    if (!roomNumber) return 1;
+    return roomNumber >= 200 ? 2 : 1;
+  };
+
+  // Filter Payments by Month, Floor and Tenant
   useEffect(() => {
     let filtered = payments;
     
@@ -133,17 +178,71 @@ const HistoryManager = () => {
     if (selectedMonth !== 'all') {
       filtered = filtered.filter(p => p.month === selectedMonth);
     }
-    
-    // No floor filter here - we'll separate floors in the rendering
+
+    // Tenant filter
+    if (tenantFilter !== 'all') {
+      filtered = filtered.filter((payment) => getTenantLabel(payment).toLowerCase() === tenantFilter.toLowerCase());
+    }
+
+    // Floor filter
+    if (selectedFloor !== 'all') {
+      filtered = filtered.filter((payment) => getFloorNumber(payment) === Number(selectedFloor));
+    }
     
     setFilteredPayments(filtered);
     setSelectedIds(new Set());
-  }, [selectedMonth, payments]);
+  }, [selectedMonth, payments, tenantFilter, selectedFloor]);
+
+  useEffect(() => {
+    setTenantFilter('all');
+  }, [selectedFloor]);
 
   // Toast Helper
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+  };
+
+  const getTenantLabel = (payment) => {
+    return String(payment.tenantNameSnapshot || payment.tenantName || '').trim();
+  };
+
+  const monthLabel = selectedMonth === 'all'
+    ? 'All Months'
+    : (MONTHS.find((month) => month.num === selectedMonth)?.name || `Month ${selectedMonth}`);
+
+  const selectedPeriodLabel = `${monthLabel} ${selectedYear}`;
+
+  const handlePreviousMonth = () => {
+    if (selectedMonth === 'all') {
+      setSelectedMonth(12);
+      setSelectedYear((prev) => Number(prev) - 1);
+      return;
+    }
+
+    if (selectedMonth === 1) {
+      setSelectedMonth(12);
+      setSelectedYear((prev) => Number(prev) - 1);
+      return;
+    }
+
+    setSelectedMonth((prev) => Number(prev) - 1);
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 'all') {
+      setSelectedMonth(1);
+      setSelectedYear((prev) => Number(prev) + 1);
+      return;
+    }
+
+    if (selectedMonth === 12) {
+      setSelectedMonth(1);
+      setSelectedYear((prev) => Number(prev) + 1);
+      return;
+    }
+
+    setSelectedMonth((prev) => Number(prev) + 1);
   };
 
   // Edit Handlers
@@ -455,6 +554,38 @@ const HistoryManager = () => {
     }
   };
 
+  const tenantPaymentsScope = selectedFloor === 'all'
+    ? payments
+    : payments.filter((payment) => getFloorNumber(payment) === Number(selectedFloor));
+
+  const tenantFilterOptions = Array.from(new Set(
+    tenantPaymentsScope
+      .map((payment) => getTenantLabel(payment))
+      .filter((name) => name && name !== 'Unknown')
+  )).sort((a, b) => a.localeCompare(b));
+
+  const activeTenantOptions = tenantFilterOptions.filter(
+    (name) => tenantStatusByName[name.toLowerCase()] === true
+  );
+
+  const pastTenantOptions = tenantFilterOptions.filter(
+    (name) => tenantStatusByName[name.toLowerCase()] !== true
+  );
+
+  const overallTotals = payments.reduce((acc, payment) => {
+    const rent = Number(payment.rent) || 0;
+    const electricity = Number(payment.electricity) || 0;
+    acc.rent += rent;
+    acc.electricity += electricity;
+    acc.total += (rent + electricity);
+    acc.paidAmount += Number(payment.paidAmount) || 0;
+    acc.balance += Number(payment.balance) || 0;
+    return acc;
+  }, { rent: 0, electricity: 0, total: 0, paidAmount: 0, balance: 0 });
+
+  const floor1Count = payments.filter((payment) => getFloorNumber(payment) === 1).length;
+  const floor2Count = payments.filter((payment) => getFloorNumber(payment) === 2).length;
+
   // Authorization Check
   if (checkingAuth) {
     return (
@@ -473,7 +604,7 @@ const HistoryManager = () => {
         <div className="card bg-red-50 border border-red-200 text-center">
           <div className="text-5xl mb-4">🔒</div>
           <h2 className="text-2xl font-bold text-red-800 mb-2">Access Denied</h2>
-          <p className="text-red-700">You don't have permission to access this page.</p>
+          <p className="text-red-700">You don&apos;t have permission to access this page.</p>
           <p className="text-sm text-red-600 mt-2">Admin access required.</p>
         </div>
       </div>
@@ -481,81 +612,199 @@ const HistoryManager = () => {
   }
 
   return (
-    <div className="p-4 lg:p-8 pb-24">
+    <div className="p-4 lg:p-6 pb-24">
       {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">📚 Payment History Manager</h2>
-        <p className="text-gray-600">View, edit, and manage historical payment records</p>
+      <div className="mb-4">
+        <h2 className="text-2xl font-bold text-gray-900 mb-1">📚 Payment History Manager</h2>
+        <p className="text-sm text-gray-600">View, edit, and manage historical payment records</p>
       </div>
 
-      {/* Year Selector & Actions */}
-      <div className="card mb-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <label className="font-semibold text-gray-700">Year:</label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                >
-                  {years.map(year => (
-                    <option key={year} value={year}>{year}</option>
+      <div className="space-y-2 mb-4">
+        <div className="card bg-white/95 backdrop-blur border border-indigo-200 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 mb-2">
+            <div>
+              <h3 className="text-sm md:text-base font-bold text-gray-800">💰 Overall Summary - {selectedYear}</h3>
+              <p className="text-[11px] md:text-xs text-gray-600">
+                Floor 1: {floor1Count} • Floor 2: {floor2Count} • Total: {payments.length}
+              </p>
+            </div>
+            <div className="text-[11px] md:text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-900 w-fit">
+              Full Year Collection
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="bg-blue-50 rounded-md px-2.5 py-2 border border-blue-200">
+              <p className="text-[10px] text-blue-700/80 font-semibold">Rent</p>
+              <p className="text-sm md:text-base font-bold text-blue-700">₹{overallTotals.rent.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="bg-purple-50 rounded-md px-2.5 py-2 border border-purple-200">
+              <p className="text-[10px] text-purple-700/80 font-semibold">Electricity</p>
+              <p className="text-sm md:text-base font-bold text-purple-700">₹{overallTotals.electricity.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="bg-green-50 rounded-md px-2.5 py-2 border border-green-200">
+              <p className="text-[10px] text-green-700/80 font-semibold">Grand Total</p>
+              <p className="text-sm md:text-base font-bold text-green-700">₹{overallTotals.total.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="bg-teal-50 rounded-md px-2.5 py-2 border border-teal-200">
+              <p className="text-[10px] text-teal-700/80 font-semibold">Paid</p>
+              <p className="text-sm md:text-base font-bold text-teal-700">₹{overallTotals.paidAmount.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="bg-orange-50 rounded-md px-2.5 py-2 border border-orange-200">
+              <p className="text-[10px] text-orange-700/80 font-semibold">Balance</p>
+              <p className={`text-sm md:text-base font-bold ${overallTotals.balance < 0 ? 'text-red-700' : 'text-orange-700'}`}>
+                ₹{overallTotals.balance.toLocaleString('en-IN')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Year Selector & Actions */}
+        <div className="card bg-white/95 backdrop-blur border border-gray-200 shadow-sm">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 mb-3">
+            <div className="lg:col-span-3">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Year</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
+            >
+              {years.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+
+            <div className="lg:col-span-3">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Floor</label>
+              <select
+                value={selectedFloor}
+                onChange={(e) => setSelectedFloor(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="all">All Floors</option>
+                <option value="1">Floor 1</option>
+                <option value="2">Floor 2</option>
+              </select>
+            </div>
+
+            <div className="lg:col-span-4">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Tenant Filter</label>
+            <select
+              value={tenantFilter}
+              onChange={(e) => setTenantFilter(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-primary focus:border-transparent"
+            >
+              <option value="all">All Tenants</option>
+
+              {activeTenantOptions.length > 0 && (
+                <optgroup label={`Active Tenants (${activeTenantOptions.length})`}>
+                  {activeTenantOptions.map((tenantName) => (
+                    <option key={`active-${tenantName}`} value={tenantName}>{tenantName}</option>
                   ))}
-                </select>
-              </div>
-              
-              <div className="text-sm text-gray-600">
+                </optgroup>
+              )}
+
+              {pastTenantOptions.length > 0 && (
+                <optgroup label={`Past Tenants (${pastTenantOptions.length})`}>
+                  {pastTenantOptions.map((tenantName) => (
+                    <option key={`past-${tenantName}`} value={tenantName}>{tenantName}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            </div>
+
+            <div className="lg:col-span-2 flex items-end">
+              <div className="w-full text-xs md:text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-2.5 py-2">
                 {filteredPayments.length} payment{filteredPayments.length !== 1 ? 's' : ''}
               </div>
             </div>
+          </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={exportCSV}
-                className="btn-secondary text-sm"
-                disabled={filteredPayments.length === 0}
-              >
-                📥 Export CSV
-              </button>
-              
-              <label className="btn-secondary text-sm cursor-pointer">
-                📤 Import CSV
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={handleImportFile}
-                  className="hidden"
-                />
-              </label>
-              
-              <button
-                onClick={bulkMarkPaid}
-                disabled={selectedIds.size === 0}
-                className="btn-primary text-sm"
-              >
-                ✅ Mark Paid ({selectedIds.size})
-              </button>
-              
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                disabled={filteredPayments.length === 0}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-              >
-                🗑️ Delete {selectedMonth === 'all' ? selectedYear : MONTHS.find(m => m.num === selectedMonth)?.name + ' ' + selectedYear}
-              </button>
-            </div>
+          <div className="flex flex-wrap gap-2">
+          <button
+            onClick={exportCSV}
+            className="btn-secondary text-xs md:text-sm"
+            disabled={filteredPayments.length === 0}
+          >
+            📥 Export CSV
+          </button>
+
+          <label className="btn-secondary text-xs md:text-sm cursor-pointer">
+            📤 Import CSV
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleImportFile}
+              className="hidden"
+            />
+          </label>
+
+          <button
+            onClick={bulkMarkPaid}
+            disabled={selectedIds.size === 0}
+            className="btn-primary text-xs md:text-sm"
+          >
+            ✅ Mark Paid ({selectedIds.size})
+          </button>
+
+          <button
+            onClick={() => {
+              setSelectedFloor('all');
+              setTenantFilter('all');
+            }}
+            className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-xs md:text-sm font-medium"
+          >
+            Reset Filters
+          </button>
+
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={filteredPayments.length === 0}
+            className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm font-medium"
+          >
+            🗑️ Delete {selectedPeriodLabel}
+          </button>
           </div>
         </div>
       </div>
 
       {/* Month Tabs */}
-      <div className="card mb-6 overflow-x-auto">
-        <div className="flex gap-2 min-w-max pb-2">
+      <div className="card mb-4 overflow-x-auto">
+        <div className="flex items-center justify-between mb-2 gap-2">
+          <div className="text-xs md:text-sm font-semibold text-gray-700">
+            Period: <span className="text-primary">{selectedPeriodLabel}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handlePreviousMonth}
+              className="px-2.5 py-1.5 text-xs md:text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+              title="Previous month"
+            >
+              ← Prev
+            </button>
+            <button
+              onClick={() => setSelectedMonth('all')}
+              className="px-2.5 py-1.5 text-xs md:text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+              title="Show all months"
+            >
+              All
+            </button>
+            <button
+              onClick={handleNextMonth}
+              className="px-2.5 py-1.5 text-xs md:text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+              title="Next month"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+
+        <div className="flex gap-1.5 min-w-max pb-1">
           <button
             onClick={() => setSelectedMonth('all')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
+            className={`px-3 py-1.5 rounded-md text-xs md:text-sm font-semibold transition ${
               selectedMonth === 'all'
                 ? 'bg-primary text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -569,7 +818,7 @@ const HistoryManager = () => {
               <button
                 key={month.num}
                 onClick={() => setSelectedMonth(month.num)}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                className={`px-3 py-1.5 rounded-md text-xs md:text-sm font-semibold transition ${
                   selectedMonth === month.num
                     ? 'bg-primary text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -604,13 +853,11 @@ const HistoryManager = () => {
 
             // Separate payments by floor
             const floor1Payments = filteredPayments.filter(p => {
-              const floor = p.floor || (p.roomNumber < 200 ? 1 : 2);
-              return floor === 1;
+              return getFloorNumber(p) === 1;
             });
 
             const floor2Payments = filteredPayments.filter(p => {
-              const floor = p.floor || (p.roomNumber < 200 ? 1 : 2);
-              return floor === 2;
+              return getFloorNumber(p) === 2;
             });
 
             // Function to calculate totals for a floor
@@ -635,43 +882,43 @@ const HistoryManager = () => {
               const roomRange = floorNum === 1 ? '101-106' : '201-212';
 
               return (
-                <div key={`floor-${floorNum}`} className="mb-8">
+                <div key={`floor-${floorNum}`} className="mb-5">
                   {/* Floor Summary Card */}
-                  <div className={`card mb-4 bg-gradient-to-r ${colorScheme.gradient} border-2 ${colorScheme.border}`}>
-                    <div className="flex items-center justify-between mb-4">
+                  <div className={`card mb-3 bg-gradient-to-r ${colorScheme.gradient} border ${colorScheme.border}`}>
+                    <div className="flex items-center justify-between mb-3">
                       <div>
-                        <h3 className="text-xl font-bold text-gray-800">
+                        <h3 className="text-lg font-bold text-gray-800">
                           🏠 Floor {floorNum} - {selectedPeriod}
                         </h3>
-                        <p className="text-sm font-semibold text-gray-600 mt-1">
+                        <p className="text-xs font-semibold text-gray-600 mt-0.5">
                           📍 Rooms {roomRange}
                         </p>
                       </div>
-                      <div className={`text-sm font-semibold px-4 py-2 rounded-full ${colorScheme.badge}`}>
+                      <div className={`text-xs font-semibold px-3 py-1.5 rounded-full ${colorScheme.badge}`}>
                         {floorPayments.length} record{floorPayments.length !== 1 ? 's' : ''}
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                      <div className="bg-white rounded-lg p-3 border border-blue-200">
-                        <p className="text-xs text-gray-600 mb-1">Total Rent</p>
-                        <p className="text-xl font-bold text-blue-600">₹{totals.rent.toLocaleString('en-IN')}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+                      <div className="bg-white rounded-lg p-2.5 border border-blue-200">
+                        <p className="text-[11px] text-gray-600 mb-0.5">Total Rent</p>
+                        <p className="text-base md:text-lg font-bold text-blue-600">₹{totals.rent.toLocaleString('en-IN')}</p>
                       </div>
-                      <div className="bg-white rounded-lg p-3 border border-purple-200">
-                        <p className="text-xs text-gray-600 mb-1">Total Electricity</p>
-                        <p className="text-xl font-bold text-purple-600">₹{totals.electricity.toLocaleString('en-IN')}</p>
+                      <div className="bg-white rounded-lg p-2.5 border border-purple-200">
+                        <p className="text-[11px] text-gray-600 mb-0.5">Total Electricity</p>
+                        <p className="text-base md:text-lg font-bold text-purple-600">₹{totals.electricity.toLocaleString('en-IN')}</p>
                       </div>
-                      <div className="bg-white rounded-lg p-3 border border-green-200">
-                        <p className="text-xs text-gray-600 mb-1">Grand Total</p>
-                        <p className="text-xl font-bold text-green-600">₹{totals.total.toLocaleString('en-IN')}</p>
+                      <div className="bg-white rounded-lg p-2.5 border border-green-200">
+                        <p className="text-[11px] text-gray-600 mb-0.5">Grand Total</p>
+                        <p className="text-base md:text-lg font-bold text-green-600">₹{totals.total.toLocaleString('en-IN')}</p>
                       </div>
-                      <div className="bg-white rounded-lg p-3 border border-teal-200">
-                        <p className="text-xs text-gray-600 mb-1">Total Paid</p>
-                        <p className="text-xl font-bold text-teal-600">₹{totals.paidAmount.toLocaleString('en-IN')}</p>
+                      <div className="bg-white rounded-lg p-2.5 border border-teal-200">
+                        <p className="text-[11px] text-gray-600 mb-0.5">Total Paid</p>
+                        <p className="text-base md:text-lg font-bold text-teal-600">₹{totals.paidAmount.toLocaleString('en-IN')}</p>
                       </div>
-                      <div className="bg-white rounded-lg p-3 border border-orange-200">
-                        <p className="text-xs text-gray-600 mb-1">Total Balance</p>
-                        <p className={`text-xl font-bold ${totals.balance < 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                      <div className="bg-white rounded-lg p-2.5 border border-orange-200">
+                        <p className="text-[11px] text-gray-600 mb-0.5">Total Balance</p>
+                        <p className={`text-base md:text-lg font-bold ${totals.balance < 0 ? 'text-red-600' : 'text-orange-600'}`}>
                           ₹{totals.balance.toLocaleString('en-IN')}
                         </p>
                       </div>
@@ -680,10 +927,10 @@ const HistoryManager = () => {
 
                   {/* Floor Table */}
                   <div className="card overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs md:text-sm">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr>
-                          <th className="px-2 py-3 text-center">
+                          <th className="px-2 py-2 text-center">
                             <input
                               type="checkbox"
                               onChange={(e) => {
@@ -699,21 +946,21 @@ const HistoryManager = () => {
                               className="w-4 h-4 cursor-pointer"
                             />
                           </th>
-                          <th className="px-3 py-3 text-left font-semibold text-gray-700">Room</th>
-                          <th className="px-3 py-3 text-left font-semibold text-gray-700">Status</th>
-                          <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                          <th className="px-2.5 py-2 text-left font-semibold text-gray-700">Room</th>
+                          <th className="px-2.5 py-2 text-left font-semibold text-gray-700">Status</th>
+                          <th className="px-2.5 py-2 text-left font-semibold text-gray-700">
                             Tenant {selectedMonth !== 'all' ? `(${MONTHS.find(m => m.num === selectedMonth)?.name})` : '(All Months)'}
                           </th>
-                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Rent</th>
-                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Old Reading</th>
-                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Current Reading</th>
-                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Units</th>
-                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Rate</th>
-                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Electricity</th>
-                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Total</th>
-                          <th className="px-3 py-3 text-right font-semibold text-gray-700">Paid</th>
-                          <th className="px-3 py-3 text-center font-semibold text-gray-700">Status</th>
-                          <th className="px-3 py-3 text-center font-semibold text-gray-700">Actions</th>
+                          <th className="px-2.5 py-2 text-right font-semibold text-gray-700">Rent</th>
+                          <th className="px-2.5 py-2 text-right font-semibold text-gray-700">Old Reading</th>
+                          <th className="px-2.5 py-2 text-right font-semibold text-gray-700">Current Reading</th>
+                          <th className="px-2.5 py-2 text-right font-semibold text-gray-700">Units</th>
+                          <th className="px-2.5 py-2 text-right font-semibold text-gray-700">Rate</th>
+                          <th className="px-2.5 py-2 text-right font-semibold text-gray-700">Electricity</th>
+                          <th className="px-2.5 py-2 text-right font-semibold text-gray-700">Total</th>
+                          <th className="px-2.5 py-2 text-right font-semibold text-gray-700">Paid</th>
+                          <th className="px-2.5 py-2 text-center font-semibold text-gray-700">Status</th>
+                          <th className="px-2.5 py-2 text-center font-semibold text-gray-700">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -736,7 +983,7 @@ const HistoryManager = () => {
                   
                   return (
                     <tr key={payment.id} className={`hover:bg-gray-50 ${isAutoAssigned ? 'bg-blue-50' : ''}`}>
-                      <td className="px-2 py-3 text-center">
+                      <td className="px-2 py-2 text-center">
                         <input
                           type="checkbox"
                           checked={selectedIds.has(payment.id)}
@@ -745,9 +992,9 @@ const HistoryManager = () => {
                         />
                       </td>
                       
-                      <td className="px-3 py-3 font-semibold">{payment.roomNumber}</td>
+                      <td className="px-2.5 py-2 font-semibold">{payment.roomNumber}</td>
                       
-                      <td className="px-3 py-3">
+                      <td className="px-2.5 py-2">
                         {isEditing ? (
                           <select
                             value={editData.roomStatus}
@@ -768,7 +1015,7 @@ const HistoryManager = () => {
                         )}
                       </td>
                       
-                      <td className="px-3 py-3">
+                      <td className="px-2.5 py-2">
                         {isEditing ? (
                           editData.roomStatus === 'vacant' ? (
                             <span className="text-gray-400 italic">-</span>
@@ -792,7 +1039,7 @@ const HistoryManager = () => {
                         )}
                       </td>
 
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-2.5 py-2 text-right">
                         {isEditing ? (
                           <input
                             type="number"
@@ -805,7 +1052,7 @@ const HistoryManager = () => {
                         )}
                       </td>
                       
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-2.5 py-2 text-right">
                         {isEditing ? (
                           <input
                             type="number"
@@ -818,7 +1065,7 @@ const HistoryManager = () => {
                         )}
                       </td>
                       
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-2.5 py-2 text-right">
                         {isEditing ? (
                           <input
                             type="number"
@@ -831,7 +1078,7 @@ const HistoryManager = () => {
                         )}
                       </td>
                       
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-2.5 py-2 text-right">
                         {isEditing ? (
                           <span className="text-blue-600 font-semibold">
                             {(Number(editData.currentReading) - Number(editData.oldReading)) || 0}
@@ -841,7 +1088,7 @@ const HistoryManager = () => {
                         )}
                       </td>
                       
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-2.5 py-2 text-right">
                         {isEditing ? (
                           <input
                             type="number"
@@ -855,7 +1102,7 @@ const HistoryManager = () => {
                         )}
                       </td>
                       
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-2.5 py-2 text-right">
                         {isEditing ? (
                           <span className="text-blue-600 font-semibold">
                             ₹{((Number(editData.currentReading) - Number(editData.oldReading)) * Number(editData.ratePerUnit)).toFixed(2)}
@@ -865,7 +1112,7 @@ const HistoryManager = () => {
                         )}
                       </td>
                       
-                      <td className="px-3 py-3 text-right font-semibold">
+                      <td className="px-2.5 py-2 text-right font-semibold">
                         {isEditing ? (
                           <span className="text-green-600">
                             ₹{(Number(editData.rent) + ((Number(editData.currentReading) - Number(editData.oldReading)) * Number(editData.ratePerUnit))).toFixed(2)}
@@ -875,7 +1122,7 @@ const HistoryManager = () => {
                         )}
                       </td>
                       
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-2.5 py-2 text-right">
                         {isEditing ? (
                           <input
                             type="number"
@@ -888,7 +1135,7 @@ const HistoryManager = () => {
                         )}
                       </td>
                       
-                      <td className="px-3 py-3 text-center">
+                      <td className="px-2.5 py-2 text-center">
                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                           payment.status === 'paid' 
                             ? 'bg-green-100 text-green-800'
@@ -900,7 +1147,7 @@ const HistoryManager = () => {
                         </span>
                       </td>
                       
-                      <td className="px-3 py-3">
+                      <td className="px-2.5 py-2">
                         {isEditing ? (
                           <div className="flex gap-1 justify-center">
                             <button
@@ -958,60 +1205,41 @@ const HistoryManager = () => {
               badge: 'bg-purple-200 text-purple-800'
             };
 
-            // Calculate overall totals (both floors combined)
-            const overallTotals = calculateTotals(filteredPayments);
-
             // Render both floor sections
             return (
-              <div className="space-y-6">
-                {/* Overall Summary Card - Both Floors Combined */}
-                <div className="card bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border-2 border-indigo-300 shadow-lg">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        💰 Overall Summary - {selectedPeriod}
-                      </h3>
-                      <p className="text-sm font-semibold text-gray-600 mt-1">
-                        🏢 Both Floors Combined (All Rooms)
-                      </p>
-                    </div>
-                    <div className="text-sm font-semibold px-5 py-2.5 rounded-full bg-indigo-200 text-indigo-900">
-                      {filteredPayments.length} record{filteredPayments.length !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    <div className="bg-white rounded-lg p-4 border-2 border-blue-300 shadow-sm">
-                      <p className="text-xs text-gray-600 mb-1 font-semibold">Total Rent Received</p>
-                      <p className="text-2xl font-bold text-blue-700">₹{overallTotals.rent.toLocaleString('en-IN')}</p>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border-2 border-purple-300 shadow-sm">
-                      <p className="text-xs text-gray-600 mb-1 font-semibold">Total Electricity</p>
-                      <p className="text-2xl font-bold text-purple-700">₹{overallTotals.electricity.toLocaleString('en-IN')}</p>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border-2 border-green-300 shadow-sm">
-                      <p className="text-xs text-gray-600 mb-1 font-semibold">Grand Total</p>
-                      <p className="text-2xl font-bold text-green-700">₹{overallTotals.total.toLocaleString('en-IN')}</p>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border-2 border-teal-300 shadow-sm">
-                      <p className="text-xs text-gray-600 mb-1 font-semibold">Total Paid</p>
-                      <p className="text-2xl font-bold text-teal-700">₹{overallTotals.paidAmount.toLocaleString('en-IN')}</p>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border-2 border-orange-300 shadow-sm">
-                      <p className="text-xs text-gray-600 mb-1 font-semibold">Total Balance</p>
-                      <p className={`text-2xl font-bold ${overallTotals.balance < 0 ? 'text-red-700' : 'text-orange-700'}`}>
-                        ₹{overallTotals.balance.toLocaleString('en-IN')}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
+              <div className="space-y-4">
                 {renderFloorSection(1, floor1Payments, floor1Colors)}
                 {renderFloorSection(2, floor2Payments, floor2Colors)}
               </div>
             );
           })()}
         </>
+      )}
+
+      {!loading && filteredPayments.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-white border border-gray-200 shadow-lg rounded-full px-2 py-1.5 flex items-center gap-1.5">
+          <button
+            onClick={handlePreviousMonth}
+            className="px-3 py-1.5 text-xs md:text-sm bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200"
+          >
+            ← Prev
+          </button>
+          <div className="px-2 py-1 text-xs md:text-sm font-semibold text-gray-700 whitespace-nowrap">
+            {selectedPeriodLabel}
+          </div>
+          <button
+            onClick={() => setSelectedMonth('all')}
+            className="px-3 py-1.5 text-xs md:text-sm bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200"
+          >
+            All
+          </button>
+          <button
+            onClick={handleNextMonth}
+            className="px-3 py-1.5 text-xs md:text-sm bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200"
+          >
+            Next →
+          </button>
+        </div>
       )}
 
       {/* Import Modal */}

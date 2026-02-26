@@ -54,6 +54,54 @@ const TenantHistory = () => {
     return String(Math.floor(numericRoom / 100));
   };
 
+  const getYearMonthFromPayment = (payment) => {
+    const explicitYear = Number(payment?.year);
+    const explicitMonth = Number(payment?.month);
+
+    if (Number.isFinite(explicitYear) && Number.isFinite(explicitMonth) && explicitMonth >= 1 && explicitMonth <= 12) {
+      return { year: explicitYear, month: explicitMonth };
+    }
+
+    const fallbackDate = payment?.paidDate || payment?.paymentDate || payment?.date || payment?.createdAt || payment?.paidAt;
+    if (!fallbackDate) return null;
+
+    const parsedDate = new Date(fallbackDate);
+    if (Number.isNaN(parsedDate.getTime())) return null;
+
+    return {
+      year: parsedDate.getFullYear(),
+      month: parsedDate.getMonth() + 1
+    };
+  };
+
+  const formatYearMonthLabel = (year, month) => {
+    if (!Number.isFinite(Number(year)) || !Number.isFinite(Number(month))) return '-';
+    return `${MONTHS[Number(month) - 1]?.name || month} ${year}`;
+  };
+
+  const toSortKey = (year, month) => (Number(year) * 100) + Number(month);
+
+  const getDurationLabel = (startSortKey, endSortKey) => {
+    if (!Number.isFinite(startSortKey) || !Number.isFinite(endSortKey) || endSortKey < startSortKey) {
+      return '-';
+    }
+
+    const startYear = Math.floor(startSortKey / 100);
+    const startMonth = startSortKey % 100;
+    const endYear = Math.floor(endSortKey / 100);
+    const endMonth = endSortKey % 100;
+
+    const totalMonths = ((endYear - startYear) * 12) + (endMonth - startMonth) + 1;
+    if (!Number.isFinite(totalMonths) || totalMonths <= 0) return '-';
+
+    const years = Math.floor(totalMonths / 12);
+    const months = totalMonths % 12;
+
+    if (years > 0 && months > 0) return `${years}y ${months}m`;
+    if (years > 0) return `${years}y`;
+    return `${months}m`;
+  };
+
   // Load all unique tenants from tenants + payments
   useEffect(() => {
     const fetchTenants = async () => {
@@ -80,6 +128,11 @@ const TenantHistory = () => {
               roomNumber: data.roomNumber ?? null,
               checkInDate: data.checkInDate ?? null,
               checkOutDate: data.checkOutDate ?? null,
+              firstStaySortKey: null,
+              lastStaySortKey: null,
+              firstStayLabel: '-',
+              lastStayLabel: '-',
+              roomsInHistory: [],
               source: 'tenantDoc'
             });
           } else {
@@ -116,17 +169,62 @@ const TenantHistory = () => {
             return;
           }
 
+          const yearMonth = getYearMonthFromPayment(data);
+          const sortKey = yearMonth ? toSortKey(yearMonth.year, yearMonth.month) : null;
+          const roomFromPayment = data.roomNumber ?? null;
+
           if (!tenantMap.has(tenantName)) {
             tenantMap.set(tenantName, {
               id: paymentTenantId,
               name: tenantName,
               isActive: false,
-              roomNumber: data.roomNumber ?? null,
+              roomNumber: roomFromPayment,
               checkInDate: null,
               checkOutDate: null,
+              firstStaySortKey: sortKey,
+              lastStaySortKey: sortKey,
+              firstStayLabel: yearMonth ? formatYearMonthLabel(yearMonth.year, yearMonth.month) : '-',
+              lastStayLabel: yearMonth ? formatYearMonthLabel(yearMonth.year, yearMonth.month) : '-',
+              roomsInHistory: roomFromPayment !== null && roomFromPayment !== undefined && roomFromPayment !== ''
+                ? [String(roomFromPayment)]
+                : [],
               source: 'paymentOnly'
             });
+            return;
           }
+
+          const existing = tenantMap.get(tenantName);
+          const nextFirstSort = Number.isFinite(sortKey) && (!Number.isFinite(existing.firstStaySortKey) || sortKey < existing.firstStaySortKey)
+            ? sortKey
+            : existing.firstStaySortKey;
+          const nextLastSort = Number.isFinite(sortKey) && (!Number.isFinite(existing.lastStaySortKey) || sortKey > existing.lastStaySortKey)
+            ? sortKey
+            : existing.lastStaySortKey;
+
+          const roomsSet = new Set([...(existing.roomsInHistory || []).map(String)]);
+          if (roomFromPayment !== null && roomFromPayment !== undefined && roomFromPayment !== '') {
+            roomsSet.add(String(roomFromPayment));
+          }
+
+          tenantMap.set(tenantName, {
+            ...existing,
+            id: existing.id || paymentTenantId,
+            roomNumber: existing.roomNumber ?? roomFromPayment,
+            firstStaySortKey: nextFirstSort,
+            lastStaySortKey: nextLastSort,
+            firstStayLabel: Number.isFinite(nextFirstSort)
+              ? formatYearMonthLabel(Math.floor(nextFirstSort / 100), nextFirstSort % 100)
+              : '-',
+            lastStayLabel: Number.isFinite(nextLastSort)
+              ? formatYearMonthLabel(Math.floor(nextLastSort / 100), nextLastSort % 100)
+              : '-',
+            roomsInHistory: Array.from(roomsSet).sort((a, b) => {
+              const roomA = Number(a);
+              const roomB = Number(b);
+              if (!Number.isNaN(roomA) && !Number.isNaN(roomB)) return roomA - roomB;
+              return a.localeCompare(b);
+            })
+          });
         });
 
         const tenantList = Array.from(tenantMap.values()).sort((a, b) =>
@@ -320,75 +418,38 @@ const TenantHistory = () => {
   }, [filteredTenants, selectedTenant]);
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
+    <div className="container mx-auto px-4 py-4 max-w-7xl">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">👤 Tenant History</h1>
-        <p className="text-gray-600">
+      <div className="mb-3">
+        <h1 className="text-2xl font-bold text-gray-800 mb-1">👤 Tenant History</h1>
+        <p className="text-sm text-gray-600">
           View complete payment records, stay duration, and consumption patterns for each tenant
         </p>
       </div>
 
       {/* Tenant Selection */}
-      <div className="card mb-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Select Tenant</h2>
-        
-        {/* Search Box */}
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="🔍 Search tenant by name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-          />
+      <div className="card mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-base font-bold text-gray-800">Select Tenant</h2>
+          <span className="text-xs text-gray-500">Showing {filteredTenants.length} of {tenants.length}</span>
         </div>
 
-        {/* Status Filter */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${
-              statusFilter === 'all'
-                ? 'bg-indigo-500 text-white border-indigo-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-            }`}
-          >
-            All ({tenants.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('active')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${
-              statusFilter === 'active'
-                ? 'bg-green-500 text-white border-green-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-            }`}
-          >
-            Active ({tenants.filter((tenant) => tenant.isActive).length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('past')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${
-              statusFilter === 'past'
-                ? 'bg-gray-700 text-white border-gray-800'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-            }`}
-          >
-            Past ({tenants.filter((tenant) => !tenant.isActive).length})
-          </button>
-        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 mb-3">
+          <div className="lg:col-span-5">
+            <input
+              type="text"
+              placeholder="🔍 Search tenant..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+          </div>
 
-        {/* Floor/Room Filters */}
-        <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Floor</label>
+          <div className="lg:col-span-3">
             <select
               value={floorFilter}
               onChange={(e) => setFloorFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-primary focus:border-transparent"
             >
               <option value="all">All Floors</option>
               {floorOptions.map((floor) => (
@@ -399,12 +460,11 @@ const TenantHistory = () => {
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Room</label>
+          <div className="lg:col-span-4">
             <select
               value={roomFilter}
               onChange={(e) => setRoomFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-primary focus:border-transparent"
             >
               <option value="all">All Rooms</option>
               {roomOptions.map((room) => (
@@ -416,31 +476,103 @@ const TenantHistory = () => {
           </div>
         </div>
 
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${
+              statusFilter === 'all'
+                ? 'bg-indigo-500 text-white border-indigo-600'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+            }`}
+          >
+            All ({tenants.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('active')}
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${
+              statusFilter === 'active'
+                ? 'bg-green-500 text-white border-green-600'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+            }`}
+          >
+            Active ({tenants.filter((tenant) => tenant.isActive).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('past')}
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${
+              statusFilter === 'past'
+                ? 'bg-gray-700 text-white border-gray-800'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+            }`}
+          >
+            Past ({tenants.filter((tenant) => !tenant.isActive).length})
+          </button>
+        </div>
+
         {/* Tenant List */}
         {filteredTenants.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-5 text-sm text-gray-500">
             {searchQuery || statusFilter !== 'all' || floorFilter !== 'all' || roomFilter !== 'all'
               ? 'No tenants found for selected filters'
               : 'No tenants found in database'}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 max-h-64 overflow-y-auto">
             {filteredTenants.map((tenant, idx) => {
               const isSelected = selectedTenant?.name === tenant.name;
+              const sinceLabel = tenant.checkInDate
+                ? formatMonthYear(tenant.checkInDate)
+                : (tenant.firstStayLabel || '-');
+              const tillLabel = tenant.checkOutDate
+                ? formatMonthYear(tenant.checkOutDate)
+                : (tenant.isActive ? 'Present' : (tenant.lastStayLabel || '-'));
+              const durationLabel = getDurationLabel(
+                tenant.firstStaySortKey,
+                tenant.isActive ? tenant.lastStaySortKey : tenant.lastStaySortKey
+              );
+              const roomsLabel = (tenant.roomsInHistory && tenant.roomsInHistory.length > 0)
+                ? tenant.roomsInHistory.join(', ')
+                : (tenant.roomNumber ?? '-');
               
               return (
                 <button
                   key={idx}
                   onClick={() => loadTenantHistory(tenant)}
-                  className={`p-4 rounded-lg border-2 text-left transition-all ${
+                  className={`p-2.5 rounded-md border text-left transition-all ${
                     isSelected
-                      ? 'bg-indigo-500 text-white border-indigo-600 shadow-lg'
+                      ? 'bg-indigo-500 text-white border-indigo-600 shadow'
                       : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
                   }`}
                 >
-                  <div className="font-semibold text-lg">👤 {tenant.name}</div>
-                  <div className={`text-xs mt-1 font-semibold ${isSelected ? 'text-indigo-100' : 'text-gray-500'}`}>
-                    {tenant.isActive ? '🟢 Active' : '⚪ Past Tenant'}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-semibold text-xs leading-tight">👤 {tenant.name}</div>
+                    <div className={`text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap ${
+                      isSelected
+                        ? 'bg-white/20 text-white'
+                        : tenant.isActive
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-200 text-gray-700'
+                    }`}>
+                      {tenant.isActive ? 'Active' : 'Past'}
+                    </div>
+                  </div>
+
+                  <div className={`mt-1.5 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] ${isSelected ? 'text-indigo-50' : 'text-gray-600'}`}>
+                    <div>
+                      <span className="font-semibold">Since:</span> {sinceLabel}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Till:</span> {tillLabel}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Stay:</span> {durationLabel}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Rooms:</span> {roomsLabel}
+                    </div>
                   </div>
                 </button>
               );
@@ -462,113 +594,55 @@ const TenantHistory = () => {
         <>
           {/* Tenant Header */}
           <div className="card mb-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 pb-3 border-b border-indigo-200">
               <div>
-                <h2 className="text-3xl font-bold text-gray-800">
-                  👤 {selectedTenant.name}
-                </h2>
-                <p className="text-gray-600 mt-1">
-                  {stats.totalRecords} records • From {stats.firstRecord} to {stats.latestRecord}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-2xl font-bold text-gray-800">👤 {selectedTenant.name}</h2>
+                  {tenantDetails?.status && (
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${tenantDetails.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>
+                      {tenantDetails.status}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  {stats.totalRecords} records • {stats.firstRecord} → {stats.latestRecord}
                 </p>
               </div>
-              <div className="text-sm font-semibold px-4 py-2 rounded-full bg-indigo-200 text-indigo-900">
-                {stats.yearsStayed} years
+              <div className="text-sm font-semibold px-3 py-1.5 rounded-full bg-indigo-100 text-indigo-800 w-fit">
+                {stats.yearsStayed} years stay
               </div>
             </div>
 
-            {/* Stay Timeline */}
-            {tenantDetails && (
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-                <div className="bg-white rounded-lg p-3 border border-indigo-200">
-                  <p className="text-xs text-gray-600 mb-1">Status</p>
-                  <p className={`text-sm font-bold ${tenantDetails.status === 'Active' ? 'text-green-600' : 'text-gray-700'}`}>
-                    {tenantDetails.status}
-                  </p>
-                </div>
-                <div className="bg-white rounded-lg p-3 border border-blue-200">
-                  <p className="text-xs text-gray-600 mb-1">Joined Month</p>
-                  <p className="text-sm font-bold text-blue-700">{tenantDetails.joinedMonth}</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 border border-cyan-200">
-                  <p className="text-xs text-gray-600 mb-1">Joined Date</p>
-                  <p className="text-sm font-bold text-cyan-700">{tenantDetails.joinedDate}</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 border border-orange-200">
-                  <p className="text-xs text-gray-600 mb-1">Left Month</p>
-                  <p className="text-sm font-bold text-orange-700">{tenantDetails.leftMonth}</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 border border-purple-200">
-                  <p className="text-xs text-gray-600 mb-1">Latest Room</p>
-                  <p className="text-sm font-bold text-purple-700">{tenantDetails.latestRoom}</p>
-                </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 text-sm">
+              <div className="bg-white rounded-lg p-3 border border-indigo-200 space-y-1.5">
+                <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Stay Timeline</p>
+                <p><span className="text-gray-500">Since:</span> <span className="font-semibold text-gray-800">{tenantDetails?.joinedMonth || '-'}</span></p>
+                <p><span className="text-gray-500">Till:</span> <span className="font-semibold text-gray-800">{tenantDetails?.leftMonth || (selectedTenant.isActive ? 'Present' : '-')}</span></p>
+                <p><span className="text-gray-500">Latest Room:</span> <span className="font-semibold text-gray-800">{tenantDetails?.latestRoom ?? '-'}</span></p>
+                <p><span className="text-gray-500">Rooms Stayed:</span> <span className="font-semibold text-gray-800">{stats.rooms.join(', ')}</span></p>
               </div>
-            )}
 
-            {/* Duration & Rooms */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div className="bg-white rounded-lg p-3 border border-indigo-200">
-                <p className="text-xs text-gray-600 mb-1">Total Months</p>
-                <p className="text-xl font-bold text-indigo-600">{stats.monthsStayed}</p>
+              <div className="bg-white rounded-lg p-3 border border-green-200 space-y-1.5">
+                <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Financial Summary</p>
+                <p><span className="text-gray-500">Total Rent:</span> <span className="font-semibold text-gray-800">₹{stats.totalRent.toLocaleString('en-IN')}</span></p>
+                <p><span className="text-gray-500">Electricity:</span> <span className="font-semibold text-gray-800">₹{stats.totalElectricity.toLocaleString('en-IN')}</span></p>
+                <p><span className="text-gray-500">Grand Total:</span> <span className="font-semibold text-gray-800">₹{stats.totalAmount.toLocaleString('en-IN')}</span></p>
+                <p><span className="text-gray-500">Paid:</span> <span className="font-semibold text-green-700">₹{stats.totalPaid.toLocaleString('en-IN')}</span></p>
+                <p><span className="text-gray-500">Balance:</span> <span className={`font-semibold ${stats.totalBalance < 0 ? 'text-red-600' : 'text-orange-600'}`}>₹{stats.totalBalance.toLocaleString('en-IN')}</span></p>
               </div>
-              <div className="bg-white rounded-lg p-3 border border-purple-200">
-                <p className="text-xs text-gray-600 mb-1">Rooms Stayed</p>
-                <p className="text-xl font-bold text-purple-600">{stats.rooms.join(', ')}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-blue-200">
-                <p className="text-xs text-gray-600 mb-1">Avg Units/Month</p>
-                <p className="text-xl font-bold text-blue-600">{stats.avgUnitsPerMonth}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-cyan-200">
-                <p className="text-xs text-gray-600 mb-1">Avg Electricity/Mo</p>
-                <p className="text-xl font-bold text-cyan-600">₹{stats.avgElectricityPerMonth}</p>
-              </div>
-            </div>
 
-            {/* Financial Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-              <div className="bg-white rounded-lg p-3 border border-blue-200">
-                <p className="text-xs text-gray-600 mb-1">Total Rent</p>
-                <p className="text-xl font-bold text-blue-600">₹{stats.totalRent.toLocaleString('en-IN')}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-purple-200">
-                <p className="text-xs text-gray-600 mb-1">Total Electricity</p>
-                <p className="text-xl font-bold text-purple-600">₹{stats.totalElectricity.toLocaleString('en-IN')}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-green-200">
-                <p className="text-xs text-gray-600 mb-1">Grand Total</p>
-                <p className="text-xl font-bold text-green-600">₹{stats.totalAmount.toLocaleString('en-IN')}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-teal-200">
-                <p className="text-xs text-gray-600 mb-1">Total Paid</p>
-                <p className="text-xl font-bold text-teal-600">₹{stats.totalPaid.toLocaleString('en-IN')}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-orange-200">
-                <p className="text-xs text-gray-600 mb-1">Total Balance</p>
-                <p className={`text-xl font-bold ${stats.totalBalance < 0 ? 'text-red-600' : 'text-orange-600'}`}>
-                  ₹{stats.totalBalance.toLocaleString('en-IN')}
-                </p>
-              </div>
-            </div>
-
-            {/* Payment Status */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-white rounded-lg p-3 border border-green-200">
-                <p className="text-xs text-gray-600 mb-1">✅ Paid</p>
-                <p className="text-xl font-bold text-green-600">{stats.paidCount} months</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-yellow-200">
-                <p className="text-xs text-gray-600 mb-1">⚠️ Partial</p>
-                <p className="text-xl font-bold text-yellow-600">{stats.partialCount} months</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-red-200">
-                <p className="text-xs text-gray-600 mb-1">❌ Unpaid</p>
-                <p className="text-xl font-bold text-red-600">{stats.unpaidCount} months</p>
+              <div className="bg-white rounded-lg p-3 border border-blue-200 space-y-1.5">
+                <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Usage & Payment Health</p>
+                <p><span className="text-gray-500">Total Months:</span> <span className="font-semibold text-gray-800">{stats.monthsStayed}</span></p>
+                <p><span className="text-gray-500">Avg Units/Month:</span> <span className="font-semibold text-gray-800">{stats.avgUnitsPerMonth}</span></p>
+                <p><span className="text-gray-500">Avg Elec/Month:</span> <span className="font-semibold text-gray-800">₹{stats.avgElectricityPerMonth}</span></p>
+                <p><span className="text-gray-500">Paid / Partial / Unpaid:</span> <span className="font-semibold text-gray-800">{stats.paidCount} / {stats.partialCount} / {stats.unpaidCount}</span></p>
               </div>
             </div>
           </div>
 
           {/* Payment History by Year */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             {Object.entries(groupByYear(tenantHistory))
               .sort(([yearA], [yearB]) => Number(yearB) - Number(yearA))
               .map(([year, records]) => {
@@ -576,9 +650,9 @@ const TenantHistory = () => {
                 
                 return (
                   <div key={year} className="card">
-                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200">
                       <div>
-                        <h3 className="text-2xl font-bold text-gray-800">{year}</h3>
+                        <h3 className="text-xl font-bold text-gray-800">{year}</h3>
                         <p className="text-sm text-gray-600">{records.length} months • {yearTotals.totalUnits} units consumed</p>
                       </div>
                       <div className="text-right">
