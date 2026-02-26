@@ -59,6 +59,16 @@ const TenantPortal = () => {
   const [showSubmitPayment, setShowSubmitPayment] = useState(false);
 
   useEffect(() => {
+    const manifestLink = document.querySelector('link[rel="manifest"]');
+    if (manifestLink && manifestLink.getAttribute('href') !== '/manifest-tenant.webmanifest') {
+      manifestLink.setAttribute('href', '/manifest-tenant.webmanifest');
+    }
+
+    const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (appleTitleMeta) {
+      appleTitleMeta.setAttribute('content', 'Tenant Portal');
+    }
+
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     setIsAppInstalled(isStandalone);
 

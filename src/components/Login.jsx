@@ -16,6 +16,16 @@ const Login = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const manifestLink = document.querySelector('link[rel="manifest"]');
+    if (manifestLink && manifestLink.getAttribute('href') !== '/manifest.webmanifest') {
+      manifestLink.setAttribute('href', '/manifest.webmanifest');
+    }
+
+    const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (appleTitleMeta) {
+      appleTitleMeta.setAttribute('content', 'Autoxweb Rent');
+    }
+
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     setIsAppInstalled(isStandalone);
 

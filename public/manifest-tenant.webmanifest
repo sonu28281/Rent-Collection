@@ -1,8 +1,8 @@
 {
-  "name": "Autoxweb Rent Admin",
-  "short_name": "Rent Admin",
-  "description": "Admin portal for rent and electricity management",
-  "start_url": "/login",
+  "name": "Rent Collection Tenant Portal",
+  "short_name": "Tenant Portal",
+  "description": "Monthly rent and electricity payment portal for tenants",
+  "start_url": "/tenant-portal",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f3f4f6",

@@ -1,8 +1,9 @@
-const CACHE_NAME = 'rent-collection-v2';
+const CACHE_NAME = 'rent-collection-v3';
 const APP_SHELL = [
   '/',
   '/index.html',
-  '/manifest.webmanifest'
+  '/manifest.webmanifest',
+  '/manifest-tenant.webmanifest'
 ];
 
 self.addEventListener('install', (event) => {
