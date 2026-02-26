@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 
@@ -9,8 +9,41 @@ const Login = () => {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetSuccess, setResetSuccess] = useState(false);
+  const [installPromptEvent, setInstallPromptEvent] = useState(null);
+  const [isAppInstalled, setIsAppInstalled] = useState(false);
   const { login, resetPassword, error, setError } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    setIsAppInstalled(isStandalone);
+
+    const onBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event);
+    };
+
+    const onAppInstalled = () => {
+      setIsAppInstalled(true);
+      setInstallPromptEvent(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    window.addEventListener('appinstalled', onAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', onAppInstalled);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!installPromptEvent) return;
+
+    installPromptEvent.prompt();
+    await installPromptEvent.userChoice;
+    setInstallPromptEvent(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -75,6 +108,28 @@ const Login = () => {
               {showResetPassword ? 'Reset Your Password' : 'Admin Login Portal'}
             </p>
           </div>
+
+          {!showResetPassword && !isAppInstalled && (
+            <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-blue-800 font-medium">Install app on home screen before login (optional)</p>
+                <button
+                  type="button"
+                  onClick={handleInstallApp}
+                  disabled={!installPromptEvent}
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Install App
+                </button>
+              </div>
+              <div className="mt-2 text-xs text-blue-700 space-y-1">
+                <p>Best support: Chrome / Edge (Android/Desktop) for one-tap install.</p>
+                {!installPromptEvent && (
+                  <p>iPhone Safari: Share → Add to Home Screen.</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {!showResetPassword ? (
             <form onSubmit={handleSubmit} className="space-y-6">
