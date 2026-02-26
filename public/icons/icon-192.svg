@@ -1,6 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="42" fill="#2563eb"/>
-  <text x="96" y="82" text-anchor="middle" fill="#ffffff" font-size="64" font-family="Arial, Helvetica, sans-serif">🏠</text>
-  <text x="96" y="126" text-anchor="middle" fill="#dbeafe" font-size="24" font-family="Arial, Helvetica, sans-serif" font-weight="700">Rent</text>
-  <text x="96" y="152" text-anchor="middle" fill="#dbeafe" font-size="20" font-family="Arial, Helvetica, sans-serif" font-weight="700">Portal</text>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1d4ed8"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#dbeafe"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="42" fill="url(#bg)"/>
+  <path d="M34 82 96 35l62 47v69a10 10 0 0 1-10 10H44a10 10 0 0 1-10-10z" fill="#bfdbfe" opacity="0.2"/>
+  <rect x="43" y="85" width="106" height="74" rx="14" fill="url(#card)"/>
+  <path d="M96 45 40 87h16v61h80V87h16z" fill="#eff6ff"/>
+  <path d="M96 45 40 87h16v9h-9l49-39 49 39h-9v-9h16z" fill="#e0e7ff"/>
+  <text x="96" y="122" text-anchor="middle" fill="#1e3a8a" font-size="42" font-family="Arial, Helvetica, sans-serif" font-weight="700">₹</text>
+  <rect x="64" y="133" width="64" height="8" rx="4" fill="#2563eb" opacity="0.75"/>
 </svg>

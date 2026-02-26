@@ -112,22 +112,53 @@ const Tenants = () => {
     setLoadingHistory(true);
     
     try {
-      // Fetch payment history for this tenant
       const paymentsRef = collection(db, 'payments');
-      const paymentsQuery = query(
-        paymentsRef,
-        where('tenantNameSnapshot', '==', tenant.name),
-        orderBy('year', 'desc'),
-        orderBy('month', 'desc')
-      );
-      
-      const paymentsSnapshot = await getDocs(paymentsQuery);
-      const payments = [];
-      
-      paymentsSnapshot.forEach((doc) => {
-        payments.push({ id: doc.id, ...doc.data() });
+      const roomNumberAsNumber = Number.parseInt(tenant.roomNumber, 10);
+      const roomNumberAsString = String(tenant.roomNumber);
+
+      const paymentDocs = new Map();
+
+      // 1) Best match by tenantId (most reliable for current data)
+      if (tenant.id) {
+        const tenantIdQuery = query(paymentsRef, where('tenantId', '==', tenant.id));
+        const tenantIdSnapshot = await getDocs(tenantIdQuery);
+        tenantIdSnapshot.forEach((doc) => paymentDocs.set(doc.id, doc));
+      }
+
+      // 2) Fallback by room number (supports old records with no tenantId)
+      const roomQueries = [
+        query(paymentsRef, where('roomNumber', '==', roomNumberAsString))
+      ];
+
+      if (Number.isFinite(roomNumberAsNumber)) {
+        roomQueries.push(query(paymentsRef, where('roomNumber', '==', roomNumberAsNumber)));
+      }
+
+      const roomSnapshots = await Promise.all(roomQueries.map((roomQuery) => getDocs(roomQuery)));
+      roomSnapshots.forEach((snapshot) => {
+        snapshot.forEach((doc) => paymentDocs.set(doc.id, doc));
       });
-      
+
+      const tenantName = (tenant.name || '').trim().toLowerCase();
+
+      const payments = Array.from(paymentDocs.values())
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((payment) => {
+          if (payment.tenantId && tenant.id && payment.tenantId === tenant.id) {
+            return true;
+          }
+
+          const snapshotName = (payment.tenantNameSnapshot || '').trim().toLowerCase();
+          const legacyName = (payment.tenantName || '').trim().toLowerCase();
+
+          return Boolean(tenantName) && (snapshotName === tenantName || legacyName === tenantName);
+        })
+        .sort((a, b) => {
+          const yearDiff = Number(b.year || 0) - Number(a.year || 0);
+          if (yearDiff !== 0) return yearDiff;
+          return Number(b.month || 0) - Number(a.month || 0);
+        });
+
       setPaymentHistory(payments);
     } catch (err) {
       console.error('Error fetching payment history:', err);

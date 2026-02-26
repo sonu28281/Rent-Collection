@@ -6,11 +6,13 @@ const Electricity = () => {
   const [tenants, setTenants] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [meterReadings, setMeterReadings] = useState([]);
+  const [paymentRecords, setPaymentRecords] = useState([]);
   const [globalRate, setGlobalRate] = useState(9);
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [floorFilter, setFloorFilter] = useState('all');
 
   useEffect(() => {
     fetchData();
@@ -57,9 +59,18 @@ const Electricity = () => {
         readingsData.push({ id: doc.id, ...doc.data() });
       });
 
+      // Fetch payment records (for historical meter fallback)
+      const paymentsRef = collection(db, 'payments');
+      const paymentsSnapshot = await getDocs(paymentsRef);
+      const paymentsData = [];
+      paymentsSnapshot.forEach((doc) => {
+        paymentsData.push({ id: doc.id, ...doc.data() });
+      });
+
       setTenants(tenantsData);
       setRooms(roomsData);
       setMeterReadings(readingsData);
+      setPaymentRecords(paymentsData);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -92,9 +103,92 @@ const Electricity = () => {
     return tenantReadings[0] || null;
   };
 
+  const toDateValue = (record) => {
+    const candidates = [record.readingDate, record.paidDate, record.paymentDate, record.createdAt, record.paidAt];
+    const first = candidates.find(Boolean);
+    const parsed = first ? new Date(first) : new Date(0);
+    return Number.isNaN(parsed.getTime()) ? new Date(0) : parsed;
+  };
+
+  const getLatestReadingFromPayments = (tenant) => {
+    const tenantName = (tenant.name || '').trim().toLowerCase();
+    const roomNumberAsString = String(tenant.roomNumber);
+    const roomNumberAsNumber = Number.parseInt(tenant.roomNumber, 10);
+
+    const matched = paymentRecords
+      .filter((payment) => {
+        const paymentTenantName = (payment.tenantNameSnapshot || payment.tenantName || '').trim().toLowerCase();
+        const paymentRoomNumber = payment.roomNumber;
+
+        const roomMatch = String(paymentRoomNumber) === roomNumberAsString ||
+          (Number.isFinite(roomNumberAsNumber) && Number(paymentRoomNumber) === roomNumberAsNumber);
+
+        const tenantMatch = payment.tenantId === tenant.id || paymentTenantName === tenantName;
+
+        return roomMatch && tenantMatch;
+      })
+      .map((payment) => {
+        const previousReading = Number(payment.oldReading ?? payment.previousReading);
+        const currentReading = Number(payment.currentReading ?? payment.meterReading);
+        const unitsConsumed = Number(payment.units ?? payment.unitsConsumed ?? 0);
+        const totalCharge = Number(payment.electricity ?? payment.electricityAmount ?? 0);
+
+        const validReadings = Number.isFinite(previousReading) && Number.isFinite(currentReading) && currentReading >= previousReading;
+        const validElectricity = totalCharge > 0 || unitsConsumed > 0;
+
+        if (!validReadings || !validElectricity) {
+          return null;
+        }
+
+        return {
+          id: `payment_${payment.id}`,
+          tenantId: tenant.id,
+          tenantName: tenant.name,
+          roomNumber: tenant.roomNumber,
+          readingDate: payment.paidDate || payment.paymentDate || payment.createdAt || payment.paidAt,
+          previousReading,
+          currentReading,
+          unitsConsumed: Number.isFinite(unitsConsumed) ? unitsConsumed : Math.max(0, currentReading - previousReading),
+          ratePerUnit: Number(payment.ratePerUnit) || null,
+          totalCharge,
+          source: 'payments'
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => toDateValue(b) - toDateValue(a));
+
+    return matched[0] || null;
+  };
+
+  const getEffectiveLatestReading = (tenant) => {
+    const liveReading = getLatestReading(tenant.id);
+    if (liveReading) {
+      return { ...liveReading, source: 'electricityReadings' };
+    }
+
+    return getLatestReadingFromPayments(tenant);
+  };
+
   const getRoomInfo = (roomNumber) => {
     return rooms.find(r => r.roomNumber === roomNumber);
   };
+
+  const getFloorByTenant = (tenant) => {
+    const roomInfo = getRoomInfo(tenant.roomNumber);
+    if (roomInfo?.floor) return Number(roomInfo.floor);
+
+    const roomNum = Number.parseInt(tenant.roomNumber, 10);
+    if (!Number.isFinite(roomNum)) return null;
+    return roomNum < 200 ? 1 : 2;
+  };
+
+  const filteredTenants = tenants.filter((tenant) => {
+    if (floorFilter === 'all') return true;
+    const floor = getFloorByTenant(tenant);
+    if (floorFilter === 'floor1') return floor === 1;
+    if (floorFilter === 'floor2') return floor === 2;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -145,16 +239,46 @@ const Electricity = () => {
       </div>
 
       {/* Tenants List */}
-      {tenants.length === 0 ? (
+      <div className="card mb-6">
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Floor Filter</label>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setFloorFilter('all')}
+            className={`px-4 py-2 rounded-lg font-semibold transition ${
+              floorFilter === 'all' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            All Floors ({tenants.length})
+          </button>
+          <button
+            onClick={() => setFloorFilter('floor1')}
+            className={`px-4 py-2 rounded-lg font-semibold transition ${
+              floorFilter === 'floor1' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Floor 1 ({tenants.filter(t => getFloorByTenant(t) === 1).length})
+          </button>
+          <button
+            onClick={() => setFloorFilter('floor2')}
+            className={`px-4 py-2 rounded-lg font-semibold transition ${
+              floorFilter === 'floor2' ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Floor 2 ({tenants.filter(t => getFloorByTenant(t) === 2).length})
+          </button>
+        </div>
+      </div>
+
+      {filteredTenants.length === 0 ? (
         <div className="card text-center py-12">
           <div className="text-6xl mb-4">⚡</div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">No Active Tenants</h3>
-          <p className="text-gray-600">Add tenants first to manage their electricity readings</p>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">No Tenants Found</h3>
+          <p className="text-gray-600">No active tenants in selected floor</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {tenants.map(tenant => {
-            const latestReading = getLatestReading(tenant.id);
+          {filteredTenants.map(tenant => {
+            const latestReading = getEffectiveLatestReading(tenant);
             const roomInfo = getRoomInfo(tenant.roomNumber);
             
             return (
@@ -203,9 +327,12 @@ const Electricity = () => {
                         <p className="text-sm font-semibold text-green-700">
                           {new Date(latestReading.readingDate).toLocaleDateString('en-IN')}
                         </p>
+                        {latestReading.source === 'payments' && (
+                          <p className="text-[11px] text-orange-600 font-semibold mt-1">from payment history</p>
+                        )}
                       </div>
                     </div>
-                    {latestReading.previousReading && (
+                    {Number.isFinite(Number(latestReading.previousReading)) && (
                       <div className="pt-2 border-t border-green-300 text-xs text-green-700">
                         <div className="flex justify-between">
                           <span>Previous: {latestReading.previousReading} kWh</span>
@@ -239,7 +366,7 @@ const Electricity = () => {
       {showForm && selectedTenant && (
         <MeterReadingForm
           tenant={selectedTenant}
-          latestReading={getLatestReading(selectedTenant.id)}
+          latestReading={getEffectiveLatestReading(selectedTenant)}
           globalRate={globalRate}
           onClose={handleFormClose}
           onSuccess={handleFormSuccess}

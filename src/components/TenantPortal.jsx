@@ -667,23 +667,101 @@ const TenantPortal = () => {
     openSpecificUPIApp('generic');
   };
 
-  const getLastMonthClosingReading = () => {
+  const getYearMonthLabel = (year, month) => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const safeMonth = Number(month);
+    const monthLabel = monthNames[safeMonth - 1] || `M${safeMonth}`;
+    return `${monthLabel} ${year}`;
+  };
+
+  const getMonthIndex = (year, month) => (Number(year) * 12) + Number(month);
+
+  const extractMeterSnapshot = (record) => {
+    const oldReading = Number(record.oldReading ?? record.previousReading);
+    const currentReading = Number(record.currentReading ?? record.meterReading);
+    const electricityAmount = Number(record.electricity ?? record.electricityAmount ?? 0);
+    const unitsFromRecord = Number(record.units ?? record.unitsConsumed);
+
+    const hasReadings = Number.isFinite(oldReading) && Number.isFinite(currentReading) && currentReading >= oldReading;
+    const units = Number.isFinite(unitsFromRecord)
+      ? Math.max(0, unitsFromRecord)
+      : (hasReadings ? Math.max(0, currentReading - oldReading) : 0);
+
+    const hasElectricityBill = electricityAmount > 0 || units > 0;
+
+    return {
+      oldReading: hasReadings ? oldReading : null,
+      currentReading: hasReadings ? currentReading : null,
+      electricityAmount: Number.isFinite(electricityAmount) ? electricityAmount : 0,
+      units,
+      hasElectricityBill,
+      isProperBill: hasReadings && hasElectricityBill && record.status === 'paid'
+    };
+  };
+
+  const getElectricityBillingHealth = () => {
     const today = new Date();
-    const currentMonth = today.getMonth() + 1;
     const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const currentMonthIndex = getMonthIndex(currentYear, currentMonth);
 
-    const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-    const lastMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+    const properRecords = paymentRecords
+      .filter((record) => {
+        const snapshot = extractMeterSnapshot(record);
+        return snapshot.isProperBill;
+      })
+      .sort((a, b) => getMonthIndex(Number(b.year), Number(b.month)) - getMonthIndex(Number(a.year), Number(a.month)));
 
-    const lastMonthPayment = paymentRecords.find((record) => {
-      const recordYear = typeof record.year === 'string' ? parseInt(record.year, 10) : record.year;
-      const recordMonth = typeof record.month === 'string' ? parseInt(record.month, 10) : record.month;
-      return recordYear === lastMonthYear && recordMonth === lastMonth;
-    });
+    const lastProperRecord = properRecords[0] || null;
 
+    if (!lastProperRecord) {
+      const checkInDate = tenant?.checkInDate ? new Date(tenant.checkInDate) : null;
+      const hasValidCheckIn = checkInDate && !Number.isNaN(checkInDate.getTime());
+      const checkInMonthIndex = hasValidCheckIn
+        ? getMonthIndex(checkInDate.getFullYear(), checkInDate.getMonth() + 1)
+        : null;
+
+      const fallbackMonths = hasValidCheckIn
+        ? Math.max(1, currentMonthIndex - checkInMonthIndex + 1)
+        : Math.max(1, paymentRecords.length || 1);
+
+      return {
+        status: 'overdue',
+        monthsPending: fallbackMonths,
+        lastRecord: null,
+        snapshot: null,
+        message: 'No previous proper electricity bill record found. Please submit electricity bill with meter reading.'
+      };
+    }
+
+    const lastYear = Number(lastProperRecord.year);
+    const lastMonth = Number(lastProperRecord.month);
+    const lastMonthIndex = getMonthIndex(lastYear, lastMonth);
+    const monthsPending = Math.max(0, currentMonthIndex - lastMonthIndex);
+
+    if (monthsPending === 0) {
+      const currentSnapshot = extractMeterSnapshot(lastProperRecord);
+      return {
+        status: 'healthy',
+        monthsPending: 0,
+        lastRecord: lastProperRecord,
+        snapshot: currentSnapshot,
+        message: 'Great! You are paying rent + electricity on time every month.'
+      };
+    }
+
+    return {
+      status: 'overdue',
+      monthsPending,
+      lastRecord: lastProperRecord,
+      snapshot: extractMeterSnapshot(lastProperRecord),
+      message: `Electricity bill pending for ${monthsPending} month${monthsPending > 1 ? 's' : ''}.`
+    };
+  };
+
+  const getLastMonthClosingReading = () => {
     const candidateReadings = [
-      lastMonthPayment?.meterReading,
-      lastMonthPayment?.currentReading,
+      getElectricityBillingHealth().snapshot?.currentReading,
       room?.currentReading,
       room?.previousReading,
       0
@@ -862,6 +940,7 @@ const TenantPortal = () => {
             {/* Due Date Alert - Mobile Optimized with Smart Logic */}
             {(() => {
               const dueInfo = getNextDueDate();
+              const electricityHealth = getElectricityBillingHealth();
               const statusColors = {
                 paid: 'from-green-500 to-emerald-600',
                 pending: 'from-amber-500 to-orange-600',
@@ -905,6 +984,60 @@ const TenantPortal = () => {
                       )}
                     </div>
                   </div>
+                </div>
+              );
+            })()}
+
+            {/* Electricity Billing Health */}
+            {(() => {
+              const electricityHealth = getElectricityBillingHealth();
+              const isHealthy = electricityHealth.status === 'healthy';
+              const lastRecord = electricityHealth.lastRecord;
+              const snapshot = electricityHealth.snapshot;
+
+              return (
+                <div className={`rounded-lg border-2 p-4 ${
+                  isHealthy
+                    ? 'bg-green-50 border-green-300'
+                    : 'bg-red-50 border-red-300'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className={`font-bold text-sm sm:text-base ${isHealthy ? 'text-green-900' : 'text-red-900'}`}>
+                        {isHealthy ? '✅ Electricity Billing On Track' : '⚠️ Electricity Billing Pending'}
+                      </p>
+                      <p className={`text-xs sm:text-sm mt-1 ${isHealthy ? 'text-green-800' : 'text-red-800'}`}>
+                        {electricityHealth.message}
+                      </p>
+                    </div>
+                    {!isHealthy && typeof electricityHealth.monthsPending === 'number' && (
+                      <div className="px-3 py-1.5 rounded-full bg-red-100 border border-red-300 text-red-800 text-xs font-bold whitespace-nowrap">
+                        {electricityHealth.monthsPending} month{electricityHealth.monthsPending > 1 ? 's' : ''}
+                      </div>
+                    )}
+                  </div>
+
+                  {lastRecord && snapshot && (
+                    <div className={`mt-3 rounded-lg p-3 border ${isHealthy ? 'bg-green-100 border-green-200' : 'bg-white border-red-200'}`}>
+                      <p className={`text-xs font-semibold mb-2 ${isHealthy ? 'text-green-900' : 'text-red-900'}`}>
+                        Last Proper Electricity Bill: {getYearMonthLabel(lastRecord.year, lastRecord.month)}
+                      </p>
+                      <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm">
+                        <div>
+                          <p className={isHealthy ? 'text-green-700' : 'text-red-700'}>Old</p>
+                          <p className="font-mono font-bold">{snapshot.oldReading ?? '-'}</p>
+                        </div>
+                        <div>
+                          <p className={isHealthy ? 'text-green-700' : 'text-red-700'}>Current</p>
+                          <p className="font-mono font-bold">{snapshot.currentReading ?? '-'}</p>
+                        </div>
+                        <div>
+                          <p className={isHealthy ? 'text-green-700' : 'text-red-700'}>Units</p>
+                          <p className="font-mono font-bold">{snapshot.units}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
