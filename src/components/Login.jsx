@@ -11,6 +11,7 @@ const Login = () => {
   const [resetSuccess, setResetSuccess] = useState(false);
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [isAppInstalled, setIsAppInstalled] = useState(false);
+  const [installHelpText, setInstallHelpText] = useState('');
   const { login, resetPassword, error, setError } = useAuth();
   const navigate = useNavigate();
 
@@ -21,11 +22,13 @@ const Login = () => {
     const onBeforeInstallPrompt = (event) => {
       event.preventDefault();
       setInstallPromptEvent(event);
+      setInstallHelpText('');
     };
 
     const onAppInstalled = () => {
       setIsAppInstalled(true);
       setInstallPromptEvent(null);
+      setInstallHelpText('');
     };
 
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
@@ -38,7 +41,15 @@ const Login = () => {
   }, []);
 
   const handleInstallApp = async () => {
-    if (!installPromptEvent) return;
+    if (!installPromptEvent) {
+      const isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent || '');
+      if (isIOS) {
+        setInstallHelpText('iPhone Safari: Share → Add to Home Screen.');
+      } else {
+        setInstallHelpText('Browser menu (⋮) → Install app / Add to Home screen. Chrome/Edge recommended.');
+      }
+      return;
+    }
 
     installPromptEvent.prompt();
     await installPromptEvent.userChoice;
@@ -116,10 +127,9 @@ const Login = () => {
                 <button
                   type="button"
                   onClick={handleInstallApp}
-                  disabled={!installPromptEvent}
-                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 >
-                  Install App
+                  {installPromptEvent ? 'Install App' : 'Install Help'}
                 </button>
               </div>
               <div className="mt-2 text-xs text-blue-700 space-y-1">
@@ -127,6 +137,7 @@ const Login = () => {
                 {!installPromptEvent && (
                   <p>iPhone Safari: Share → Add to Home Screen.</p>
                 )}
+                {installHelpText && <p className="font-medium">{installHelpText}</p>}
               </div>
             </div>
           )}
