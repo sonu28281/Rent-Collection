@@ -732,7 +732,10 @@ const TenantPortal = () => {
       return;
     }
 
-    if (!activeUPI?.upiId) {
+    const sanitizedUpiId = String(activeUPI?.upiId || '').trim().toLowerCase();
+    const isValidUpiId = /^[a-z0-9._-]{2,}@[a-z]{2,}$/i.test(sanitizedUpiId);
+
+    if (!sanitizedUpiId || !isValidUpiId) {
       alert('❌ UPI ID not available');
       return;
     }
@@ -740,7 +743,14 @@ const TenantPortal = () => {
     const { rentAmount, electricityAmount, totalAmount } = payable;
 
     const roomLabel = payable.perRoom.map((entry) => entry.roomNumber).join(', ');
-    const params = `pa=${encodeURIComponent(activeUPI.upiId)}&pn=${encodeURIComponent(activeUPI.nickname || 'Property Owner')}&am=${totalAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Rooms ${roomLabel} - Rent+Electricity`)}`;
+    const upiParams = new URLSearchParams({
+      pa: sanitizedUpiId,
+      pn: String(activeUPI.nickname || 'Property Owner').trim(),
+      am: Number(totalAmount).toFixed(2),
+      cu: 'INR',
+      tn: `Rooms ${roomLabel} Rent Electricity`
+    });
+    const params = upiParams.toString();
     const genericUpiLink = `upi://pay?${params}`;
 
     const { isAndroid, likelyInAppBrowser } = getBrowserContext();
@@ -1521,12 +1531,18 @@ const TenantPortal = () => {
                 {/* Pay Buttons - Google Pay + PhonePe */}
                 {getPayableAmount() && (
                   <div className="mb-4">
+                    {(() => {
+                      const browserContext = getBrowserContext();
+                      const shouldDisableGenericUpi = browserContext.likelyInAppBrowser;
+
+                      return (
+                        <>
                     <p className="text-sm font-semibold text-gray-700 mb-2">
                       Payable Amount: <span className="text-green-600 text-lg">₹{getPayableAmount().totalAmount.toFixed(2)}</span>
                     </p>
                     <p className="text-xs text-gray-500 mb-3">Choose app and tap once to open with prefilled UPI details</p>
 
-                    {getBrowserContext().likelyInAppBrowser && (
+                    {shouldDisableGenericUpi && (
                       <div className="mb-3 p-3 rounded-lg border border-amber-300 bg-amber-50">
                         <p className="text-xs font-semibold text-amber-900">⚠️ You are in an in-app browser (WhatsApp/Instagram).</p>
                         <p className="text-xs text-amber-800 mt-1">PhonePe/Google Pay may fail here. Open this page in Chrome for reliable payment app launch.</p>
@@ -1573,11 +1589,20 @@ const TenantPortal = () => {
 
                     <button
                       onClick={openUPIPayment}
-                      disabled={paymentProcessing}
+                      disabled={paymentProcessing || shouldDisableGenericUpi}
                       className="w-full mt-3 bg-gray-800 hover:bg-gray-900 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         📱 Other UPI App • Pay ₹{getPayableAmount().totalAmount.toFixed(2)}
                     </button>
+
+                    {shouldDisableGenericUpi && (
+                      <p className="text-[11px] text-amber-700 mt-2">
+                        Generic UPI launch is disabled in this app view. Use Google Pay / PhonePe buttons or open in Chrome.
+                      </p>
+                    )}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
 
