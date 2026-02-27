@@ -3,6 +3,7 @@ import { collection, getDocs, addDoc, query, where, updateDoc, doc, getDoc, setD
 import { db } from '../firebase';
 import ViewModeToggle from './ui/ViewModeToggle';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
+import JSZip from 'jszip';
 
 const Payments = () => {
   const [tenants, setTenants] = useState([]);
@@ -18,6 +19,7 @@ const Payments = () => {
   const [historyMonthFilter, setHistoryMonthFilter] = useState('all');
   const [cleanupMonths, setCleanupMonths] = useState(6);
   const [cleaningScreenshots, setCleaningScreenshots] = useState(false);
+  const [downloadingHistoryZip, setDownloadingHistoryZip] = useState(false);
 
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
@@ -370,6 +372,81 @@ const Payments = () => {
       alert('Failed to delete old screenshots. Please try again.');
     } finally {
       setCleaningScreenshots(false);
+    }
+  };
+
+  const fetchScreenshotBlob = async (url) => {
+    if (!url) return null;
+
+    if (url.startsWith('data:')) {
+      const response = await fetch(url);
+      return response.blob();
+    }
+
+    const response = await fetch(url, { mode: 'cors' });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch screenshot: ${response.status}`);
+    }
+    return response.blob();
+  };
+
+  const sanitizeFilePart = (value) => String(value || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  const handleDownloadVisibleAsZip = async () => {
+    if (filteredHistoryScreenshots.length === 0) {
+      alert('No screenshots available in current filter to download.');
+      return;
+    }
+
+    try {
+      setDownloadingHistoryZip(true);
+      const zip = new JSZip();
+      let addedCount = 0;
+
+      for (const payment of filteredHistoryScreenshots) {
+        const screenshotUrl = getPaymentScreenshot(payment);
+        if (!screenshotUrl) continue;
+
+        try {
+          const blob = await fetchScreenshotBlob(screenshotUrl);
+          if (!blob) continue;
+
+          const tenantPart = sanitizeFilePart(payment.tenantNameSnapshot || payment.tenantName || payment.tenantId);
+          const roomPart = sanitizeFilePart(payment.roomNumber || 'room');
+          const monthPart = `${String(payment.month || '').padStart(2, '0')}-${payment.year || 'unknown'}`;
+          const datePart = sanitizeFilePart(payment.paidDate || 'date');
+          const ext = blob.type && blob.type.includes('jpeg') ? 'jpg' : 'png';
+          const fileName = `${monthPart}/${roomPart}_${tenantPart}_${datePart}.${ext}`;
+
+          zip.file(fileName, blob);
+          addedCount += 1;
+        } catch (itemError) {
+          console.warn('Skipping screenshot in ZIP due to fetch error:', itemError);
+        }
+      }
+
+      if (addedCount === 0) {
+        alert('Could not fetch screenshots for ZIP. Please try individual download for blocked files.');
+        return;
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const zipUrl = URL.createObjectURL(zipBlob);
+      const anchor = document.createElement('a');
+      anchor.href = zipUrl;
+      anchor.download = `payment-screenshots_${historyMonthFilter === 'all' ? 'all' : historyMonthFilter}_${timestamp}.zip`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(zipUrl);
+
+      alert(`✅ Downloaded ZIP with ${addedCount} screenshot(s).`);
+    } catch (zipError) {
+      console.error('Error generating screenshots ZIP:', zipError);
+      alert('Failed to generate ZIP. Please try again.');
+    } finally {
+      setDownloadingHistoryZip(false);
     }
   };
 
@@ -734,6 +811,17 @@ const Payments = () => {
               {cleaningScreenshots ? 'Cleaning...' : `Delete Old (${oldScreenshotCandidates.length})`}
             </button>
           </div>
+        </div>
+
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={handleDownloadVisibleAsZip}
+            disabled={downloadingHistoryZip || filteredHistoryScreenshots.length === 0}
+            className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60"
+          >
+            {downloadingHistoryZip ? 'Preparing ZIP...' : `⬇️ Download Visible as ZIP (${filteredHistoryScreenshots.length})`}
+          </button>
         </div>
 
         {filteredHistoryScreenshots.length === 0 ? (
