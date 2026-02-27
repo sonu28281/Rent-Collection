@@ -1935,10 +1935,6 @@ const TenantPortal = () => {
               const dueInfo = getNextDueDate();
               const electricityHealth = getElectricityBillingHealth();
               const isElectricityPending = electricityHealth.status !== 'healthy';
-              const bannerStatus = dueInfo.status === 'paid' && isElectricityPending ? 'overdue' : dueInfo.status;
-              const bannerStatusText = dueInfo.status === 'paid' && isElectricityPending
-                ? 'Electricity Payment Pending ⚠️'
-                : dueInfo.statusText;
               const statusColors = {
                 paid: 'from-green-500 to-emerald-600',
                 pending: 'from-amber-500 to-orange-600',
@@ -1953,18 +1949,14 @@ const TenantPortal = () => {
               };
               
               return (
-                <div className={`bg-gradient-to-r ${statusColors[bannerStatus]} text-white rounded-lg shadow-lg p-4 sm:p-6`}>
+                <div className={`bg-gradient-to-r ${statusColors[dueInfo.status]} text-white rounded-lg shadow-lg p-4 sm:p-6`}>
                   <div className="flex flex-col sm:flex-row items-center gap-4">
                     <div className="flex items-center gap-3 sm:gap-4 flex-1 w-full">
-                      <div className="text-3xl sm:text-5xl">{statusIcons[bannerStatus]}</div>
+                      <div className="text-3xl sm:text-5xl">{statusIcons[dueInfo.status]}</div>
                       <div className="flex-1">
-                        <h3 className="text-lg sm:text-xl font-bold mb-1">{bannerStatusText}</h3>
+                        <h3 className="text-lg sm:text-xl font-bold mb-1">{dueInfo.statusText}</h3>
                         <p className="text-white/90 text-xs sm:text-sm">
-                          {dueInfo.status === 'paid' && isElectricityPending
-                            ? 'Rent paid, but electricity bill is still pending'
-                            : dueInfo.status === 'paid'
-                              ? 'Next payment due on'
-                              : 'Monthly rent payment'}
+                          {dueInfo.status === 'paid' ? 'Next payment due on' : 'Monthly rent payment'}
                         </p>
                       </div>
                     </div>
@@ -1987,7 +1979,7 @@ const TenantPortal = () => {
                         )}
                       </div>
 
-                      <div className="text-center bg-white/20 backdrop-blur-sm rounded-lg px-4 sm:px-6 py-3 sm:py-4">
+                      <div className={`text-center backdrop-blur-sm rounded-lg px-4 sm:px-6 py-3 sm:py-4 ${isElectricityPending ? 'bg-gradient-to-br from-red-600/75 to-rose-700/80 border-2 border-red-200/70 shadow-lg shadow-red-900/30' : 'bg-white/20'}`}>
                         <p className="text-white/80 text-xs sm:text-sm mb-1">Electricity</p>
                         <p className="text-base sm:text-lg font-bold">
                           {isElectricityPending ? 'Pending ⚠️' : 'On Track ✅'}
