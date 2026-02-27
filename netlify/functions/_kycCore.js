@@ -34,6 +34,23 @@ const safeErrorMessage = (error) => {
 
 const randomState = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 
+const normalizeScopes = (value) => {
+  const raw = String(value || '').trim();
+  const source = raw || 'openid profile';
+
+  const mapped = source
+    .split(/[\s,]+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .map((token) => {
+      if (token === 'issued_documents') return 'issued-documents';
+      return token;
+    });
+
+  const finalScopes = mapped.length > 0 ? Array.from(new Set(mapped)) : ['openid', 'profile'];
+  return finalScopes.join(' ');
+};
+
 const resolveConfig = () => {
   const clientId = process.env.DIGILOCKER_CLIENT_ID || process.env.CLIENT_ID || '';
   const clientSecret = process.env.DIGILOCKER_CLIENT_SECRET || process.env.CLIENT_SECRET || '';
@@ -41,7 +58,7 @@ const resolveConfig = () => {
   const authorizationEndpoint = process.env.DIGILOCKER_AUTHORIZATION_ENDPOINT || process.env.AUTHORIZATION_ENDPOINT || '';
   const tokenEndpoint = process.env.DIGILOCKER_TOKEN_ENDPOINT || process.env.TOKEN_ENDPOINT || '';
   const profileEndpoint = process.env.DIGILOCKER_PROFILE_ENDPOINT || process.env.PROFILE_ENDPOINT || '';
-  const scopes = process.env.DIGILOCKER_SCOPES || process.env.SCOPES || 'openid profile issued_documents';
+  const scopes = normalizeScopes(process.env.DIGILOCKER_SCOPES || process.env.SCOPES || 'openid profile');
 
   return {
     clientId,
