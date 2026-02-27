@@ -757,9 +757,14 @@ const TenantPortal = () => {
   };
 
   const startDigiLockerVerification = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) {
+      console.error('❌ KYC: No tenant ID');
+      return;
+    }
 
     const initiateUrl = getKycInitiateUrl();
+    console.log('🔍 KYC Initiate URL:', initiateUrl);
+    
     if (!initiateUrl) {
       setDigiLockerError('KYC initiate URL missing. Set VITE_KYC_INITIATE_URL or VITE_KYC_FUNCTION_BASE_URL.');
       return;
@@ -770,6 +775,8 @@ const TenantPortal = () => {
     try {
       // Add cache-busting timestamp to prevent cached 500 errors
       const cacheBustedUrl = `${initiateUrl}${initiateUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
+      console.log('📡 Fetching:', cacheBustedUrl);
+      
       const response = await fetch(cacheBustedUrl, { 
         method: 'GET',
         cache: 'no-store',
@@ -778,24 +785,53 @@ const TenantPortal = () => {
           'Pragma': 'no-cache'
         }
       });
-      const payload = await response.json().catch(() => ({}));
+      
+      console.log('📥 Response status:', response.status, response.statusText);
+      console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      const rawText = await response.text();
+      console.log('📥 Response body (raw):', rawText.substring(0, 500));
+      
+      let payload = {};
+      try {
+        payload = JSON.parse(rawText);
+        console.log('✅ Parsed JSON:', payload);
+      } catch (parseError) {
+        console.error('❌ JSON parse failed:', parseError);
+        console.error('❌ Raw response was:', rawText);
+        throw new Error('Server returned invalid JSON');
+      }
+      
       const payloadData = payload?.data || {};
       const authorizationUrl = payload?.authorizationUrl || payloadData?.authorizationUrl;
       const state = payload?.state || payloadData?.state;
       const stateCreatedAt = payloadData?.stateCreatedAt || Date.now();
 
+      console.log('🔍 Extracted values:', { 
+        ok: response.ok, 
+        authorizationUrl: authorizationUrl?.substring(0, 100), 
+        state,
+        stateCreatedAt 
+      });
+
       if (!response.ok || !authorizationUrl || !state) {
-        throw new Error(payload?.message || payload?.error || 'Unable to initiate DigiLocker verification');
+        const errorMsg = payload?.message || payload?.error || 'Unable to initiate DigiLocker verification';
+        console.error('❌ Validation failed:', errorMsg);
+        throw new Error(errorMsg);
       }
 
+      console.log('✅ Saving to localStorage and redirecting...');
       localStorage.setItem(KYC_PENDING_KEY, JSON.stringify({
         tenantId: tenant.id,
         state: String(state),
         stateCreatedAt: Number(stateCreatedAt)
       }));
+      
+      console.log('🚀 Redirecting to:', authorizationUrl.substring(0, 100));
       window.location.href = String(authorizationUrl);
     } catch (error) {
-      console.error('DigiLocker initiate failed:', error);
+      console.error('❌ DigiLocker initiate failed:', error);
+      console.error('❌ Error stack:', error.stack);
       setDigiLockerError(error?.message || 'Unable to start DigiLocker verification. Please try again.');
     } finally {
       setStartingDigiLockerKyc(false);
