@@ -58,6 +58,17 @@ const resolveConfig = () => {
   };
 };
 
+const getMissingOAuthFields = (cfg, requirements = {}) => {
+  const missing = [];
+  if (requirements.clientId && !cfg.clientId) missing.push('DIGILOCKER_CLIENT_ID');
+  if (requirements.clientSecret && !cfg.clientSecret) missing.push('DIGILOCKER_CLIENT_SECRET');
+  if (requirements.redirectUri && !isUsableUrl(cfg.redirectUri)) missing.push('DIGILOCKER_REDIRECT_URI');
+  if (requirements.authorizationEndpoint && !isUsableUrl(cfg.authorizationEndpoint)) missing.push('DIGILOCKER_AUTHORIZATION_ENDPOINT');
+  if (requirements.tokenEndpoint && !isUsableUrl(cfg.tokenEndpoint)) missing.push('DIGILOCKER_TOKEN_ENDPOINT');
+  if (requirements.profileEndpoint && !isUsableUrl(cfg.profileEndpoint)) missing.push('DIGILOCKER_PROFILE_ENDPOINT');
+  return missing;
+};
+
 const isUsableUrl = (value) => {
   if (!value || typeof value !== 'string') return false;
   const trimmed = value.trim();
@@ -311,11 +322,17 @@ const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreat
   }
 
   const cfg = resolveConfig();
-  const missingConfig = !cfg.clientId || !cfg.clientSecret || !isUsableUrl(cfg.redirectUri) || !isUsableUrl(cfg.tokenEndpoint) || !isUsableUrl(cfg.profileEndpoint);
-  if (!isKycTestMode() && missingConfig) {
+  const missingFields = getMissingOAuthFields(cfg, {
+    clientId: true,
+    clientSecret: true,
+    redirectUri: true,
+    tokenEndpoint: true,
+    profileEndpoint: true
+  });
+  if (!isKycTestMode() && missingFields.length > 0) {
     return {
       httpStatus: 500,
-      payload: standardizedResponse(false, 'token', 'OAuth config missing', { tenantId })
+      payload: standardizedResponse(false, 'token', 'OAuth config missing', { tenantId, missingFields })
     };
   }
 
@@ -379,12 +396,16 @@ const initiateKycHandler = async (event) => {
 
   const cfg = resolveConfig();
   const state = randomState();
-  const missingConfig = !cfg.clientId || !isUsableUrl(cfg.redirectUri) || !isUsableUrl(cfg.authorizationEndpoint);
-  if (missingConfig && !isKycTestMode()) {
-    return json(500, standardizedResponse(false, 'token', 'OAuth config missing', {}), buildCorsHeaders(event));
+  const missingFields = getMissingOAuthFields(cfg, {
+    clientId: true,
+    redirectUri: true,
+    authorizationEndpoint: true
+  });
+  if (missingFields.length > 0 && !isKycTestMode()) {
+    return json(500, standardizedResponse(false, 'token', 'OAuth config missing', { missingFields }), buildCorsHeaders(event));
   }
 
-  if (missingConfig && isKycTestMode()) {
+  if (missingFields.length > 0 && isKycTestMode()) {
     const redirectTarget = process.env.DIGILOCKER_TEST_REDIRECT_TARGET || 'https://tenants.callvia.in/kyc/callback';
     const authorizationUrl = `${redirectTarget}?code=MOCK_AUTH_CODE&state=${encodeURIComponent(state)}`;
     return json(200, standardizedResponse(true, 'token', 'KYC initiated (test mode)', {
@@ -418,8 +439,14 @@ const exchangeAuthorizationCodeHandler = async (event) => {
 
   const body = parseJsonBody(event);
   const cfg = resolveConfig();
-  if (!isKycTestMode() && (!cfg.clientId || !cfg.clientSecret || !isUsableUrl(cfg.redirectUri) || !isUsableUrl(cfg.tokenEndpoint))) {
-    return json(500, standardizedResponse(false, 'token', 'OAuth token config missing', {}), buildCorsHeaders(event));
+  const missingTokenFields = getMissingOAuthFields(cfg, {
+    clientId: true,
+    clientSecret: true,
+    redirectUri: true,
+    tokenEndpoint: true
+  });
+  if (!isKycTestMode() && missingTokenFields.length > 0) {
+    return json(500, standardizedResponse(false, 'token', 'OAuth token config missing', { missingFields: missingTokenFields }), buildCorsHeaders(event));
   }
 
   const code = body?.code;
@@ -449,8 +476,11 @@ const fetchUserProfileHandler = async (event) => {
 
   const body = parseJsonBody(event);
   const cfg = resolveConfig();
-  if (!isKycTestMode() && !isUsableUrl(cfg.profileEndpoint)) {
-    return json(500, standardizedResponse(false, 'profile', 'OAuth profile config missing', {}), buildCorsHeaders(event));
+  const missingProfileFields = getMissingOAuthFields(cfg, {
+    profileEndpoint: true
+  });
+  if (!isKycTestMode() && missingProfileFields.length > 0) {
+    return json(500, standardizedResponse(false, 'profile', 'OAuth profile config missing', { missingFields: missingProfileFields }), buildCorsHeaders(event));
   }
 
   const accessToken = body?.accessToken;
