@@ -21,6 +21,14 @@ const VerifyPayments = () => {
   const getSubmissionUtr = (submission) => submission?.utr || submission?.transactionId || submission?.upiRefNo || submission?.upiRef || '';
   const getSubmissionScreenshot = (submission) => submission?.screenshot || submission?.paymentScreenshot || submission?.proofScreenshot || submission?.proofImageUrl || '';
 
+  const getSubmissionMonthYear = (submission) => {
+    const now = new Date();
+    return {
+      year: Number(submission?.year) || now.getFullYear(),
+      month: Number(submission?.month) || (now.getMonth() + 1)
+    };
+  };
+
   const extractUtrFromOcrText = (text) => {
     const safeText = String(text || '').toUpperCase();
     if (!safeText) return '';
@@ -154,6 +162,67 @@ const VerifyPayments = () => {
         data.push({ id: doc.id, ...doc.data() });
       });
 
+      if (filter === 'pending') {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+
+        const [tenantsSnapshot, currentMonthPaymentsSnapshot, currentMonthSubmissionsSnapshot] = await Promise.all([
+          getDocs(query(collection(db, 'tenants'), where('isActive', '==', true))),
+          getDocs(query(collection(db, 'payments'), where('year', '==', currentYear), where('month', '==', currentMonth))),
+          getDocs(query(collection(db, 'paymentSubmissions'), where('year', '==', currentYear), where('month', '==', currentMonth)))
+        ]);
+
+        const activeTenants = tenantsSnapshot.docs.map((tenantDoc) => ({ id: tenantDoc.id, ...tenantDoc.data() }));
+        const currentMonthPayments = currentMonthPaymentsSnapshot.docs.map((paymentDoc) => ({ id: paymentDoc.id, ...paymentDoc.data() }));
+        const currentMonthSubmissions = currentMonthSubmissionsSnapshot.docs.map((submissionDoc) => ({ id: submissionDoc.id, ...submissionDoc.data() }));
+
+        const alreadyListedIds = new Set(data.map((item) => item.id));
+
+        activeTenants.forEach((tenant) => {
+          const hasPaidRecord = currentMonthPayments.some((payment) => {
+            const roomMatches = String(payment.roomNumber) === String(tenant.roomNumber);
+            const tenantMatches = payment.tenantId === tenant.id || (payment.tenantNameSnapshot === tenant.name);
+            return roomMatches && tenantMatches && payment.status === 'paid';
+          });
+
+          if (hasPaidRecord) {
+            return;
+          }
+
+          const tenantSubmission = currentMonthSubmissions.find((submission) => submission.tenantId === tenant.id);
+          if (tenantSubmission) {
+            if (tenantSubmission.status === 'pending' && !alreadyListedIds.has(tenantSubmission.id)) {
+              data.push(tenantSubmission);
+            }
+            return;
+          }
+
+          const placeholderId = `placeholder_${tenant.id}_${currentYear}_${currentMonth}`;
+          if (alreadyListedIds.has(placeholderId)) {
+            return;
+          }
+
+          data.push({
+            id: placeholderId,
+            isPlaceholder: true,
+            awaitingSubmission: true,
+            status: 'pending',
+            tenantId: tenant.id,
+            tenantName: tenant.name,
+            roomNumber: tenant.roomNumber,
+            year: currentYear,
+            month: currentMonth,
+            paidAmount: 0,
+            rentAmount: Number(tenant.currentRent || 0),
+            electricityAmount: 0,
+            paidDate: '',
+            submittedAt: null,
+            notes: 'Waiting for tenant to submit payment proof.'
+          });
+        });
+      }
+
       data.sort((a, b) => {
         const aTime = a?.submittedAt ? new Date(a.submittedAt).getTime() : 0;
         const bTime = b?.submittedAt ? new Date(b.submittedAt).getTime() : 0;
@@ -174,6 +243,11 @@ const VerifyPayments = () => {
   }, [fetchSubmissions]);
 
   const handleApprove = async (submission) => {
+    if (submission?.isPlaceholder) {
+      await showAlert('Tenant has not submitted payment proof yet. Approval is not possible.', { title: 'Awaiting Submission', intent: 'warning' });
+      return;
+    }
+
     const approved = await showConfirm(
       `Approve payment from ${submission.tenantName} (Room ${submission.roomNumber})?\n\nAmount: ₹${submission.paidAmount}`,
       { title: 'Approve Payment', confirmLabel: 'Approve', intent: 'warning' }
@@ -185,13 +259,23 @@ const VerifyPayments = () => {
     const normalizedUtr = normalizeUtr(getSubmissionUtr(submission));
     const screenshotProof = getSubmissionScreenshot(submission);
     if (!isValidUtr(normalizedUtr)) {
-      await showAlert('Cannot approve: valid UTR is required (10-30 letters/numbers).', { title: 'Approval Blocked', intent: 'error' });
-      return;
+      const approveWithoutValidUtr = await showConfirm(
+        'UTR format invalid hai. Kya aap phir bhi approve karna chahte hain?',
+        { title: 'Invalid UTR', confirmLabel: 'Approve Anyway', intent: 'warning' }
+      );
+      if (!approveWithoutValidUtr) {
+        return;
+      }
     }
 
     if (!screenshotProof) {
-      await showAlert('Cannot approve: payment screenshot proof is missing.', { title: 'Approval Blocked', intent: 'error' });
-      return;
+      const approveWithoutScreenshot = await showConfirm(
+        'Screenshot missing hai. Kya aap phir bhi approve karna chahte hain?',
+        { title: 'Missing Screenshot', confirmLabel: 'Approve Anyway', intent: 'warning' }
+      );
+      if (!approveWithoutScreenshot) {
+        return;
+      }
     }
 
     const hasRoomBreakdown = Array.isArray(submission.roomBreakdown) && submission.roomBreakdown.length > 0;
@@ -206,6 +290,45 @@ const VerifyPayments = () => {
 
       const submissionGroupId = `sub_${submission.id}`;
       const nowIso = new Date().toISOString();
+      const { year: submissionYear, month: submissionMonth } = getSubmissionMonthYear(submission);
+      const monthPaymentsSnapshot = await getDocs(
+        query(
+          collection(db, 'payments'),
+          where('year', '==', submissionYear),
+          where('month', '==', submissionMonth)
+        )
+      );
+      const monthPayments = monthPaymentsSnapshot.docs.map((monthPaymentDoc) => ({ id: monthPaymentDoc.id, ...monthPaymentDoc.data() }));
+
+      const upsertPaymentForRoom = async (roomPayload) => {
+        const existingRecord = monthPayments.find((payment) => {
+          const roomMatches = String(payment.roomNumber) === String(roomPayload.roomNumber);
+          const tenantMatches = payment.tenantId === submission.tenantId || (payment.tenantNameSnapshot === submission.tenantName);
+          return roomMatches && tenantMatches;
+        });
+
+        if (existingRecord) {
+          await updateDoc(doc(db, 'payments', existingRecord.id), {
+            ...roomPayload,
+            status: 'paid',
+            verifiedBy: currentUser?.email || 'admin',
+            verifiedAt: nowIso,
+            updatedAt: nowIso,
+            sourceSubmissionId: submission.id,
+            submissionGroupId
+          });
+        } else {
+          await addDoc(collection(db, 'payments'), {
+            ...roomPayload,
+            status: 'paid',
+            sourceSubmissionId: submission.id,
+            submissionGroupId,
+            createdAt: nowIso,
+            verifiedBy: currentUser?.email || 'admin',
+            verifiedAt: nowIso
+          });
+        }
+      };
 
       if (hasRoomBreakdown) {
         for (const roomEntry of submission.roomBreakdown) {
@@ -219,12 +342,12 @@ const VerifyPayments = () => {
           const roomTotal = Number(roomEntry.totalAmount ?? (roomRent + roomElectricity));
           const roomNumber = roomEntry.roomNumber;
 
-          await addDoc(collection(db, 'payments'), {
+          await upsertPaymentForRoom({
             tenantId: submission.tenantId,
             tenantNameSnapshot: submission.tenantName,
             roomNumber,
-            year: submission.year,
-            month: submission.month,
+            year: submissionYear,
+            month: submissionMonth,
             rent: roomRent,
             electricity: roomElectricity,
             paidAmount: roomTotal,
@@ -236,38 +359,36 @@ const VerifyPayments = () => {
             unitsConsumed: roomUnits,
             paidDate: submission.paidDate,
             paymentMethod: 'UPI',
-            utr: normalizedUtr,
+            utr: normalizedUtr || getSubmissionUtr(submission) || '',
             screenshot: screenshotProof,
             notes: submission.notes,
-            status: 'paid',
-            isMultiRoomPayment: true,
-            sourceSubmissionId: submission.id,
-            submissionGroupId,
-            createdAt: nowIso,
-            verifiedBy: currentUser?.email || 'admin',
-            verifiedAt: nowIso
+            isMultiRoomPayment: true
           });
 
           if (Number.isFinite(roomCurrent) && roomCurrent > 0) {
-            const roomsRef = collection(db, 'rooms');
-            const roomQuery = query(roomsRef, where('roomNumber', '==', roomNumber));
-            const roomSnapshot = await getDocs(roomQuery);
+            try {
+              const roomsRef = collection(db, 'rooms');
+              const roomQuery = query(roomsRef, where('roomNumber', '==', roomNumber));
+              const roomSnapshot = await getDocs(roomQuery);
 
-            if (!roomSnapshot.empty) {
-              await updateDoc(doc(db, 'rooms', roomSnapshot.docs[0].id), {
-                currentReading: roomCurrent,
-                lastUpdated: nowIso
-              });
+              if (!roomSnapshot.empty) {
+                await updateDoc(doc(db, 'rooms', roomSnapshot.docs[0].id), {
+                  currentReading: roomCurrent,
+                  lastUpdated: nowIso
+                });
+              }
+            } catch (roomUpdateError) {
+              console.warn('Room reading update skipped for room', roomNumber, roomUpdateError);
             }
           }
         }
       } else {
-        await addDoc(collection(db, 'payments'), {
+        await upsertPaymentForRoom({
           tenantId: submission.tenantId,
           tenantNameSnapshot: submission.tenantName,
           roomNumber: submission.roomNumber,
-          year: submission.year,
-          month: submission.month,
+          year: submissionYear,
+          month: submissionMonth,
           rent: submission.rentAmount,
           electricity: submission.electricityAmount,
           paidAmount: submission.paidAmount,
@@ -279,27 +400,26 @@ const VerifyPayments = () => {
           unitsConsumed,
           paidDate: submission.paidDate,
           paymentMethod: 'UPI',
-          utr: normalizedUtr,
+          utr: normalizedUtr || getSubmissionUtr(submission) || '',
           screenshot: screenshotProof,
-          notes: submission.notes,
-          status: 'paid',
-          sourceSubmissionId: submission.id,
-          createdAt: nowIso,
-          verifiedBy: currentUser?.email || 'admin',
-          verifiedAt: nowIso
+          notes: submission.notes
         });
 
         // Update room meter reading if provided
         if (submission.meterReading && submission.meterReading > 0) {
-          const roomsRef = collection(db, 'rooms');
-          const roomQuery = query(roomsRef, where('roomNumber', '==', submission.roomNumber));
-          const roomSnapshot = await getDocs(roomQuery);
+          try {
+            const roomsRef = collection(db, 'rooms');
+            const roomQuery = query(roomsRef, where('roomNumber', '==', submission.roomNumber));
+            const roomSnapshot = await getDocs(roomQuery);
 
-          if (!roomSnapshot.empty) {
-            await updateDoc(doc(db, 'rooms', roomSnapshot.docs[0].id), {
-              currentReading: submission.meterReading,
-              lastUpdated: nowIso
-            });
+            if (!roomSnapshot.empty) {
+              await updateDoc(doc(db, 'rooms', roomSnapshot.docs[0].id), {
+                currentReading: submission.meterReading,
+                lastUpdated: nowIso
+              });
+            }
+          } catch (roomUpdateError) {
+            console.warn('Room reading update skipped for room', submission.roomNumber, roomUpdateError);
           }
         }
       }
@@ -535,7 +655,7 @@ const VerifyPayments = () => {
                 <div className="text-right">
                   {getStatusBadge(submission.status)}
                   <p className="text-xs text-white text-opacity-90 mt-1">
-                    {new Date(submission.submittedAt).toLocaleString()}
+                    {submission.submittedAt ? new Date(submission.submittedAt).toLocaleString() : 'Awaiting submission'}
                   </p>
                 </div>
               </div>
@@ -566,7 +686,7 @@ const VerifyPayments = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                   <div>
                     <label className="text-xs text-gray-500 font-semibold">Payment Date</label>
-                    <p className="text-sm font-bold">{submission.paidDate}</p>
+                    <p className="text-sm font-bold">{submission.paidDate || '-'}</p>
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 font-semibold">Month/Year</label>
@@ -708,6 +828,12 @@ const VerifyPayments = () => {
                 {/* Actions */}
                 {submission.status === 'pending' && (
                   <div className="flex gap-2 flex-wrap">
+                    {submission.awaitingSubmission ? (
+                      <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm font-semibold px-3 py-2 rounded-lg">
+                        Awaiting tenant payment submission
+                      </div>
+                    ) : (
+                      <>
                     <button
                       onClick={() => handleApprove(submission)}
                       disabled={processing}
@@ -731,6 +857,8 @@ const VerifyPayments = () => {
                     >
                       ❌ Reject
                     </button>
+                      </>
+                    )}
                   </div>
                 )}
 
