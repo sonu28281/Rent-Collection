@@ -696,6 +696,41 @@ const TenantPortal = () => {
     };
   };
 
+  const getCurrentMonthPayableFromRecords = () => {
+    if (!paymentRecords || paymentRecords.length === 0) return null;
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    const currentMonthRecords = paymentRecords.filter((record) => {
+      const recordYear = Number(record.year);
+      const recordMonth = Number(record.month);
+      return recordYear === currentYear && recordMonth === currentMonth;
+    });
+
+    if (currentMonthRecords.length === 0) return null;
+
+    const totals = currentMonthRecords.reduce((sum, record) => {
+      const rent = Number(record.rent) || 0;
+      const electricity = Number(record.electricity) || 0;
+      const totalAmount = Number(record.total || record.totalAmount) || (rent + electricity);
+      const paidAmount = Number(record.paidAmount) || 0;
+
+      return {
+        rent: sum.rent + rent,
+        electricity: sum.electricity + electricity,
+        total: sum.total + totalAmount,
+        paid: sum.paid + paidAmount
+      };
+    }, { rent: 0, electricity: 0, total: 0, paid: 0 });
+
+    return {
+      ...totals,
+      due: Math.max(totals.total - totals.paid, 0)
+    };
+  };
+
   const getBrowserContext = () => {
     const userAgent = navigator.userAgent || '';
     const isAndroid = /Android/i.test(userAgent);
@@ -1336,43 +1371,38 @@ const TenantPortal = () => {
               const dueInfo = getNextDueDate();
               const isCurrentMonthPaid = dueInfo.status === 'paid';
               const isVerificationPending = dueInfo.status === 'pending';
-              const shouldDisablePayment = isCurrentMonthPaid || isVerificationPending;
-              const effectiveRooms = roomsData.length > 0
-                ? roomsData
-                : (room ? [room] : []);
+              const currentMonthPayable = getCurrentMonthPayableFromRecords();
+              const paymentFlowTemporarilyDisabled = true;
+              const shouldDisablePayment = paymentFlowTemporarilyDisabled || isCurrentMonthPaid || isVerificationPending;
               
               return (
                 <>
-                  {/* Make Payment Button - Only show if current month NOT paid */}
-                  {!shouldDisablePayment && (
-                    <button
-                      onClick={() => {
-                        console.log('Make Payment clicked!');
-                        console.log('Active UPI:', activeUPI);
-                        console.log('Room:', room);
-                        if (!activeUPI) {
-                          alert('⚠️ Payment setup not available. Please contact property manager.');
-                          return;
-                        }
-
-                        const initialPrevious = {};
-                        const initialCurrent = {};
-                        effectiveRooms.forEach((roomEntry) => {
-                          const roomKey = String(roomEntry.roomNumber);
-                          const oldReading = getLastMonthClosingReading(roomEntry.roomNumber);
-                          initialPrevious[roomKey] = String(oldReading);
-                          initialCurrent[roomKey] = '';
-                        });
-
-                        setPreviousMeterReadings(initialPrevious);
-                        setCurrentMeterReadings(initialCurrent);
-                        setShowPaymentForm(true);
-                      }}
-                      className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 touch-manipulation mb-3"
-                    >
-                      💳 Make Payment Now
-                    </button>
+                  {/* Current Month Payable Summary */}
+                  {currentMonthPayable && (
+                    <div className="w-full bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg p-4 mb-3">
+                      <p className="text-xs text-green-800 font-semibold mb-1">इस महीने का भुगतान (Current Month)</p>
+                      <p className="text-2xl font-bold text-green-900 mb-2">₹{currentMonthPayable.due.toLocaleString('en-IN')}</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-green-800">
+                        <p>Rent: <span className="font-semibold">₹{currentMonthPayable.rent.toLocaleString('en-IN')}</span></p>
+                        <p>Electricity: <span className="font-semibold">₹{currentMonthPayable.electricity.toLocaleString('en-IN')}</span></p>
+                        <p>Total: <span className="font-semibold">₹{currentMonthPayable.total.toLocaleString('en-IN')}</span></p>
+                        <p>Paid: <span className="font-semibold">₹{currentMonthPayable.paid.toLocaleString('en-IN')}</span></p>
+                      </div>
+                    </div>
                   )}
+
+                  {/* Make Payment Button - Temporarily disabled */}
+                  <button
+                    type="button"
+                    disabled={shouldDisablePayment}
+                    className="w-full bg-gray-300 text-gray-700 font-bold py-4 px-6 rounded-lg shadow-sm cursor-not-allowed mb-3"
+                  >
+                    💳 Make Payment (Temporarily Disabled)
+                  </button>
+
+                  <p className="text-xs text-gray-600 text-center mb-3">
+                    अभी ऐप से direct payment खोलना बंद है। कृपया अपनी payment app से manually payment करें।
+                  </p>
                   
                   {/* Pending Verification Message */}
                   {isVerificationPending && (
@@ -1390,9 +1420,19 @@ const TenantPortal = () => {
                   >
                     📝 Submit Payment for Verification
                   </button>
-                  <p className="text-xs text-gray-500 text-center mt-2">
-                    💡 Already paid outside? Submit details here for verification
-                  </p>
+
+                  <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-xs font-bold text-blue-900 mb-1">महत्वपूर्ण निर्देश (Payment के बाद):</p>
+                    <ul className="text-xs text-blue-800 space-y-1">
+                      <li>1) अपनी Google Pay / PhonePe / किसी भी payment app से payment करें।</li>
+                      <li>2) Payment successful होने के बाद screenshot लें।</li>
+                      <li>3) Tenant Portal में screenshot upload करें।</li>
+                      <li>4) UTR / Transaction ID copy करके form में भरें और verification के लिए submit करें।</li>
+                    </ul>
+                    <p className="text-[11px] text-blue-700 mt-2">
+                      UTR कहाँ मिलेगा: Payment app में transaction details / history खोलें। वहाँ UTR, UPI Ref No, या Transaction ID नाम से 12-22 digit/alphanumeric code दिखता है।
+                    </p>
+                  </div>
                 </>
               );
             })()}

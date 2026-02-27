@@ -307,41 +307,41 @@ const Dashboard = () => {
                           <span className="text-xl">🏠</span>
                           Floor 1 - Ground Floor ({floor1.length} tenants: {paidCount} paid, {pendingCount} pending)
                         </h4>
-                        <div className="rounded-lg border border-gray-200 overflow-hidden p-3 sm:p-0">
-                          {isCardView ? (
-                            <div className="space-y-3">
-                              {floor1.map((tenant) => {
-                                const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
-                                return (
-                                  <div key={tenant.id} className={`rounded-lg border p-3 ${isPaid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div>
-                                        <p className="text-xs text-gray-500">Room</p>
-                                        <p className="font-bold text-gray-900">{tenant.roomNumber} • {tenant.name}</p>
-                                      </div>
-                                      <span className={`text-xs px-2 py-1 rounded font-semibold ${
-                                        isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
-                                      }`}>
-                                        {isPaid ? '✅ Paid' : '❌ Pending'}
-                                      </span>
+                        {isCardView ? (
+                          <div className="space-y-3">
+                            {floor1.map((tenant) => {
+                              const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
+                              return (
+                                <div key={tenant.id} className={`rounded-lg border p-3 ${isPaid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-xs text-gray-500">Room</p>
+                                      <p className="font-bold text-gray-900">{tenant.roomNumber} • {tenant.name}</p>
                                     </div>
-                                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                                      <p>Rent: <span className="font-semibold">₹{tenant.expectedRent.toLocaleString('en-IN')}</span></p>
-                                      <p>Electricity: <span className="font-semibold text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</span></p>
-                                      <p>Expected: <span className="font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</span></p>
-                                      <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
-                                    </div>
-                                    <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
-                                      <span>Payment: {tenant.paidDate || '-'}</span>
-                                      {tenant.isDelayed && (
-                                        <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
-                                      )}
-                                    </div>
+                                    <span className={`text-xs px-2 py-1 rounded font-semibold ${
+                                      isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
+                                    }`}>
+                                      {isPaid ? '✅ Paid' : '❌ Pending'}
+                                    </span>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
+                                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                    <p>Rent: <span className="font-semibold">₹{tenant.expectedRent.toLocaleString('en-IN')}</span></p>
+                                    <p>Electricity: <span className="font-semibold text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</span></p>
+                                    <p>Expected: <span className="font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</span></p>
+                                    <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
+                                  </div>
+                                  <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
+                                    <span>Payment: {tenant.paidDate || '-'}</span>
+                                    {tenant.isDelayed && (
+                                      <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-gray-200 overflow-hidden">
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
                                 <thead className="bg-gray-100">
@@ -397,8 +397,8 @@ const Dashboard = () => {
                                 </tbody>
                               </table>
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -413,41 +413,41 @@ const Dashboard = () => {
                           <span className="text-xl">🏢</span>
                           Floor 2 - First Floor ({floor2.length} tenants: {paidCount} paid, {pendingCount} pending)
                         </h4>
-                        <div className="rounded-lg border border-gray-200 overflow-hidden p-3 sm:p-0">
-                          {isCardView ? (
-                            <div className="space-y-3">
-                              {floor2.map((tenant) => {
-                                const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
-                                return (
-                                  <div key={tenant.id} className={`rounded-lg border p-3 ${isPaid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div>
-                                        <p className="text-xs text-gray-500">Room</p>
-                                        <p className="font-bold text-gray-900">{tenant.roomNumber} • {tenant.name}</p>
-                                      </div>
-                                      <span className={`text-xs px-2 py-1 rounded font-semibold ${
-                                        isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
-                                      }`}>
-                                        {isPaid ? '✅ Paid' : '❌ Pending'}
-                                      </span>
+                        {isCardView ? (
+                          <div className="space-y-3">
+                            {floor2.map((tenant) => {
+                              const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
+                              return (
+                                <div key={tenant.id} className={`rounded-lg border p-3 ${isPaid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-xs text-gray-500">Room</p>
+                                      <p className="font-bold text-gray-900">{tenant.roomNumber} • {tenant.name}</p>
                                     </div>
-                                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                                      <p>Rent: <span className="font-semibold">₹{tenant.expectedRent.toLocaleString('en-IN')}</span></p>
-                                      <p>Electricity: <span className="font-semibold text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</span></p>
-                                      <p>Expected: <span className="font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</span></p>
-                                      <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
-                                    </div>
-                                    <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
-                                      <span>Payment: {tenant.paidDate || '-'}</span>
-                                      {tenant.isDelayed && (
-                                        <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
-                                      )}
-                                    </div>
+                                    <span className={`text-xs px-2 py-1 rounded font-semibold ${
+                                      isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
+                                    }`}>
+                                      {isPaid ? '✅ Paid' : '❌ Pending'}
+                                    </span>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
+                                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                    <p>Rent: <span className="font-semibold">₹{tenant.expectedRent.toLocaleString('en-IN')}</span></p>
+                                    <p>Electricity: <span className="font-semibold text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</span></p>
+                                    <p>Expected: <span className="font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</span></p>
+                                    <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
+                                  </div>
+                                  <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
+                                    <span>Payment: {tenant.paidDate || '-'}</span>
+                                    {tenant.isDelayed && (
+                                      <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-gray-200 overflow-hidden">
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
                                 <thead className="bg-gray-100">
@@ -503,8 +503,8 @@ const Dashboard = () => {
                                 </tbody>
                               </table>
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
