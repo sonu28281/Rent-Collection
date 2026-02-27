@@ -827,7 +827,7 @@ const TenantPortal = () => {
         throw new Error(errorMsg);
       }
 
-      console.log('✅ Saving to localStorage and redirecting...');
+      console.log('✅ Saving to localStorage and opening popup...');
       localStorage.setItem(KYC_PENDING_KEY, JSON.stringify({
         tenantId: tenant.id,
         state: String(state),
@@ -835,8 +835,46 @@ const TenantPortal = () => {
         stateCreatedAt: Number(stateCreatedAt)
       }));
       
-      console.log('🚀 Redirecting to:', authorizationUrl.substring(0, 100));
-      window.location.href = String(authorizationUrl);
+      console.log('🚀 Opening DigiLocker popup window...');
+      
+      // Open DigiLocker in popup window (better UX - user stays on site)
+      const popupWidth = 600;
+      const popupHeight = 700;
+      const left = (window.screen.width - popupWidth) / 2;
+      const top = (window.screen.height - popupHeight) / 2;
+      const popupFeatures = `width=${popupWidth},height=${popupHeight},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no,resizable=yes,scrollbars=yes`;
+      
+      const popup = window.open(authorizationUrl, 'DigiLockerKYC', popupFeatures);
+      
+      if (!popup) {
+        throw new Error('Popup blocked. Please allow popups for this site.');
+      }
+
+      // Monitor popup closure and check KYC status
+      const checkPopupClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkPopupClosed);
+          console.log('✅ DigiLocker popup closed, checking verification status...');
+          setStartingDigiLockerKyc(false);
+          
+          // Refresh tenant data to check if KYC was completed
+          setTimeout(() => {
+            if (tenant?.id) {
+              fetchTenantData(tenant);
+            }
+          }, 1000);
+        }
+      }, 500);
+
+      // Also set timeout to clear interval after 10 minutes
+      setTimeout(() => {
+        clearInterval(checkPopupClosed);
+        if (!popup.closed) {
+          popup.close();
+        }
+        setStartingDigiLockerKyc(false);
+      }, 600000); // 10 minutes
+
     } catch (error) {
       console.error('❌ DigiLocker initiate failed:', error);
       console.error('❌ Error stack:', error.stack);
@@ -937,12 +975,30 @@ const TenantPortal = () => {
           };
         });
         setKycCallbackStatus('success');
-        setKycCallbackMessage('DigiLocker verification completed successfully. Redirecting...');
-        setTimeout(() => navigate('/tenant-portal', { replace: true }), 1200);
+        
+        // Check if we're in a popup window
+        if (window.opener && !window.opener.closed) {
+          // We're in a popup - close it and let parent window refresh
+          setKycCallbackMessage('DigiLocker verification completed successfully. Closing...');
+          setTimeout(() => {
+            window.close();
+          }, 800);
+        } else {
+          // Full page redirect scenario (fallback)
+          setKycCallbackMessage('DigiLocker verification completed successfully. Redirecting...');
+          setTimeout(() => navigate('/tenant-portal', { replace: true }), 1200);
+        }
       } catch (error) {
         console.error('KYC callback processing failed:', error);
         setKycCallbackStatus('error');
         setKycCallbackMessage(error?.message || 'Unable to complete KYC callback. Please retry.');
+        
+        // If in popup and error occurs, still close after showing error
+        if (window.opener && !window.opener.closed) {
+          setTimeout(() => {
+            window.close();
+          }, 3000);
+        }
       }
     };
 
