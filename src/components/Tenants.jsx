@@ -287,6 +287,54 @@ const Tenants = () => {
     }
   };
 
+  const handleResetKyc = async (tenant) => {
+    const isKycVerified = tenant?.kyc?.verified === true;
+    
+    if (!isKycVerified) {
+      await showAlert('This tenant is not KYC verified yet.', { 
+        title: 'Not Verified', 
+        intent: 'info' 
+      });
+      return;
+    }
+
+    const confirmed = await showConfirm(
+      `Reset KYC status for ${tenant.name}? They will need to verify again with DigiLocker.`,
+      {
+        title: 'Reset KYC Status',
+        confirmLabel: 'Reset KYC',
+        intent: 'warning'
+      }
+    );
+    
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const tenantRef = doc(db, 'tenants', tenant.id);
+      await updateDoc(tenantRef, {
+        'kyc.verified': false,
+        'kyc.verifiedBy': null,
+        'kyc.verifiedAt': null,
+        'kyc.resetAt': new Date().toISOString(),
+        'kyc.resetReason': 'Admin reset'
+      });
+      
+      fetchData();
+      await showAlert('KYC status reset successfully. Tenant can now verify again.', { 
+        title: 'KYC Reset', 
+        intent: 'success' 
+      });
+    } catch (err) {
+      console.error('Error resetting KYC:', err);
+      await showAlert('Failed to reset KYC status. Please try again.', { 
+        title: 'Reset Failed', 
+        intent: 'error' 
+      });
+    }
+  };
+
   const handleViewHistory = async (tenant) => {
     setSelectedTenantHistory(tenant);
     setLoadingHistory(true);
@@ -702,6 +750,7 @@ const Tenants = () => {
               onEdit={() => handleEditTenant(tenant)}
               onDelete={() => handleDeleteTenant(tenant)}
               onViewHistory={() => handleViewHistory(tenant)}
+              onResetKyc={() => handleResetKyc(tenant)}
             />
           ))}
         </div>
@@ -811,6 +860,15 @@ const Tenants = () => {
                         >
                           ✏️
                         </button>
+                        {isKycVerified && (
+                          <button 
+                            onClick={() => handleResetKyc(tenant)}
+                            className="text-orange-600 hover:text-orange-900 font-medium"
+                            title="Reset KYC"
+                          >
+                            🔄
+                          </button>
+                        )}
                         <button 
                           onClick={() => handleDeleteTenant(tenant)}
                           className="text-red-600 hover:text-red-900 font-medium"
@@ -1003,9 +1061,10 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
   );
 };
 
-const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
+const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc }) => {
   const { showAlert, showPrompt } = useDialog();
   const isActive = tenant.isActive;
+  const isKycVerified = tenant?.kyc?.verified === true && tenant?.kyc?.verifiedBy === 'DigiLocker';
   const assignedRooms = Array.isArray(tenant?.assignedRooms) && tenant.assignedRooms.length > 0
     ? tenant.assignedRooms.map((room) => String(room))
     : (tenant?.roomNumber ? [String(tenant.roomNumber)] : []);
@@ -1174,7 +1233,7 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
       </div>
 
       {/* Action Buttons - Minimized */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className={`grid gap-2 ${isKycVerified ? 'grid-cols-2' : 'grid-cols-3'}`}>
         <button 
           onClick={onViewHistory} 
           className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg font-semibold transition text-xs border border-purple-300"
@@ -1189,6 +1248,15 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
         >
           ✏️ Edit
         </button>
+        {isKycVerified && (
+          <button 
+            onClick={onResetKyc} 
+            className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-2 rounded-lg font-semibold transition text-xs border border-orange-300"
+            title="Reset KYC"
+          >
+            🔄 Reset KYC
+          </button>
+        )}
         <button 
           onClick={onDelete} 
           className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg font-semibold transition text-xs border border-red-300"
