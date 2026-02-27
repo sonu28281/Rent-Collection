@@ -61,6 +61,24 @@ service cloud.firestore {
       allow read: if true;  // ✅ May be needed for tenant portal
       allow write: if isAdmin();
     }
+
+    // Payment submission queue - tenant submits, admin verifies
+    match /paymentSubmissions/{submissionId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Push device tokens (web FCM)
+    match /deviceTokens/{tokenId} {
+      allow read: if isAdmin();
+      allow write: if true;
+    }
+
+    // Notification dedupe events (maintained by backend function)
+    match /notificationEvents/{eventId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
     
     // Import logs - Admin only
     match /importLogs/{logId} {

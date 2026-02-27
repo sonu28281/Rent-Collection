@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { useDialog } from './ui/DialogProvider';
 import Tesseract from 'tesseract.js';
+import { listenForegroundMessages, registerPushToken } from '../utils/fcm';
 
 const VerifyPayments = () => {
   const { currentUser } = useAuth();
@@ -322,6 +323,34 @@ const VerifyPayments = () => {
   useEffect(() => {
     fetchSubmissions();
   }, [fetchSubmissions]);
+
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+
+    registerPushToken({
+      role: 'admin',
+      userId: currentUser.uid,
+      adminEmail: currentUser.email || null
+    });
+  }, [currentUser?.uid, currentUser?.email]);
+
+  useEffect(() => {
+    let unsubscribe = () => {};
+
+    listenForegroundMessages((payload) => {
+      const title = payload?.notification?.title || 'New Notification';
+      const body = payload?.notification?.body || '';
+      showAlert(body || 'You have a new notification.', { title, intent: 'info' });
+    }).then((cleanup) => {
+      unsubscribe = cleanup;
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [showAlert]);
 
   useEffect(() => {
     if (notificationPermission !== 'granted') return;
