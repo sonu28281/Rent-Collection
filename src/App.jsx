@@ -6,6 +6,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Rooms from './components/Rooms';
 import Tenants from './components/Tenants';
+import TenantsKYCDetails from './components/TenantsKYCDetails';
 import TenantPortal from './components/TenantPortal';
 import Settings from './components/Settings';
 import Electricity from './components/Electricity';
@@ -57,6 +58,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><Tenants /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/tenants-kyc" 
+            element={
+              <ProtectedRoute>
+                <Layout><TenantsKYCDetails /></Layout>
               </ProtectedRoute>
             } 
           />

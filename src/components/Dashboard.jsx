@@ -147,6 +147,13 @@ const Dashboard = () => {
     return rooms.join(', ');
   };
 
+  const getCompactRoomLabel = (tenant) => {
+    const rooms = getTenantRooms(tenant);
+    if (rooms.length === 0) return '-';
+    if (rooms.length === 1) return rooms[0];
+    return `${rooms[0]} +${rooms.length - 1}`;
+  };
+
   const getFloorRoomCount = (tenants) => {
     const uniqueRooms = new Set();
     tenants.forEach((tenant) => {
@@ -511,22 +518,22 @@ const Dashboard = () => {
                                               : 'bg-red-50 hover:bg-red-100'
                                           }`}
                                         >
-                                          <td className="px-3 py-2 font-semibold">
-                                            {getTenantRoomLabel(tenant)}
-                                            {tenant.roomCount > 1 && (
-                                              <button
-                                                type="button"
-                                                onClick={() => toggleSplitRow('floor1', tenant.id)}
-                                                className="ml-2 text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded hover:bg-indigo-200"
-                                              >
-                                                {tenant.roomCount} rooms {expanded ? '▲' : '▼'}
-                                              </button>
-                                            )}
+                                          <td className="px-3 py-2 font-semibold whitespace-nowrap" title={getTenantRoomLabel(tenant)}>
+                                            {getCompactRoomLabel(tenant)}
                                           </td>
                                           <td className="px-3 py-2">
                                             {tenant.name}
                                             {tenant.roomCount > 1 && (
-                                              <div className="text-xs text-indigo-700 font-semibold">Multi-room tenant</div>
+                                              <div className="mt-1 flex items-center gap-2">
+                                                <span className="text-xs text-indigo-700 font-semibold">Multi-room tenant</span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => toggleSplitRow('floor1', tenant.id)}
+                                                  className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded hover:bg-indigo-200"
+                                                >
+                                                  Split {expanded ? '▲' : '▼'}
+                                                </button>
+                                              </div>
                                             )}
                                           </td>
                                           <td className="px-3 py-2 text-right text-gray-700">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
@@ -677,22 +684,22 @@ const Dashboard = () => {
                                               : 'bg-red-50 hover:bg-red-100'
                                           }`}
                                         >
-                                          <td className="px-3 py-2 font-semibold">
-                                            {getTenantRoomLabel(tenant)}
-                                            {tenant.roomCount > 1 && (
-                                              <button
-                                                type="button"
-                                                onClick={() => toggleSplitRow('floor2', tenant.id)}
-                                                className="ml-2 text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded hover:bg-indigo-200"
-                                              >
-                                                {tenant.roomCount} rooms {expanded ? '▲' : '▼'}
-                                              </button>
-                                            )}
+                                          <td className="px-3 py-2 font-semibold whitespace-nowrap" title={getTenantRoomLabel(tenant)}>
+                                            {getCompactRoomLabel(tenant)}
                                           </td>
                                           <td className="px-3 py-2">
                                             {tenant.name}
                                             {tenant.roomCount > 1 && (
-                                              <div className="text-xs text-indigo-700 font-semibold">Multi-room tenant</div>
+                                              <div className="mt-1 flex items-center gap-2">
+                                                <span className="text-xs text-indigo-700 font-semibold">Multi-room tenant</span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => toggleSplitRow('floor2', tenant.id)}
+                                                  className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded hover:bg-indigo-200"
+                                                >
+                                                  Split {expanded ? '▲' : '▼'}
+                                                </button>
+                                              </div>
                                             )}
                                           </td>
                                           <td className="px-3 py-2 text-right text-gray-700">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>

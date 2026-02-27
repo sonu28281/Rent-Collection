@@ -465,6 +465,10 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
       });
 
       const totalElectricity = uniqueTenantPayments.reduce((sum, payment) => sum + payment.electricityValue, 0);
+      const rentFromRecords = uniqueTenantPayments.reduce(
+        (sum, payment) => sum + (Number(payment.rent || payment.rentAmount) || 0),
+        0
+      );
       const collectedAmount = uniqueTenantPayments.reduce((sum, payment) => sum + payment.paidAmountValue, 0);
       const latestPaidRecord = uniqueTenantPayments
         .filter((payment) => payment.isPaidStatus)
@@ -484,8 +488,11 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         ? tenantRoomNumbers.every((room) => paidRooms.has(String(room)))
         : false;
       
-      // Calculate expected rent (from tenant data or payment record)
-      const expectedRent = tenant.currentRent || 0;
+      // Calculate expected rent with multi-room support
+      const baseTenantRent = Number(tenant.currentRent) || 0;
+      const expectedRent = rentFromRecords > 0
+        ? rentFromRecords
+        : (tenantRoomNumbers.length > 1 ? baseTenantRent * tenantRoomNumbers.length : baseTenantRent);
       const expectedElectricity = totalElectricity;
       const expectedTotal = expectedRent + expectedElectricity;
       

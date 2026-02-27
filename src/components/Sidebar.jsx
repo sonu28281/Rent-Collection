@@ -5,6 +5,7 @@ import LanguageSwitcher from './LanguageSwitcher';
 
 const Sidebar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isTenantsOpen, setIsTenantsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -13,7 +14,6 @@ const Sidebar = () => {
   // Main menu items
   const menuItems = [
     { icon: '📊', label: 'Dashboard', path: '/dashboard' },
-    { icon: '👥', label: 'Tenants', path: '/tenants' },
     { icon: '🏠', label: 'Rooms', path: '/rooms' },
     { icon: '⚡', label: 'Electricity', path: '/electricity' },
     { icon: '📈', label: 'Rent Increase', path: '/rent-increase' },
@@ -24,6 +24,12 @@ const Sidebar = () => {
     { icon: '📚', label: 'History Manager', path: '/history' },
     { icon: '📊', label: 'Vacancy Report', path: '/vacancy-report' },
     { icon: '🕰️', label: 'Tenant History', path: '/tenant-history' },
+  ];
+
+  // Settings submenu items
+  const tenantItems = [
+    { icon: '🏘️', label: 'Occupancy', path: '/tenants' },
+    { icon: '🪪', label: 'Tenants KYC Details', path: '/tenants-kyc' }
   ];
 
   // Settings submenu items
@@ -57,6 +63,10 @@ const Sidebar = () => {
 
   const isSettingsActive = () => {
     return settingsItems.some(item => item.path === location.pathname);
+  };
+
+  const isTenantsActive = () => {
+    return tenantItems.some(item => item.path === location.pathname);
   };
 
   return (
@@ -132,6 +142,54 @@ const Sidebar = () => {
               <span className="text-sm">{item.label}</span>
             </button>
           ))}
+
+          {/* Tenants Dropdown */}
+          <div>
+            <button
+              onClick={() => setIsTenantsOpen(!isTenantsOpen)}
+              className={`
+                w-full flex items-center justify-between px-6 py-1.5 text-left transition
+                ${isTenantsActive()
+                  ? 'bg-primary text-white font-semibold'
+                  : 'text-gray-700 hover:bg-gray-100'
+                }
+              `}
+            >
+              <div className="flex items-center">
+                <span className="text-xl mr-3">👥</span>
+                <span className="text-sm">Tenants</span>
+              </div>
+              <svg
+                className={`w-4 h-4 transition-transform ${isTenantsOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {isTenantsOpen && (
+              <div className="bg-gray-50">
+                {tenantItems.map((item) => (
+                  <button
+                    key={item.path}
+                    onClick={() => handleNavigation(item.path)}
+                    className={`
+                      w-full flex items-center px-10 py-1.5 text-left transition
+                      ${isActive(item.path)
+                        ? 'bg-primary text-white font-semibold'
+                        : 'text-gray-600 hover:bg-gray-200'
+                      }
+                    `}
+                  >
+                    <span className="text-lg mr-2">{item.icon}</span>
+                    <span className="text-xs">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Settings Dropdown */}
           <div>

@@ -1779,12 +1779,12 @@ const TenantPortal = () => {
 
                 return (
                   <>
-                    <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
                       <div>
                         <h2 className="text-xl sm:text-2xl font-bold text-gray-800">🪪 Tenant KYC Profile</h2>
                         <p className="text-sm text-gray-600 mt-1">Fill your details, upload documents, and sign rent agreement.</p>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="relative w-[110px] h-[110px] flex-shrink-0">
                         <svg width="110" height="110" viewBox="0 0 110 110" className="-rotate-90">
                           <circle cx="55" cy="55" r={radius} stroke="#E5E7EB" strokeWidth="10" fill="none" />
                           <circle
@@ -1800,7 +1800,7 @@ const TenantPortal = () => {
                             style={{ transition: 'stroke-dashoffset 0.4s ease' }}
                           />
                         </svg>
-                        <div className="-ml-[86px] w-[110px] text-center">
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                           <p className="text-2xl font-bold text-gray-900">{completion.percentage}%</p>
                           <p className="text-xs text-gray-600">Profile Complete</p>
                           <p className="text-[11px] text-gray-500">{completion.filled}/{completion.total}</p>
