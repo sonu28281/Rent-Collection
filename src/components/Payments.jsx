@@ -95,14 +95,59 @@ const Payments = () => {
     fetchData();
   };
 
-  const getTenantPaymentStatus = (tenantId) => {
-    return payments.find(p => p.tenantId === tenantId && p.status === 'paid');
+  const getTenantMonthPayments = (tenant) => {
+    const tenantName = String(tenant.name || '').trim().toLowerCase();
+    const tenantRoom = String(tenant.roomNumber || '').trim();
+
+    return payments.filter((payment) => {
+      if (payment.status !== 'paid') return false;
+
+      const byTenantId = payment.tenantId && payment.tenantId === tenant.id;
+      const byRoom = String(payment.roomNumber || '').trim() === tenantRoom;
+      const paymentTenantName = String(payment.tenantNameSnapshot || payment.tenantName || '').trim().toLowerCase();
+      const byName = paymentTenantName && paymentTenantName === tenantName;
+
+      return byTenantId || (byRoom && byName) || byRoom;
+    });
+  };
+
+  const getTenantPaymentSummary = (tenant) => {
+    const matchedPayments = getTenantMonthPayments(tenant);
+    if (matchedPayments.length === 0) {
+      return {
+        isPaid: false,
+        totalPaid: 0,
+        latestPaidDate: null,
+        utrDisplay: '-',
+        paymentCount: 0
+      };
+    }
+
+    const sortedByDate = [...matchedPayments].sort((a, b) => {
+      const aTime = a?.paidDate ? new Date(a.paidDate).getTime() : 0;
+      const bTime = b?.paidDate ? new Date(b.paidDate).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    const latestPayment = sortedByDate[0];
+    const totalPaid = matchedPayments.reduce((sum, payment) => sum + (Number(payment.paidAmount) || 0), 0);
+    const utrValues = matchedPayments
+      .map((payment) => String(payment.utr || '').trim())
+      .filter(Boolean);
+
+    return {
+      isPaid: true,
+      totalPaid,
+      latestPaidDate: latestPayment?.paidDate || null,
+      utrDisplay: utrValues.length > 0 ? Array.from(new Set(utrValues)).join(', ') : '-',
+      paymentCount: matchedPayments.length
+    };
   };
 
   const filteredTenants = tenants.filter(tenant => {
-    const hasPaid = getTenantPaymentStatus(tenant.id);
-    if (filter === 'paid') return hasPaid;
-    if (filter === 'pending') return !hasPaid;
+    const { isPaid } = getTenantPaymentSummary(tenant);
+    if (filter === 'paid') return isPaid;
+    if (filter === 'pending') return !isPaid;
     return true;
   });
 
@@ -132,7 +177,7 @@ const Payments = () => {
     );
   }
 
-  const paidCount = tenants.filter(t => getTenantPaymentStatus(t.id)).length;
+  const paidCount = tenants.filter((tenant) => getTenantPaymentSummary(tenant).isPaid).length;
   const pendingCount = tenants.length - paidCount;
   const totalCollected = payments
     .filter(p => p.status === 'paid')
@@ -327,8 +372,8 @@ const Payments = () => {
         ) : isCardView ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredTenants.map((tenant) => {
-              const payment = getTenantPaymentStatus(tenant.id);
-              const isPaid = !!payment;
+              const paymentSummary = getTenantPaymentSummary(tenant);
+              const isPaid = paymentSummary.isPaid;
 
               return (
                 <div
@@ -341,8 +386,15 @@ const Payments = () => {
                       <p className="text-lg font-bold text-gray-900">{tenant.roomNumber}</p>
                       <p className="text-sm font-semibold text-gray-900 mt-1">{tenant.name}</p>
                       <p className="text-sm text-gray-600">{tenant.phone || '-'}</p>
+                      {isPaid && (
+                        <p className="text-xs text-gray-700 mt-1">
+                          UTR: <span className="font-mono font-semibold">{paymentSummary.utrDisplay}</span>
+                        </p>
+                      )}
                     </div>
-                    <p className="text-lg font-bold text-gray-900">₹{(tenant.currentRent || 0).toLocaleString('en-IN')}</p>
+                    <p className="text-lg font-bold text-gray-900">
+                      ₹{(isPaid ? paymentSummary.totalPaid : (tenant.currentRent || 0)).toLocaleString('en-IN')}
+                    </p>
                   </div>
 
                   <div className="mt-3 flex items-center justify-between">
@@ -351,9 +403,9 @@ const Payments = () => {
                         <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-200 text-green-900 w-fit">
                           ✅ Paid
                         </span>
-                        {payment.paidDate && (
+                        {paymentSummary.latestPaidDate && (
                           <span className="text-xs text-gray-600 mt-1">
-                            {new Date(payment.paidDate).toLocaleDateString('en-IN')}
+                            {new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')}
                           </span>
                         )}
                       </div>
@@ -385,14 +437,16 @@ const Payments = () => {
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Tenant</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Phone</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-700">Rent</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Payment Date</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">UTR</th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {filteredTenants.map((tenant) => {
-                  const payment = getTenantPaymentStatus(tenant.id);
-                  const isPaid = !!payment;
+                  const paymentSummary = getTenantPaymentSummary(tenant);
+                  const isPaid = paymentSummary.isPaid;
                   
                   return (
                     <tr key={tenant.id} className={`hover:bg-gray-50 ${isPaid ? 'bg-green-50' : ''}`}>
@@ -406,7 +460,15 @@ const Payments = () => {
                         {tenant.phone || '-'}
                       </td>
                       <td className="px-4 py-3 text-right font-bold text-gray-900">
-                        ₹{(tenant.currentRent || 0).toLocaleString('en-IN')}
+                        ₹{(isPaid ? paymentSummary.totalPaid : (tenant.currentRent || 0)).toLocaleString('en-IN')}
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-700">
+                        {paymentSummary.latestPaidDate
+                          ? new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')
+                          : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-xs font-mono text-gray-700 max-w-[180px] truncate" title={paymentSummary.utrDisplay}>
+                        {isPaid ? paymentSummary.utrDisplay : '-'}
                       </td>
                       <td className="px-4 py-3 text-center">
                         {isPaid ? (
@@ -414,11 +476,6 @@ const Payments = () => {
                             <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-200 text-green-900 mb-1">
                               ✅ Paid
                             </span>
-                            {payment.paidDate && (
-                              <span className="text-xs text-gray-600">
-                                {new Date(payment.paidDate).toLocaleDateString('en-IN')}
-                              </span>
-                            )}
                           </div>
                         ) : (
                           <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-200 text-orange-900">
@@ -545,8 +602,8 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-4 rounded-t-lg">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-4 rounded-t-lg flex-shrink-0">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold">💳 Record Payment</h3>
             <button onClick={onClose} className="text-white hover:bg-white hover:bg-opacity-20 rounded-full w-8 h-8 flex items-center justify-center transition">
@@ -555,7 +612,7 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
           <div className="bg-blue-50 rounded-lg p-4 mb-4">
             <div className="flex justify-between items-start mb-2">
               <div>
@@ -682,7 +739,7 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
             />
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 sticky bottom-0 bg-white pt-3">
             <button
               type="button"
               onClick={onClose}

@@ -15,11 +15,92 @@ const VerifyPayments = () => {
   const [processing, setProcessing] = useState(false);
   const [ocrChecks, setOcrChecks] = useState({});
   const [ocrRunningBulk, setOcrRunningBulk] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied'
+  );
+
+  const ADMIN_NOTIFIED_KEY = 'admin_notified_submission_ids_v1';
+
+  const getNotifiedSubmissionIds = () => {
+    try {
+      const raw = localStorage.getItem(ADMIN_NOTIFIED_KEY);
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  };
+
+  const saveNotifiedSubmissionIds = (idSet) => {
+    localStorage.setItem(ADMIN_NOTIFIED_KEY, JSON.stringify(Array.from(idSet)));
+  };
+
+  const requestNotificationPermission = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+  };
+
+  const notifyAdminForSubmission = (submission) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    const amount = Number(submission?.paidAmount || 0).toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+
+    const notification = new Notification('💰 New Payment Verification Request', {
+      body: `${submission.tenantName || 'Tenant'} ne ₹${amount} send kiya hai. Verify karne ke liye tap karein.`,
+      tag: `submission_${submission.id}`
+    });
+
+    notification.onclick = () => {
+      window.focus();
+      window.location.href = '/verify-payments';
+      notification.close();
+    };
+  };
+
+  const checkForNewVerificationRequests = useCallback(async () => {
+    try {
+      const pendingSnapshot = await getDocs(query(collection(db, 'paymentSubmissions'), where('status', '==', 'pending')));
+      const notifiedIds = getNotifiedSubmissionIds();
+      let changed = false;
+
+      pendingSnapshot.forEach((pendingDoc) => {
+        if (notifiedIds.has(pendingDoc.id)) return;
+        const submission = { id: pendingDoc.id, ...pendingDoc.data() };
+        notifyAdminForSubmission(submission);
+        notifiedIds.add(pendingDoc.id);
+        changed = true;
+      });
+
+      if (changed) {
+        saveNotifiedSubmissionIds(notifiedIds);
+      }
+    } catch (notificationError) {
+      console.error('Error checking new verification requests:', notificationError);
+    }
+  }, []);
 
   const normalizeUtr = (value) => String(value || '').replace(/\s+/g, '').toUpperCase();
   const isValidUtr = (value) => /^[A-Z0-9]{10,30}$/.test(value);
   const getSubmissionUtr = (submission) => submission?.utr || submission?.transactionId || submission?.upiRefNo || submission?.upiRef || '';
   const getSubmissionScreenshot = (submission) => submission?.screenshot || submission?.paymentScreenshot || submission?.proofScreenshot || submission?.proofImageUrl || '';
+
+  useEffect(() => {
+    if (typeof Notification === 'undefined') return;
+
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then((permission) => {
+        setNotificationPermission(permission);
+      }).catch(() => {
+        setNotificationPermission('denied');
+      });
+    } else {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
 
   const getSubmissionMonthYear = (submission) => {
     const now = new Date();
@@ -241,6 +322,14 @@ const VerifyPayments = () => {
   useEffect(() => {
     fetchSubmissions();
   }, [fetchSubmissions]);
+
+  useEffect(() => {
+    if (notificationPermission !== 'granted') return;
+
+    checkForNewVerificationRequests();
+    const intervalId = setInterval(checkForNewVerificationRequests, 20000);
+    return () => clearInterval(intervalId);
+  }, [checkForNewVerificationRequests, notificationPermission]);
 
   const handleApprove = async (submission) => {
     if (submission?.isPlaceholder) {
@@ -565,6 +654,15 @@ const VerifyPayments = () => {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">🔍 Verify Payments</h1>
         <p className="text-gray-600">Review and approve tenant payment submissions</p>
+        {notificationPermission !== 'granted' && (
+          <button
+            type="button"
+            onClick={requestNotificationPermission}
+            className="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+          >
+            Enable Admin Notifications
+          </button>
+        )}
       </div>
 
       {/* Filter Tabs */}

@@ -61,11 +61,60 @@ const TenantPortal = () => {
   // Submit payment modal state
   const [showSubmitPayment, setShowSubmitPayment] = useState(false);
   const [portalLanguage, setPortalLanguage] = useState(() => localStorage.getItem(TENANT_PORTAL_LANG_KEY) || 'en');
+  const [notificationPermission, setNotificationPermission] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied'
+  );
 
   const t = (en, hi) => (portalLanguage === 'hi' ? hi : en);
 
   const togglePortalLanguage = () => {
     setPortalLanguage((prev) => (prev === 'en' ? 'hi' : 'en'));
+  };
+
+  const getTenantNotifiedKey = (tenantId) => `tenant_notified_events_${tenantId || 'guest'}_v1`;
+
+  const getNotifiedEventIds = (tenantId) => {
+    try {
+      const raw = localStorage.getItem(getTenantNotifiedKey(tenantId));
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  };
+
+  const saveNotifiedEventIds = (tenantId, idSet) => {
+    localStorage.setItem(getTenantNotifiedKey(tenantId), JSON.stringify(Array.from(idSet)));
+  };
+
+  const requestNotificationPermission = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+  };
+
+  const notifyTenant = (eventId, title, body) => {
+    if (!tenant?.id) return;
+    const notified = getNotifiedEventIds(tenant.id);
+    if (notified.has(eventId)) return;
+
+    notified.add(eventId);
+    saveNotifiedEventIds(tenant.id, notified);
+
+    showToast(body, 'info');
+
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    const notification = new Notification(title, {
+      body,
+      tag: eventId
+    });
+
+    notification.onclick = () => {
+      window.focus();
+      window.location.href = '/tenant-portal';
+      notification.close();
+    };
   };
 
   useEffect(() => {
@@ -112,6 +161,53 @@ const TenantPortal = () => {
   useEffect(() => {
     localStorage.setItem(TENANT_PORTAL_LANG_KEY, portalLanguage);
   }, [portalLanguage]);
+
+  useEffect(() => {
+    if (!isLoggedIn || typeof Notification === 'undefined') return;
+
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then((permission) => {
+        setNotificationPermission(permission);
+      }).catch(() => {
+        setNotificationPermission('denied');
+      });
+    } else {
+      setNotificationPermission(Notification.permission);
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !tenant?.id || loading) return;
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const dueInfo = getNextDueDate();
+
+    if (dueInfo.status === 'overdue') {
+      notifyTenant(
+        `due_overdue_${tenant.id}_${currentYear}_${currentMonth}`,
+        '⚠️ Rent Due Alert',
+        `Aapka rent due date cross ho gaya hai. कृपया payment submit करें.`
+      );
+    }
+
+    if (latestSubmission?.status === 'rejected') {
+      notifyTenant(
+        `payment_rejected_${latestSubmission.id}`,
+        '❌ Payment Rejected',
+        'Aapki last payment reject ho gayi hai. कृपया सही screenshot + UTR ke saath dubara submit karein.'
+      );
+    }
+
+    if (latestSubmission?.status === 'verified') {
+      notifyTenant(
+        `payment_verified_${latestSubmission.id}`,
+        '✅ Payment Verified',
+        'Aapki payment verify ho gayi hai aur aapke account me add kar di gayi hai. Thank you!'
+      );
+    }
+  }, [isLoggedIn, tenant?.id, loading, latestSubmission, pendingSubmissions]);
 
   useEffect(() => {
     const roomTabs = (roomsData || []).map((entry) => String(entry.roomNumber));
@@ -1290,6 +1386,15 @@ const TenantPortal = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {notificationPermission !== 'granted' && (
+                <button
+                  type="button"
+                  onClick={requestNotificationPermission}
+                  className="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 font-semibold py-2 px-3 rounded-lg text-xs sm:text-sm whitespace-nowrap"
+                >
+                  🔔 Notify On
+                </button>
+              )}
               <button
                 type="button"
                 onClick={togglePortalLanguage}
