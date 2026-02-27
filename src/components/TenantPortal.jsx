@@ -757,8 +757,13 @@ const TenantPortal = () => {
   };
 
   const startDigiLockerVerification = async () => {
+    console.log('🔵 Button clicked! Starting DigiLocker verification...');
+    console.log('🔵 Tenant object:', tenant);
+    console.log('🔵 Tenant ID:', tenant?.id);
+    
     if (!tenant?.id) {
       console.error('❌ KYC: No tenant ID');
+      setDigiLockerError('Please login first to verify KYC');
       return;
     }
 
@@ -2182,6 +2187,14 @@ const TenantPortal = () => {
                 ? verifiedDateValue.toLocaleDateString('en-IN')
                 : null;
 
+              console.log('🔍 KYC Render Check:', {
+                hasTenant: !!tenant,
+                tenantId: tenant?.id,
+                kycInfo,
+                isVerified,
+                buttonWillShow: !isVerified
+              });
+
               return (
                 <div className={`rounded-lg shadow-md p-4 sm:p-5 border ${isVerified ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
                   <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -2202,7 +2215,10 @@ const TenantPortal = () => {
                     {!isVerified && (
                       <button
                         type="button"
-                        onClick={startDigiLockerVerification}
+                        onClick={(e) => {
+                          console.log('🔴 BUTTON CLICKED!', e);
+                          startDigiLockerVerification();
+                        }}
                         disabled={startingDigiLockerKyc}
                         className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm disabled:opacity-60"
                       >
