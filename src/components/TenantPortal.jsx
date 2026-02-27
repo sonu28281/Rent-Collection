@@ -2541,170 +2541,31 @@ const TenantPortal = () => {
 
                 return (
                   <>
-                    <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
-                      <div className="flex-1">
-                        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">🪪 Tenant KYC Profile</h2>
-                        <p className="text-sm text-gray-600 mb-3">Complete 3 simple steps to verify your identity.</p>
-                        
-                        {/* 3-Step KYC Progress Tracker */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
-                          {(() => {
-                            const kycProgress = getKycStepProgress();
-                            return (
-                              <div className="space-y-2">
-                                {/* Step 1: Fill Details */}
-                                <div className={`flex items-center gap-2 text-xs ${
-                                  kycProgress.step1.complete ? 'text-green-700' : 'text-gray-700'
-                                }`}>
-                                  <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center font-bold ${
-                                    kycProgress.step1.complete ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'
-                                  }`}>
-                                    {kycProgress.step1.complete ? '✓' : '1'}
-                                  </span>
-                                  <div className="flex-1">
-                                    <p className="font-semibold">{kycProgress.step1.label}</p>
-                                    <p className="text-[10px] text-gray-600">{kycProgress.step1.description}</p>
-                                  </div>
-                                  {kycProgress.step1.complete && (
-                                    <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded">Complete</span>
-                                  )}
-                                </div>
-
-                                {/* Step 2: Upload Documents + OCR */}
-                                <div className={`flex items-center gap-2 text-xs ${
-                                  kycProgress.step2.complete ? 'text-green-700' : kycProgress.step2.partial ? 'text-blue-700' : 'text-gray-500'
-                                }`}>
-                                  <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center font-bold ${
-                                    kycProgress.step2.complete ? 'bg-green-500 text-white' : 
-                                    kycProgress.step2.partial ? 'bg-yellow-500 text-white' : 'bg-gray-300 text-gray-600'
-                                  }`}>
-                                    {kycProgress.step2.complete ? '✓' : kycProgress.step2.partial ? '⋯' : '2'}
-                                  </span>
-                                  <div className="flex-1">
-                                    <p className="font-semibold">{kycProgress.step2.label}</p>
-                                    <p className="text-[10px] text-gray-600">{kycProgress.step2.description}</p>
-                                  </div>
-                                  {kycProgress.step2.complete ? (
-                                    <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded">Complete</span>
-                                  ) : kycProgress.step2.partial ? (
-                                    <button
-                                      type="button"
-                                      onClick={runKycOcrAnalysis}
-                                      disabled={ocrAnalyzing}
-                                      className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 disabled:opacity-60"
-                                    >
-                                      {ocrAnalyzing ? 'Checking...' : '🔍 Verify OCR'}
-                                    </button>
-                                  ) : (
-                                    <span className="text-[10px] font-semibold text-gray-500">Complete Step 1 first</span>
-                                  )}
-                                </div>
-
-                                {/* Step 3: DigiLocker Verification */}
-                                <div className={`flex items-center gap-2 text-xs ${
-                                  kycProgress.step3.complete ? 'text-green-700' : 
-                                  kycProgress.step3.enabled ? 'text-blue-700' : 'text-gray-400'
-                                }`}>
-                                  <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center font-bold ${
-                                    kycProgress.step3.complete ? 'bg-green-500 text-white' : 
-                                    kycProgress.step3.enabled ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-500'
-                                  }`}>
-                                    {kycProgress.step3.complete ? '✓' : '3'}
-                                  </span>
-                                  <div className="flex-1">
-                                    <p className="font-semibold">{kycProgress.step3.label}</p>
-                                    <p className="text-[10px] text-gray-600">{kycProgress.step3.description}</p>
-                                    {kycProgress.step3.complete && hasAadhaar && (
-                                      <p className="text-[9px] text-green-600 mt-0.5">📄 Aadhaar verified • {verifiedDate}</p>
-                                    )}
-                                    {kycProgress.step3.complete && kycInfo.validation && (
-                                      <div className="mt-1 text-[9px] bg-green-50 border border-green-200 rounded px-1.5 py-0.5">
-                                        <p className="text-green-700">
-                                          <span className="font-semibold">Form:</span> {kycInfo.validation.filledName} 
-                                          <span className="mx-1">↔</span>
-                                          <span className="font-semibold">DigiLocker:</span> {kycInfo.validation.digilockerName}
-                                          <span className="ml-1 text-green-600">✓ Match</span>
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-                                  {kycProgress.step3.complete ? (
-                                    <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded">Verified ✅</span>
-                                  ) : kycProgress.step3.enabled ? (
-                                    <button
-                                      type="button"
-                                      onClick={startDigiLockerVerification}
-                                      disabled={startingDigiLockerKyc}
-                                      className="text-[10px] font-bold bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-60"
-                                    >
-                                      {startingDigiLockerKyc ? 'Opening...' : '🛡️ Verify Now'}
-                                    </button>
-                                  ) : (
-                                    <span className="text-[10px] font-semibold text-gray-400">Complete Steps 1 & 2</span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                        
-                        {digiLockerError && (
-                          <div className="bg-red-50 border border-red-300 rounded px-3 py-2 mt-2">
-                            <p className="text-xs text-red-700 font-semibold">{digiLockerError}</p>
-                          </div>
-                        )}
-                        
-                        {/* Name Validation Display - Show after DigiLocker verification */}
-                        {isDigiLockerVerified && kycInfo.validation && (
-                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg p-3 mt-3">
-                            <div className="flex items-start gap-2">
-                              <span className="text-2xl">✅</span>
-                              <div className="flex-1">
-                                <p className="font-bold text-green-900 text-sm mb-1">Name Verification Successful</p>
-                                <div className="space-y-1 text-xs">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-green-800 w-24">Your Name:</span>
-                                    <span className="bg-white px-2 py-0.5 rounded border border-green-200 text-gray-900">
-                                      {kycInfo.validation.filledName}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-green-800 w-24">DigiLocker:</span>
-                                    <span className="bg-white px-2 py-0.5 rounded border border-green-200 text-gray-900">
-                                      {kycInfo.validation.digilockerName}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2 pt-1">
-                                    <span className="font-semibold text-green-700 w-24">Status:</span>
-                                    <span className="bg-green-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">
-                                      ✓ VERIFIED - Names Match
-                                    </span>
-                                  </div>
-                                  {kycInfo.validation.validatedAt && (
-                                    <p className="text-[10px] text-green-700 mt-1">
-                                      Validated: {new Date(kycInfo.validation.validatedAt).toLocaleString('en-IN')}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                    {/* Mobile-First Header */}
+                    <div className="mb-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-3xl">🪪</span>
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Tenant KYC Profile</h2>
                       </div>
-                      <div className="relative w-[110px] h-[110px] flex-shrink-0">
-                        <svg width="110" height="110" viewBox="0 0 110 110" className="-rotate-90">
-                          <circle cx="55" cy="55" r={radius} stroke="#E5E7EB" strokeWidth="10" fill="none" />
+                      <p className="text-sm sm:text-base text-gray-600">Complete 3 simple steps to verify your identity.</p>
+                    </div>
+
+                    {/* Progress Circle - Mobile Optimized */}
+                    <div className="flex justify-center mb-4">
+                      <div className="relative w-32 h-32 sm:w-36 sm:h-36">
+                        <svg width="100%" height="100%" viewBox="0 0 120 120" className="-rotate-90">
+                          <circle cx="60" cy="60" r="50" stroke="#E5E7EB" strokeWidth="12" fill="none" />
                           <circle
-                            cx="55"
-                            cy="55"
-                            r={radius}
+                            cx="60"
+                            cy="60"
+                            r="50"
                             stroke={(() => {
                               const kycProgress = getKycStepProgress();
-                              if (kycProgress.overall.stepsCompleted === 4) return "#10B981"; // Green - All complete
-                              if (kycProgress.overall.stepsCompleted >= 2) return "#3B82F6"; // Blue - Good progress
-                              return "#6B7280"; // Gray - Just started
+                              if (kycProgress.overall.stepsCompleted === 4) return "#10B981";
+                              if (kycProgress.overall.stepsCompleted >= 2) return "#3B82F6";
+                              return "#6B7280";
                             })()}
-                            strokeWidth="10"
+                            strokeWidth="12"
                             fill="none"
                             strokeDasharray={circumference}
                             strokeDashoffset={strokeOffset}
@@ -2717,11 +2578,11 @@ const TenantPortal = () => {
                             const kycProgress = getKycStepProgress();
                             return (
                               <>
-                                <p className="text-2xl font-bold text-gray-900">{kycProgress.overall.percentage}%</p>
-                                <p className="text-xs text-gray-600">KYC Progress</p>
-                                <p className="text-[11px] text-gray-500">Step {kycProgress.overall.stepsCompleted}/4</p>
+                                <p className="text-3xl font-bold text-gray-900">{kycProgress.overall.percentage}%</p>
+                                <p className="text-xs font-semibold text-gray-600 mt-1">KYC Progress</p>
+                                <p className="text-xs text-gray-500">Step {kycProgress.overall.stepsCompleted}/4</p>
                                 {kycProgress.overall.stepsCompleted === 4 && (
-                                  <p className="text-[10px] text-green-600 mt-0.5 font-bold">✓ Complete</p>
+                                  <p className="text-xs text-green-600 font-bold mt-1">✓ Complete</p>
                                 )}
                               </>
                             );
@@ -2729,6 +2590,170 @@ const TenantPortal = () => {
                         </div>
                       </div>
                     </div>
+
+                    {/* 3-Step Progress Tracker - Mobile Optimized */}
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4 sm:p-5 mb-4 shadow-sm">
+                      {(() => {
+                        const kycProgress = getKycStepProgress();
+                        return (
+                          <div className="space-y-4">
+                            {/* Step 1: Fill Details */}
+                            <div className={`bg-white rounded-lg p-3 sm:p-4 shadow-sm border-2 ${
+                              kycProgress.step1.complete ? 'border-green-300' : 'border-blue-300'
+                            }`}>
+                              <div className="flex items-start gap-3">
+                                <span className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-lg ${
+                                  kycProgress.step1.complete ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'
+                                }`}>
+                                  {kycProgress.step1.complete ? '✓' : '1'}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-sm sm:text-base text-gray-800">{kycProgress.step1.label}</p>
+                                  <p className="text-xs sm:text-sm text-gray-600 mt-1">{kycProgress.step1.description}</p>
+                                </div>
+                                {kycProgress.step1.complete && (
+                                  <span className="flex-shrink-0 text-xs sm:text-sm font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full">
+                                    Complete
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Step 2: Upload Documents + OCR */}
+                            <div className={`bg-white rounded-lg p-3 sm:p-4 shadow-sm border-2 ${
+                              kycProgress.step2.complete ? 'border-green-300' : 
+                              kycProgress.step2.partial ? 'border-yellow-300' : 'border-gray-300'
+                            }`}>
+                              <div className="flex items-start gap-3">
+                                <span className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-lg ${
+                                  kycProgress.step2.complete ? 'bg-green-500 text-white' : 
+                                  kycProgress.step2.partial ? 'bg-yellow-500 text-white' : 'bg-gray-300 text-gray-600'
+                                }`}>
+                                  {kycProgress.step2.complete ? '✓' : kycProgress.step2.partial ? '⋯' : '2'}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-sm sm:text-base text-gray-800">{kycProgress.step2.label}</p>
+                                  <p className="text-xs sm:text-sm text-gray-600 mt-1">{kycProgress.step2.description}</p>
+                                  {kycProgress.step2.complete ? (
+                                    <span className="inline-block mt-2 text-xs sm:text-sm font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full">
+                                      Complete
+                                    </span>
+                                  ) : kycProgress.step2.partial ? (
+                                    <button
+                                      type="button"
+                                      onClick={runKycOcrAnalysis}
+                                      disabled={ocrAnalyzing}
+                                      className="mt-2 w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-lg text-sm disabled:opacity-60 transition-colors"
+                                    >
+                                      {ocrAnalyzing ? '⏳ Checking...' : '🔍 Verify OCR'}
+                                    </button>
+                                  ) : (
+                                    <p className="text-xs sm:text-sm text-gray-500 mt-2 font-semibold">⚠️ Complete Step 1 first</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Step 3: DigiLocker Verification */}
+                            <div className={`bg-white rounded-lg p-3 sm:p-4 shadow-sm border-2 ${
+                              kycProgress.step3.complete ? 'border-green-300' : 
+                              kycProgress.step3.enabled ? 'border-blue-300' : 'border-gray-300'
+                            }`}>
+                              <div className="flex items-start gap-3">
+                                <span className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-lg ${
+                                  kycProgress.step3.complete ? 'bg-green-500 text-white' : 
+                                  kycProgress.step3.enabled ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-500'
+                                }`}>
+                                  {kycProgress.step3.complete ? '✓' : '3'}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-sm sm:text-base text-gray-800">{kycProgress.step3.label}</p>
+                                  <p className="text-xs sm:text-sm text-gray-600 mt-1">{kycProgress.step3.description}</p>
+                                  
+                                  {kycProgress.step3.complete && hasAadhaar && (
+                                    <p className="text-xs sm:text-sm text-green-600 mt-2 font-semibold">📄 Aadhaar verified • {verifiedDate}</p>
+                                  )}
+                                  
+                                  {kycProgress.step3.complete && kycInfo.validation && (
+                                    <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-2">
+                                      <p className="text-xs sm:text-sm text-green-700 font-semibold">
+                                        ✓ Name Match Verified
+                                      </p>
+                                      <p className="text-xs text-green-600 mt-1">
+                                        <span className="font-semibold">Your Name:</span> {kycInfo.validation.filledName}
+                                      </p>
+                                      <p className="text-xs text-green-600">
+                                        <span className="font-semibold">DigiLocker:</span> {kycInfo.validation.digilockerName}
+                                      </p>
+                                    </div>
+                                  )}
+                                  
+                                  {kycProgress.step3.complete ? (
+                                    <span className="inline-block mt-2 text-xs sm:text-sm font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full">
+                                      Verified ✅
+                                    </span>
+                                  ) : kycProgress.step3.enabled ? (
+                                    <button
+                                      type="button"
+                                      onClick={startDigiLockerVerification}
+                                      disabled={startingDigiLockerKyc}
+                                      className="mt-2 w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-sm disabled:opacity-60 transition-colors"
+                                    >
+                                      {startingDigiLockerKyc ? '⏳ Opening...' : '🛡️ Verify Now'}
+                                    </button>
+                                  ) : (
+                                    <p className="text-xs sm:text-sm text-gray-500 mt-2 font-semibold">⚠️ Complete Steps 1 & 2</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    
+                    {digiLockerError && (
+                      <div className="bg-red-50 border-2 border-red-300 rounded-lg px-4 py-3 mb-4">
+                        <p className="text-sm font-bold text-red-700">{digiLockerError}</p>
+                      </div>
+                    )}
+                    
+                    {/* Name Validation Display - Show after DigiLocker verification */}
+                    {isDigiLockerVerified && kycInfo.validation && (
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-4 mb-4 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <span className="text-2xl sm:text-3xl">✅</span>
+                          <div className="flex-1">
+                            <p className="font-bold text-green-900 text-base sm:text-lg mb-2">Name Verification Successful</p>
+                            <div className="space-y-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                <span className="font-semibold text-green-800 text-sm">Your Name:</span>
+                                <span className="bg-white px-3 py-1.5 rounded-lg border border-green-200 text-gray-900 text-sm">
+                                  {kycInfo.validation.filledName}
+                                </span>
+                              </div>
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                <span className="font-semibold text-green-800 text-sm">DigiLocker:</span>
+                                <span className="bg-white px-3 py-1.5 rounded-lg border border-green-200 text-gray-900 text-sm">
+                                  {kycInfo.validation.digilockerName}
+                                </span>
+                              </div>
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1">
+                                <span className="font-semibold text-green-700 text-sm">Status:</span>
+                                <span className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold">
+                                  ✓ VERIFIED - Names Match
+                                </span>
+                              </div>
+                              {kycInfo.validation.validatedAt && (
+                                <p className="text-xs text-green-700 mt-2">
+                                  Validated: {new Date(kycInfo.validation.validatedAt).toLocaleString('en-IN')}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                       <div>
