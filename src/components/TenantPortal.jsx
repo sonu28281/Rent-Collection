@@ -4,7 +4,6 @@ import { db } from '../firebase';
 import SubmitPayment from './SubmitPayment';
 import googlePayLogo from '../assets/payment-icons/google-pay.svg';
 import phonePeLogo from '../assets/payment-icons/phonepe.svg';
-import { listenForegroundMessages, registerPushToken } from '../utils/fcm';
 
 /**
  * Tenant Portal - Username/Password Login
@@ -176,35 +175,6 @@ const TenantPortal = () => {
       setNotificationPermission(Notification.permission);
     }
   }, [isLoggedIn]);
-
-  useEffect(() => {
-    if (!isLoggedIn || !tenant?.id) return;
-
-    registerPushToken({
-      role: 'tenant',
-      userId: tenant.id,
-      tenantId: tenant.id,
-      adminEmail: null
-    });
-  }, [isLoggedIn, tenant?.id]);
-
-  useEffect(() => {
-    let unsubscribe = () => {};
-
-    listenForegroundMessages((payload) => {
-      const title = payload?.notification?.title || 'Notification';
-      const body = payload?.notification?.body || '';
-      showToast(`${title}${body ? `: ${body}` : ''}`, 'info');
-    }).then((cleanup) => {
-      unsubscribe = cleanup;
-    });
-
-    return () => {
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (!isLoggedIn || !tenant?.id || loading) return;

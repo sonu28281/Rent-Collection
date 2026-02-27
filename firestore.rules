@@ -68,18 +68,6 @@ service cloud.firestore {
       allow write: if true;
     }
 
-    // Push device tokens (web FCM)
-    match /deviceTokens/{tokenId} {
-      allow read: if isAdmin();
-      allow write: if true;
-    }
-
-    // Notification dedupe events (maintained by backend function)
-    match /notificationEvents/{eventId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
-    }
-    
     // Import logs - Admin only
     match /importLogs/{logId} {
       allow read: if isAdmin();
