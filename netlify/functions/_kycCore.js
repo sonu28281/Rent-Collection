@@ -317,15 +317,31 @@ const fetchProfileInternal = async (accessToken, cfg, options = {}) => {
     };
   }
 
+  console.log('🔵 Fetching DigiLocker profile from:', cfg.profileEndpoint);
+  console.log('🔵 Using access token:', accessToken.substring(0, 20) + '...');
+  
   const profileResponse = await withTimeout((signal) => fetch(cfg.profileEndpoint, {
     method: 'GET',
     headers: { Authorization: `Bearer ${accessToken}` },
     signal
   }), timeoutMs, 'Profile request timed out');
 
-  const profilePayload = await profileResponse.json().catch(() => ({}));
+  console.log('📡 Profile response status:', profileResponse.status);
+  console.log('📡 Profile response headers:', JSON.stringify(Object.fromEntries(profileResponse.headers.entries())));
+  
+  const profilePayload = await profileResponse.json().catch((err) => {
+    console.error('❌ Failed to parse profile response as JSON:', err.message);
+    return {};
+  });
+  
+  console.log('📥 Profile payload received:', JSON.stringify(profilePayload, null, 2));
+  
   if (!profileResponse.ok) {
-    throw new Error(`Profile fetch failed: ${profileResponse.status} ${JSON.stringify(profilePayload)}`);
+    const errorMsg = `Profile fetch failed: ${profileResponse.status} ${JSON.stringify(profilePayload)}`;
+    console.error('❌ Profile fetch error:', errorMsg);
+    console.error('❌ Endpoint used:', cfg.profileEndpoint);
+    console.error('❌ Possible fix: Try /public/oauth2/3/user or /public/oauth2/1/user instead of /profile');
+    throw new Error(errorMsg);
   }
 
   return profilePayload;
