@@ -377,13 +377,14 @@ const TenantPortal = () => {
     const step1_occupation = !!tenantProfile.occupation;
     const step1Complete = step1_firstName && step1_lastName && step1_phoneNumber && step1_occupation;
     
-    // Step 2: Document Upload + OCR
+    // Step 2: Document Upload + OCR (flexible - at least one ID document required)
     const step2_aadharUploaded = !!tenantProfile.aadharImage;
     const step2_aadharVerified = tenantProfile.aadharDocStatus === 'verified' && !!tenantProfile.aadharExtractedNumber;
     const step2_panUploaded = !!tenantProfile.panImage;
     const step2_panVerified = tenantProfile.panDocStatus === 'verified' && !!tenantProfile.panExtractedNumber;
     const step2_selfieUploaded = !!tenantProfile.selfieImage;
-    const step2Complete = step2_aadharVerified && step2_panVerified && step2_selfieUploaded;
+    // Complete if: (at least one ID verified) AND selfie uploaded
+    const step2Complete = (step2_aadharVerified || step2_panVerified) && step2_selfieUploaded;
     
     // Step 3: DigiLocker Verification
     const kycData = tenant?.kyc || {};
@@ -404,7 +405,7 @@ const TenantPortal = () => {
         items: { aadharVerified: step2_aadharVerified, panVerified: step2_panVerified, selfie: step2_selfieUploaded },
         partial: (step2_aadharUploaded || step2_panUploaded || step2_selfieUploaded),
         label: 'Step 2: Upload & Verify Documents',
-        description: 'Upload Aadhaar, PAN (OCR verification)'
+        description: 'Upload ID (Aadhaar/DL), PAN, Selfie (OCR verification)'
       },
       step3: {
         complete: step3Complete,
@@ -2802,30 +2803,8 @@ const TenantPortal = () => {
                               value={tenantProfile.occupation}
                               onChange={(e) => handleProfileChange('occupation', e.target.value)}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                              placeholder="Enter occupation"
+                              placeholder="Enter occupation (e.g., Student, Engineer)"
                             />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1">Aadhar Number</label>
-                            <input
-                              type="text"
-                              value={tenantProfile.aadharExtractedNumber || tenantProfile.aadharNumber}
-                              readOnly
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50"
-                              placeholder="Auto-extracted from Aadhaar"
-                            />
-                            <p className="text-[11px] text-gray-500 mt-1">Auto extracted from uploaded Aadhaar.</p>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1">PAN Number</label>
-                            <input
-                              type="text"
-                              value={tenantProfile.panExtractedNumber || tenantProfile.panNumber}
-                              readOnly
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm uppercase bg-gray-50"
-                              placeholder="Auto-extracted from PAN"
-                            />
-                            <p className="text-[11px] text-gray-500 mt-1">Auto extracted from uploaded PAN.</p>
                           </div>
                         </div>
 
@@ -2854,15 +2833,17 @@ const TenantPortal = () => {
                       <div className="space-y-4">
                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-4 mb-4">
                           <h3 className="text-lg font-bold text-green-900 mb-2">📄 Step 2: Upload Documents</h3>
-                          <p className="text-sm text-green-700">Upload Aadhaar, PAN, and Selfie to verify with OCR.</p>
+                          <p className="text-sm text-green-700 mb-2">Upload at least one ID proof (Aadhaar/Driving License/PAN) and your selfie. OCR will extract details automatically.</p>
+                          <p className="text-xs text-green-600">💡 Tip: You can upload Driving License instead of Aadhaar. PAN is optional.</p>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                          {/* Aadhaar Upload Card */}
+                          {/* ID Document Upload Card (Aadhaar/Driving License) */}
                           <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center gap-2 mb-3">
                           <span className="text-2xl">🪪</span>
-                          <label className="block text-sm font-bold text-gray-800">Aadhaar Card</label>
+                          <label className="block text-sm font-bold text-gray-800">ID Card</label>
+                          <span className="text-[10px] text-gray-500">(Aadhaar/DL)</span>
                         </div>
                         
                         <div className="space-y-2 mb-3">
@@ -2929,11 +2910,12 @@ const TenantPortal = () => {
                         </div>
                           </div>
 
-                          {/* PAN Upload Card */}
+                          {/* PAN Upload Card (Optional) */}
                           <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center gap-2 mb-3">
                           <span className="text-2xl">💳</span>
                           <label className="block text-sm font-bold text-gray-800">PAN Card</label>
+                          <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">Optional</span>
                         </div>
                         
                         <div className="space-y-2 mb-3">
@@ -3062,6 +3044,29 @@ const TenantPortal = () => {
                           </div>
                         </div>
 
+                        {/* Extracted Document Info Display */}
+                        {(tenantProfile.aadharExtractedNumber || tenantProfile.panExtractedNumber) && (
+                          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-4">
+                            <h4 className="text-sm font-bold text-blue-900 mb-3">📄 Extracted Information (OCR)</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {tenantProfile.aadharExtractedNumber && (
+                                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                  <p className="text-xs font-semibold text-gray-600 mb-1">ID Number (Aadhaar/DL)</p>
+                                  <p className="text-sm font-bold text-gray-900">{tenantProfile.aadharExtractedNumber}</p>
+                                  <p className="text-[10px] text-green-600 mt-1">✓ Auto-extracted from ID document</p>
+                                </div>
+                              )}
+                              {tenantProfile.panExtractedNumber && (
+                                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                  <p className="text-xs font-semibold text-gray-600 mb-1">PAN Number</p>
+                                  <p className="text-sm font-bold text-gray-900 uppercase">{tenantProfile.panExtractedNumber}</p>
+                                  <p className="text-[10px] text-green-600 mt-1">✓ Auto-extracted from PAN card</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Step 2 Navigation */}
                         <div className="flex justify-between">
                           <button
@@ -3074,11 +3079,16 @@ const TenantPortal = () => {
                           <button
                             type="button"
                             onClick={() => {
-                              // Check if documents are uploaded
-                              if (tenantProfile.aadharImage && tenantProfile.panImage && tenantProfile.selfieImage) {
+                              // Check if at least one ID document + selfie uploaded
+                              const hasIdDoc = tenantProfile.aadharImage || tenantProfile.panImage;
+                              const hasSelfie = tenantProfile.selfieImage;
+                              
+                              if (hasIdDoc && hasSelfie) {
                                 setCurrentKycStep(3);
-                              } else {
-                                alert('Please upload all 3 documents (Aadhaar, PAN, Selfie) before proceeding.');
+                              } else if (!hasIdDoc) {
+                                alert('Please upload at least one ID document (Aadhaar/DL or PAN) before proceeding.');
+                              } else if (!hasSelfie) {
+                                alert('Please upload your selfie before proceeding.');
                               }
                             }}
                             className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors"
