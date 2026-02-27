@@ -88,6 +88,78 @@ const VerifyPayments = () => {
   const isValidUtr = (value) => /^[A-Z0-9]{10,30}$/.test(value);
   const getSubmissionUtr = (submission) => submission?.utr || submission?.transactionId || submission?.upiRefNo || submission?.upiRef || '';
   const getSubmissionScreenshot = (submission) => submission?.screenshot || submission?.paymentScreenshot || submission?.proofScreenshot || submission?.proofImageUrl || '';
+  const formatLocalIsoDate = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const normalizeDateString = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+    const ymd = raw.match(/^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})$/);
+    if (ymd) {
+      const [, y, m, d] = ymd;
+      return `${y}-${String(Number(m)).padStart(2, '0')}-${String(Number(d)).padStart(2, '0')}`;
+    }
+
+    const dmy = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+    if (dmy) {
+      const [, d, m, y] = dmy;
+      const fullYear = y.length === 2 ? `20${y}` : y;
+      return `${fullYear}-${String(Number(m)).padStart(2, '0')}-${String(Number(d)).padStart(2, '0')}`;
+    }
+
+    const parsedDate = new Date(raw);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return formatLocalIsoDate(parsedDate);
+    }
+
+    return '';
+  };
+
+  const extractDateFromOcrText = (text) => {
+    const safeText = String(text || '').toUpperCase();
+    if (!safeText) return '';
+
+    const monthMap = {
+      JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06',
+      JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12'
+    };
+
+    const dmyPattern = /(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/g;
+    const ymdPattern = /(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})/g;
+    const monthNamePattern = /(\d{1,2})\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\s*(\d{2,4})/g;
+
+    let match;
+    while ((match = ymdPattern.exec(safeText)) !== null) {
+      const [, y, m, d] = match;
+      const candidate = `${y}-${String(Number(m)).padStart(2, '0')}-${String(Number(d)).padStart(2, '0')}`;
+      if (normalizeDateString(candidate)) return candidate;
+    }
+
+    while ((match = dmyPattern.exec(safeText)) !== null) {
+      const [, d, m, y] = match;
+      const fullYear = y.length === 2 ? `20${y}` : y;
+      const candidate = `${fullYear}-${String(Number(m)).padStart(2, '0')}-${String(Number(d)).padStart(2, '0')}`;
+      if (normalizeDateString(candidate)) return candidate;
+    }
+
+    while ((match = monthNamePattern.exec(safeText)) !== null) {
+      const [, d, mon, y] = match;
+      const fullYear = y.length === 2 ? `20${y}` : y;
+      const month = monthMap[mon];
+      const candidate = `${fullYear}-${month}-${String(Number(d)).padStart(2, '0')}`;
+      if (normalizeDateString(candidate)) return candidate;
+    }
+
+    return '';
+  };
 
   useEffect(() => {
     if (typeof Notification === 'undefined') return;
@@ -142,18 +214,20 @@ const VerifyPayments = () => {
   const runOcrUtrCheck = async (submission) => {
     const screenshotProof = getSubmissionScreenshot(submission);
     const enteredUtr = normalizeUtr(getSubmissionUtr(submission));
+    const enteredPaidDate = normalizeDateString(submission?.paidDate);
+    const todayDate = formatLocalIsoDate(new Date());
 
     if (!screenshotProof) {
       setOcrChecks((prev) => ({
         ...prev,
-        [submission.id]: { status: 'no_screenshot', extractedUtr: '', enteredUtr }
+        [submission.id]: { status: 'no_screenshot', extractedUtr: '', enteredUtr, extractedDate: '', enteredPaidDate, todayDate }
       }));
       return;
     }
 
     setOcrChecks((prev) => ({
       ...prev,
-      [submission.id]: { status: 'checking', extractedUtr: '', enteredUtr }
+      [submission.id]: { status: 'checking', extractedUtr: '', enteredUtr, extractedDate: '', enteredPaidDate, todayDate }
     }));
 
     try {
@@ -161,22 +235,45 @@ const VerifyPayments = () => {
       const text = ocrResult?.data?.text || '';
       const confidence = Number(ocrResult?.data?.confidence || 0);
       const extractedUtr = extractUtrFromOcrText(text);
+      const extractedDate = extractDateFromOcrText(text);
 
       if (!extractedUtr) {
         setOcrChecks((prev) => ({
           ...prev,
-          [submission.id]: { status: 'not_found', extractedUtr: '', enteredUtr, confidence }
+          [submission.id]: { status: 'not_found', extractedUtr: '', enteredUtr, extractedDate, enteredPaidDate, todayDate, confidence }
         }));
         return;
       }
 
-      const isMatch = !!enteredUtr && normalizeUtr(extractedUtr) === normalizeUtr(enteredUtr);
+      const utrMatch = !!enteredUtr && normalizeUtr(extractedUtr) === normalizeUtr(enteredUtr);
+      const hasExtractedDate = !!extractedDate;
+      const paidDateMatch = !!enteredPaidDate && hasExtractedDate && extractedDate === enteredPaidDate;
+      const todayMatch = hasExtractedDate && extractedDate === todayDate;
+
+      let status = 'mismatch';
+      if (!utrMatch) {
+        status = 'mismatch';
+      } else if (!hasExtractedDate) {
+        status = 'date_not_found';
+      } else if (!paidDateMatch) {
+        status = 'date_mismatch';
+      } else if (!todayMatch) {
+        status = 'old_screenshot';
+      } else {
+        status = 'matched';
+      }
+
       setOcrChecks((prev) => ({
         ...prev,
         [submission.id]: {
-          status: isMatch ? 'matched' : 'mismatch',
+          status,
           extractedUtr,
           enteredUtr,
+          extractedDate,
+          enteredPaidDate,
+          todayDate,
+          paidDateMatch,
+          todayMatch,
           confidence
         }
       }));
@@ -184,7 +281,7 @@ const VerifyPayments = () => {
       console.error('OCR check error:', ocrError);
       setOcrChecks((prev) => ({
         ...prev,
-        [submission.id]: { status: 'error', extractedUtr: '', enteredUtr }
+        [submission.id]: { status: 'error', extractedUtr: '', enteredUtr, extractedDate: '', enteredPaidDate, todayDate }
       }));
     }
   };
@@ -216,8 +313,11 @@ const VerifyPayments = () => {
 
     const map = {
       checking: { text: 'Checking...', className: 'bg-blue-100 text-blue-800' },
-      matched: { text: 'UTR Matched ✅', className: 'bg-green-100 text-green-800' },
+      matched: { text: 'UTR + Date Matched ✅', className: 'bg-green-100 text-green-800' },
       mismatch: { text: 'UTR Mismatch ⚠️', className: 'bg-amber-100 text-amber-800' },
+      date_not_found: { text: 'Date Not Found ⚠️', className: 'bg-orange-100 text-orange-800' },
+      date_mismatch: { text: 'Date Mismatch ⚠️', className: 'bg-amber-100 text-amber-800' },
+      old_screenshot: { text: 'Old Screenshot Date ⚠️', className: 'bg-red-100 text-red-700' },
       not_found: { text: 'UTR Not Found', className: 'bg-orange-100 text-orange-800' },
       no_screenshot: { text: 'No Screenshot', className: 'bg-red-100 text-red-700' },
       error: { text: 'OCR Error', className: 'bg-red-100 text-red-700' }
@@ -723,7 +823,7 @@ const VerifyPayments = () => {
           disabled={ocrRunningBulk}
           className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {ocrRunningBulk ? 'Running OCR Check...' : 'Run OCR UTR Check (Pending)'}
+          {ocrRunningBulk ? 'Running OCR Check...' : 'Run OCR UTR + Date Check (Pending)'}
         </button>
       </div>
 
@@ -805,7 +905,7 @@ const VerifyPayments = () => {
                       disabled={ocrChecks[submission.id]?.status === 'checking'}
                       className="text-xs font-semibold px-3 py-1 rounded-md bg-indigo-100 text-indigo-800 hover:bg-indigo-200 disabled:opacity-60"
                     >
-                      {ocrChecks[submission.id]?.status === 'checking' ? 'Checking...' : 'Check Screenshot UTR'}
+                      {ocrChecks[submission.id]?.status === 'checking' ? 'Checking...' : 'Check Screenshot UTR + Date'}
                     </button>
                   )}
                 </div>
@@ -860,9 +960,24 @@ const VerifyPayments = () => {
 
                 {ocrChecks[submission.id]?.status && ocrChecks[submission.id]?.status !== 'checking' && (
                   <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4">
-                    <p className="text-xs font-semibold text-indigo-800 mb-1">OCR UTR Check</p>
+                    <p className="text-xs font-semibold text-indigo-800 mb-1">OCR UTR + Date Check</p>
                     <p className="text-xs text-indigo-800">Entered UTR: {normalizeUtr(getSubmissionUtr(submission)) || '-'}</p>
                     <p className="text-xs text-indigo-800">Extracted UTR: {ocrChecks[submission.id]?.extractedUtr || '-'}</p>
+                    <p className="text-xs text-indigo-800 mt-1">Submitted Payment Date: {ocrChecks[submission.id]?.enteredPaidDate || '-'}</p>
+                    <p className="text-xs text-indigo-800">Screenshot Date (OCR): {ocrChecks[submission.id]?.extractedDate || '-'}</p>
+                    <p className="text-xs text-indigo-800">Today: {ocrChecks[submission.id]?.todayDate || '-'}</p>
+                    {ocrChecks[submission.id]?.status === 'matched' && (
+                      <p className="text-xs text-green-700 mt-1 font-semibold">Date checks passed (submitted date match + today match).</p>
+                    )}
+                    {ocrChecks[submission.id]?.status === 'old_screenshot' && (
+                      <p className="text-xs text-red-700 mt-1 font-semibold">Submitted date matched, but screenshot date is not today.</p>
+                    )}
+                    {ocrChecks[submission.id]?.status === 'date_mismatch' && (
+                      <p className="text-xs text-amber-700 mt-1 font-semibold">UTR matched, but screenshot date does not match submitted payment date.</p>
+                    )}
+                    {ocrChecks[submission.id]?.status === 'date_not_found' && (
+                      <p className="text-xs text-orange-700 mt-1 font-semibold">UTR matched, but screenshot date could not be extracted by OCR.</p>
+                    )}
                     {typeof ocrChecks[submission.id]?.confidence === 'number' && (
                       <p className="text-xs text-indigo-700 mt-1">OCR Confidence: {ocrChecks[submission.id].confidence.toFixed(1)}%</p>
                     )}

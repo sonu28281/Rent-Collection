@@ -117,6 +117,26 @@ const Login = () => {
     setError(null);
   };
 
+  const handleQuickResetRequest = async () => {
+    const targetEmail = (email || '').trim();
+    if (!targetEmail) {
+      setError('Please enter your admin email first, then click Password Reset Request');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      await resetPassword(targetEmail);
+      setResetSuccess(true);
+      setTimeout(() => setResetSuccess(false), 3000);
+    } catch (err) {
+      // Error is already set in AuthContext
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 px-4">
       <div className="max-w-md w-full">
@@ -205,6 +225,21 @@ const Login = () => {
               >
                 {loading ? 'Signing in...' : 'Sign In'}
               </button>
+
+              <button
+                type="button"
+                onClick={handleQuickResetRequest}
+                className="btn-secondary w-full"
+                disabled={loading}
+              >
+                Password Reset Request
+              </button>
+
+              {resetSuccess && (
+                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                  Password reset email sent successfully! Check your inbox.
+                </div>
+              )}
 
               <div className="text-center">
                 <button
