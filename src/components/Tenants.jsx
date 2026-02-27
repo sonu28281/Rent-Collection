@@ -428,7 +428,7 @@ const Tenants = () => {
   }
 
   return (
-    <div className="p-4 lg:p-8">
+    <div className="p-4 lg:p-8 pb-24 md:pb-8">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
@@ -770,6 +770,32 @@ const Tenants = () => {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {isMobileViewport && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-white/95 backdrop-blur border border-gray-200 rounded-full shadow-lg px-2 py-1 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setFloorFilter('all')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-full ${floorFilter === 'all' ? 'bg-primary text-white' : 'text-gray-700'}`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => setFloorFilter('floor1')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-full ${floorFilter === 'floor1' ? 'bg-primary text-white' : 'text-gray-700'}`}
+          >
+            Floor 1
+          </button>
+          <button
+            type="button"
+            onClick={() => setFloorFilter('floor2')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-full ${floorFilter === 'floor2' ? 'bg-primary text-white' : 'text-gray-700'}`}
+          >
+            Floor 2
+          </button>
         </div>
       )}
 
