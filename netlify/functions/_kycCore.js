@@ -262,10 +262,14 @@ const exchangeCodeInternal = async (code, cfg, options = {}) => {
   // Add PKCE code_verifier if provided (required by DigiLocker)
   if (codeVerifier) {
     bodyParams.code_verifier = codeVerifier;
+    console.log('🔑 PKCE code_verifier included in token exchange');
   }
   
   const body = new URLSearchParams(bodyParams);
 
+  console.log('🔵 Token exchange request to:', cfg.tokenEndpoint);
+  console.log('🔵 Authorization code:', code.substring(0, 20) + '...');
+  
   const tokenResponse = await withTimeout((signal) => fetch(cfg.tokenEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -273,12 +277,24 @@ const exchangeCodeInternal = async (code, cfg, options = {}) => {
     signal
   }), timeoutMs, 'Token exchange timed out');
 
+  console.log('📡 Token response status:', tokenResponse.status);
+  
   const tokenPayload = await tokenResponse.json().catch(() => ({}));
+  
   if (!tokenResponse.ok) {
+    console.error('❌ Token exchange failed:', tokenResponse.status);
+    console.error('❌ Error payload:', JSON.stringify(tokenPayload, null, 2));
     throw new Error(`Token exchange failed: ${tokenResponse.status} ${JSON.stringify(tokenPayload)}`);
   }
 
+  console.log('✅ Token exchange successful');
+  console.log('📥 Token type:', tokenPayload.token_type);
+  console.log('📥 Expires in:', tokenPayload.expires_in, 'seconds');
+  console.log('📥 Scope:', tokenPayload.scope);
+  console.log('📥 Access token (first 30 chars):', tokenPayload.access_token?.substring(0, 30) + '...');
+  
   if (!tokenPayload.access_token) {
+    console.error('❌ Token exchange succeeded but access_token missing in response');
     throw new Error('Token exchange succeeded but access_token missing');
   }
 
@@ -317,34 +333,86 @@ const fetchProfileInternal = async (accessToken, cfg, options = {}) => {
     };
   }
 
-  console.log('🔵 Fetching DigiLocker profile from:', cfg.profileEndpoint);
-  console.log('🔵 Using access token:', accessToken.substring(0, 20) + '...');
+  // Build list of endpoints to try with fallback
+  const baseUrl = 'https://digilocker.meripehchaan.gov.in';
+  const endpointsToTry = [];
   
-  const profileResponse = await withTimeout((signal) => fetch(cfg.profileEndpoint, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${accessToken}` },
-    signal
-  }), timeoutMs, 'Profile request timed out');
-
-  console.log('📡 Profile response status:', profileResponse.status);
-  console.log('📡 Profile response headers:', JSON.stringify(Object.fromEntries(profileResponse.headers.entries())));
+  // Add configured endpoint first
+  if (cfg.profileEndpoint) {
+    endpointsToTry.push(cfg.profileEndpoint);
+  }
   
-  const profilePayload = await profileResponse.json().catch((err) => {
-    console.error('❌ Failed to parse profile response as JSON:', err.message);
-    return {};
-  });
+  // Add common DigiLocker profile endpoints as fallbacks
+  const fallbackPaths = [
+    '/public/oauth2/3/user',      // API v3 - most recent
+    '/public/oauth2/1/user',      // API v1
+    '/public/oauth2/3/userinfo',  // OpenID Connect standard v3
+    '/public/oauth2/1/userinfo',  // OpenID Connect standard v1
+  ];
   
-  console.log('📥 Profile payload received:', JSON.stringify(profilePayload, null, 2));
-  
-  if (!profileResponse.ok) {
-    const errorMsg = `Profile fetch failed: ${profileResponse.status} ${JSON.stringify(profilePayload)}`;
-    console.error('❌ Profile fetch error:', errorMsg);
-    console.error('❌ Endpoint used:', cfg.profileEndpoint);
-    console.error('❌ Possible fix: Try /public/oauth2/3/user or /public/oauth2/1/user instead of /profile');
-    throw new Error(errorMsg);
+  // Only add fallbacks that aren't already in the list
+  for (const path of fallbackPaths) {
+    const fullUrl = baseUrl + path;
+    if (!endpointsToTry.includes(fullUrl)) {
+      endpointsToTry.push(fullUrl);
+    }
   }
 
-  return profilePayload;
+  console.log('🔵 Will try profile endpoints in order:', JSON.stringify(endpointsToTry, null, 2));
+  console.log('🔵 Using access token:', accessToken.substring(0, 20) + '...');
+  
+  let lastError = null;
+  
+  // Try each endpoint until one succeeds
+  for (let i = 0; i < endpointsToTry.length; i++) {
+    const endpoint = endpointsToTry[i];
+    console.log(`\n🔍 Trying endpoint ${i + 1}/${endpointsToTry.length}: ${endpoint}`);
+    
+    try {
+      const profileResponse = await withTimeout((signal) => fetch(endpoint, {
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json'
+        },
+        signal
+      }), timeoutMs, 'Profile request timed out');
+
+      console.log('📡 Profile response status:', profileResponse.status);
+      console.log('📡 Profile response headers:', JSON.stringify(Object.fromEntries(profileResponse.headers.entries())));
+      
+      if (profileResponse.ok) {
+        const profilePayload = await profileResponse.json().catch((err) => {
+          console.error('❌ Failed to parse profile response as JSON:', err.message);
+          throw new Error('Invalid JSON response from profile endpoint');
+        });
+        
+        console.log('📥 Profile payload received:', JSON.stringify(profilePayload, null, 2));
+        console.log(`✅ Successfully fetched profile from: ${endpoint}`);
+        
+        return profilePayload;
+      } else {
+        // Non-200 response
+        const errorPayload = await profileResponse.text();
+        const errorMsg = `${profileResponse.status} - ${errorPayload}`;
+        console.warn(`⚠️ Endpoint failed: ${errorMsg}`);
+        lastError = new Error(errorMsg);
+        // Continue to next endpoint
+      }
+    } catch (err) {
+      console.warn(`⚠️ Endpoint error: ${err.message}`);
+      lastError = err;
+      // Continue to next endpoint
+    }
+  }
+  
+  // All endpoints failed
+  const errorMsg = `All profile endpoints failed. Last error: ${lastError?.message || 'Unknown'}`;
+  console.error('❌ Profile fetch completely failed after trying all endpoints');
+  console.error('❌ Endpoints tried:', JSON.stringify(endpointsToTry, null, 2));
+  console.error('❌ Access token (first 30 chars):', accessToken.substring(0, 30) + '...');
+  console.error('❌ Suggestion: Check if access token is valid and has correct scope');
+  throw new Error(errorMsg);
 };
 
 const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreatedAt, simulateFailure, codeVerifier }) => {
