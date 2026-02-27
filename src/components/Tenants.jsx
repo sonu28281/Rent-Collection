@@ -3,6 +3,7 @@ import { collection, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy }
 import { db } from '../firebase';
 import TenantForm from './TenantForm';
 import { useDialog } from './ui/DialogProvider';
+import useResponsiveViewMode from '../utils/useResponsiveViewMode';
 
 const Tenants = () => {
   const { showConfirm, showAlert } = useDialog();
@@ -14,7 +15,8 @@ const Tenants = () => {
   const [editingTenant, setEditingTenant] = useState(null);
   const [filter, setFilter] = useState('all'); // all, active, inactive
   const [floorFilter, setFloorFilter] = useState('all'); // all, floor1, floor2
-  const [viewMode, setViewMode] = useState('card'); // card, detail
+  const { viewMode, setViewMode } = useResponsiveViewMode('tenants-view-mode', 'table');
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [selectedTenantHistory, setSelectedTenantHistory] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -24,6 +26,26 @@ const Tenants = () => {
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+    const updateViewport = () => {
+      const isMobile = mediaQuery.matches;
+      setIsMobileViewport(isMobile);
+      if (isMobile) {
+        setFloorFilter('all');
+      }
+    };
+
+    updateViewport();
+    mediaQuery.addEventListener('change', updateViewport);
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateViewport);
+    };
   }, []);
 
   const fetchData = async () => {
@@ -491,7 +513,7 @@ const Tenants = () => {
         </div>
 
         {/* Floor Filters */}
-        <div>
+        <div className="hidden md:block">
           <label className="text-sm font-semibold text-gray-700 mb-2 block">Floor Filter</label>
           <div className="flex flex-wrap gap-2">
             <button
@@ -528,7 +550,7 @@ const Tenants = () => {
         </div>
 
         {/* View Mode Toggle */}
-        <div>
+        <div className="hidden md:block">
           <label className="text-sm font-semibold text-gray-700 mb-2 block">View Mode</label>
           <div className="flex gap-2">
             <button
@@ -542,14 +564,14 @@ const Tenants = () => {
               <span>🎴</span> Card View
             </button>
             <button
-              onClick={() => setViewMode('detail')}
+              onClick={() => setViewMode('table')}
               className={`px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 ${
-                viewMode === 'detail'
+                viewMode === 'table'
                   ? 'bg-orange-500 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              <span>📋</span> Detail View
+              <span>📋</span> Table View
             </button>
           </div>
         </div>
@@ -625,7 +647,7 @@ const Tenants = () => {
             </button>
           )}
         </div>
-      ) : viewMode === 'card' ? (
+      ) : (isMobileViewport || viewMode === 'card') ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {sortedTenants.map(tenant => (
             <TenantCard

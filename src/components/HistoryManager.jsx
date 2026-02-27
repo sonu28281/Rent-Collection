@@ -38,6 +38,7 @@ const HistoryManager = () => {
   const [importPreview, setImportPreview] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
 
   const ADMIN_EMAIL = 'sonu28281@gmail.com';
 
@@ -63,6 +64,20 @@ const HistoryManager = () => {
 
     const unsubscribe = auth.onAuthStateChanged(checkAdmin);
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+    const updateViewport = () => setIsMobileViewport(mediaQuery.matches);
+
+    updateViewport();
+    mediaQuery.addEventListener('change', updateViewport);
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateViewport);
+    };
   }, []);
 
   // Fetch Available Years
@@ -925,8 +940,224 @@ const HistoryManager = () => {
                     </div>
                   </div>
 
-                  {/* Floor Table */}
-                  <div className="card overflow-x-auto">
+                  {/* Floor Table / Cards */}
+                  {isMobileViewport ? (
+                    <div className="space-y-3">
+                      {floorPayments.map((payment) => {
+                        const isEditing = editingId === payment.id;
+                        const rent = payment.rent || 0;
+                        const oldReading = payment.oldReading || 0;
+                        const currentReading = payment.currentReading || 0;
+                        const ratePerUnit = payment.ratePerUnit || 0;
+                        const units = payment.units || (currentReading - oldReading);
+                        const electricity = payment.electricity || (units * ratePerUnit);
+                        const total = payment.total || payment.totalAmount || (rent + electricity);
+                        const paidAmount = payment.paidAmount || 0;
+                        const balanceAmount = total - paidAmount;
+                        const monthYearLabel = `${MONTHS[(Number(payment.month) || 1) - 1]?.name || '-'} ${payment.year || ''}`.trim();
+                        const tenantName = payment.roomStatus === 'vacant'
+                          ? ''
+                          : (payment.tenantNameSnapshot || payment.tenantName || 'Unknown');
+
+                        return (
+                          <div key={payment.id} className="rounded-lg border border-gray-200 bg-white p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-base font-bold text-gray-900 leading-tight">Room {payment.roomNumber}</p>
+                                <p className="text-[11px] text-gray-600">{monthYearLabel}</p>
+                                {!isEditing && (
+                                  <p className="text-xs font-medium text-gray-700 mt-1 truncate">👤 {tenantName || '-'}</p>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-end gap-1">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIds.has(payment.id)}
+                                  onChange={() => toggleSelect(payment.id)}
+                                  className="w-4 h-4 cursor-pointer"
+                                />
+                                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                  payment.status === 'paid'
+                                    ? 'bg-green-100 text-green-800'
+                                    : payment.status === 'partial'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {payment.status}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="mt-2 flex items-center justify-between gap-2">
+                              {isEditing ? (
+                                <select
+                                  value={editData.roomStatus}
+                                  onChange={(e) => setEditData({ ...editData, roomStatus: e.target.value })}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                >
+                                  <option value="occupied">Occupied</option>
+                                  <option value="vacant">Vacant</option>
+                                </select>
+                              ) : (
+                                <span className={`inline-flex items-center whitespace-nowrap px-2 py-1 rounded-full text-xs font-semibold leading-none ${
+                                  (payment.roomStatus || 'occupied') === 'vacant'
+                                    ? 'bg-gray-100 text-gray-800'
+                                    : 'bg-green-100 text-green-800'
+                                }`}>
+                                  {(payment.roomStatus || 'occupied') === 'vacant' ? '⬜ Vacant' : '✅ Occupied'}
+                                </span>
+                              )}
+
+                              {!isEditing && (
+                                <div className="text-right">
+                                  <p className="text-[10px] text-gray-500">Balance</p>
+                                  <p className={`text-xs font-semibold ${balanceAmount > 0 ? 'text-orange-700' : 'text-green-700'}`}>
+                                    ₹{balanceAmount.toLocaleString('en-IN')}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="mt-2">
+                              {isEditing ? (
+                                editData.roomStatus === 'vacant' ? (
+                                  <span className="text-gray-400 italic text-xs">-</span>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    value={editData.tenantNameSnapshot}
+                                    onChange={(e) => setEditData({ ...editData, tenantNameSnapshot: e.target.value })}
+                                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                  />
+                                )
+                              ) : null}
+                            </div>
+
+                            <div className="mt-2 grid grid-cols-3 gap-1.5 text-xs">
+                              <div className="bg-gray-50 rounded px-2 py-1.5">
+                                <p className="text-[10px] text-gray-500">Rent</p>
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    value={editData.rent}
+                                    onChange={(e) => setEditData({ ...editData, rent: e.target.value })}
+                                    className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-right text-xs"
+                                  />
+                                ) : (
+                                  <p className="font-semibold">₹{rent.toLocaleString('en-IN')}</p>
+                                )}
+                              </div>
+                              <div className="bg-gray-50 rounded px-2 py-1.5">
+                                <p className="text-[10px] text-gray-500">Electricity</p>
+                                <p className="font-semibold">
+                                  {isEditing
+                                    ? `₹${(((Number(editData.currentReading) - Number(editData.oldReading)) * Number(editData.ratePerUnit)) || 0).toFixed(0)}`
+                                    : `₹${electricity.toLocaleString('en-IN')}`}
+                                </p>
+                              </div>
+                              <div className="bg-gray-50 rounded px-2 py-1.5">
+                                <p className="text-[10px] text-gray-500">Total</p>
+                                <p className="font-semibold text-green-700">
+                                  {isEditing
+                                    ? `₹${(Number(editData.rent) + (((Number(editData.currentReading) - Number(editData.oldReading)) * Number(editData.ratePerUnit)) || 0)).toFixed(0)}`
+                                    : `₹${total.toLocaleString('en-IN')}`}
+                                </p>
+                              </div>
+
+                              <div className="bg-gray-50 rounded px-2 py-1.5">
+                                <p className="text-[10px] text-gray-500">Paid</p>
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    value={editData.paidAmount}
+                                    onChange={(e) => setEditData({ ...editData, paidAmount: e.target.value })}
+                                    className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-right text-xs"
+                                  />
+                                ) : (
+                                  <p className="font-semibold">₹{paidAmount.toLocaleString('en-IN')}</p>
+                                )}
+                              </div>
+                              <div className="bg-gray-50 rounded px-2 py-1.5">
+                                <p className="text-[10px] text-gray-500">Readings</p>
+                                {isEditing ? (
+                                  <div className="space-y-1">
+                                    <input
+                                      type="number"
+                                      value={editData.oldReading}
+                                      onChange={(e) => setEditData({ ...editData, oldReading: e.target.value })}
+                                      className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-right text-xs"
+                                    />
+                                    <input
+                                      type="number"
+                                      value={editData.currentReading}
+                                      onChange={(e) => setEditData({ ...editData, currentReading: e.target.value })}
+                                      className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-right text-xs"
+                                    />
+                                  </div>
+                                ) : (
+                                  <p className="font-semibold">{oldReading} → {currentReading}</p>
+                                )}
+                              </div>
+                              <div className="bg-gray-50 rounded px-2 py-1.5">
+                                <p className="text-[10px] text-gray-500">Units @ Rate</p>
+                                {isEditing ? (
+                                  <div className="space-y-1">
+                                    <p className="font-semibold text-xs">{((Number(editData.currentReading) - Number(editData.oldReading)) || 0)} units</p>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={editData.ratePerUnit}
+                                      onChange={(e) => setEditData({ ...editData, ratePerUnit: e.target.value })}
+                                      className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-right text-xs"
+                                    />
+                                  </div>
+                                ) : (
+                                  <p className="font-semibold">{units} @ ₹{ratePerUnit.toFixed(2)}</p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="mt-2 flex items-center justify-end">
+                              {isEditing ? (
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => saveEdit(payment.id)}
+                                    className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={cancelEdit}
+                                    className="px-2 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => startEdit(payment)}
+                                    className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                                  >
+                                    Edit
+                                  </button>
+                                  {payment.status !== 'paid' && (
+                                    <button
+                                      onClick={() => markPaid(payment.id, total)}
+                                      className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+                                    >
+                                      Paid
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="card overflow-x-auto">
                     <table className="w-full text-xs md:text-sm">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr>
@@ -1188,6 +1419,7 @@ const HistoryManager = () => {
               </tbody>
             </table>
           </div>
+                  )}
         </div>
               );
             };

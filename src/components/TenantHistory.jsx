@@ -13,6 +13,7 @@ const TenantHistory = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [floorFilter, setFloorFilter] = useState('all');
   const [roomFilter, setRoomFilter] = useState('all');
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
 
   const MONTHS = [
     { num: 1, name: 'Jan' }, { num: 2, name: 'Feb' }, { num: 3, name: 'Mar' },
@@ -101,6 +102,20 @@ const TenantHistory = () => {
     if (years > 0) return `${years}y`;
     return `${months}m`;
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+    const updateViewport = () => setIsMobileViewport(mediaQuery.matches);
+
+    updateViewport();
+    mediaQuery.addEventListener('change', updateViewport);
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateViewport);
+    };
+  }, []);
 
   // Load all unique tenants from tenants + payments
   useEffect(() => {
@@ -663,81 +678,137 @@ const TenantHistory = () => {
                       </div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
-                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Rent</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Old Reading</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Current Reading</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Units</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Rate</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Electricity</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Total</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Paid</th>
-                            <th className="px-3 py-2 text-center font-semibold text-gray-700">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {records.map((record) => {
-                            const rent = Number(record.rent) || 0;
-                            const electricity = Number(record.electricity) || 0;
-                            const total = rent + electricity;
-                            const paid = Number(record.paidAmount) || 0;
-                            const units = record.units || 0;
-                            const oldReading = record.oldReading || 0;
-                            const currentReading = record.currentReading || 0;
-                            const ratePerUnit = record.ratePerUnit || 0;
+                    {isMobileViewport ? (
+                      <div className="space-y-3">
+                        {records.map((record) => {
+                          const rent = Number(record.rent) || 0;
+                          const electricity = Number(record.electricity) || 0;
+                          const total = rent + electricity;
+                          const paid = Number(record.paidAmount) || 0;
+                          const units = record.units || 0;
+                          const oldReading = record.oldReading || 0;
+                          const currentReading = record.currentReading || 0;
+                          const ratePerUnit = record.ratePerUnit || 0;
 
-                            return (
-                              <tr key={record.id} className="hover:bg-gray-50">
-                                <td className="px-3 py-2 font-semibold">
-                                  {MONTHS[record.month - 1]?.name}
-                                </td>
-                                <td className="px-3 py-2">
-                                  <span className={`px-2 py-1 rounded ${
-                                    record.roomNumber < 200 
-                                      ? 'bg-green-100 text-green-700' 
-                                      : 'bg-purple-100 text-purple-700'
-                                  } font-semibold`}>
-                                    {record.roomNumber}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  ₹{rent.toLocaleString('en-IN')}
-                                </td>
-                                <td className="px-3 py-2 text-right">{oldReading}</td>
-                                <td className="px-3 py-2 text-right">{currentReading}</td>
-                                <td className="px-3 py-2 text-right font-semibold text-blue-600">{units}</td>
-                                <td className="px-3 py-2 text-right">₹{ratePerUnit.toFixed(2)}</td>
-                                <td className="px-3 py-2 text-right">
-                                  ₹{electricity.toLocaleString('en-IN')}
-                                </td>
-                                <td className="px-3 py-2 text-right font-semibold">
-                                  ₹{total.toLocaleString('en-IN')}
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  ₹{paid.toLocaleString('en-IN')}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                    record.status === 'paid'
-                                      ? 'bg-green-100 text-green-800'
-                                      : record.status === 'partial'
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : 'bg-red-100 text-red-800'
-                                  }`}>
-                                    {record.status || 'unpaid'}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                          return (
+                            <div key={record.id} className="rounded-lg border border-gray-200 p-3 bg-white">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-xs text-gray-500">Month</p>
+                                  <p className="font-semibold text-gray-900">{MONTHS[record.month - 1]?.name} {record.year}</p>
+                                </div>
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                  record.status === 'paid'
+                                    ? 'bg-green-100 text-green-800'
+                                    : record.status === 'partial'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {record.status || 'unpaid'}
+                                </span>
+                              </div>
+
+                              <div className="mt-2">
+                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                  record.roomNumber < 200
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-purple-100 text-purple-700'
+                                }`}>
+                                  Room {record.roomNumber}
+                                </span>
+                              </div>
+
+                              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                                <p>Rent: <span className="font-semibold">₹{rent.toLocaleString('en-IN')}</span></p>
+                                <p>Paid: <span className="font-semibold">₹{paid.toLocaleString('en-IN')}</span></p>
+                                <p>Old: <span className="font-semibold">{oldReading}</span></p>
+                                <p>Current: <span className="font-semibold">{currentReading}</span></p>
+                                <p>Units: <span className="font-semibold text-blue-600">{units}</span></p>
+                                <p>Rate: <span className="font-semibold">₹{ratePerUnit.toFixed(2)}</span></p>
+                                <p>Electricity: <span className="font-semibold">₹{electricity.toLocaleString('en-IN')}</span></p>
+                                <p>Total: <span className="font-semibold">₹{total.toLocaleString('en-IN')}</span></p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
+                              <th className="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Rent</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Old Reading</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Current Reading</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Units</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Rate</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Electricity</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Total</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Paid</th>
+                              <th className="px-3 py-2 text-center font-semibold text-gray-700">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {records.map((record) => {
+                              const rent = Number(record.rent) || 0;
+                              const electricity = Number(record.electricity) || 0;
+                              const total = rent + electricity;
+                              const paid = Number(record.paidAmount) || 0;
+                              const units = record.units || 0;
+                              const oldReading = record.oldReading || 0;
+                              const currentReading = record.currentReading || 0;
+                              const ratePerUnit = record.ratePerUnit || 0;
+
+                              return (
+                                <tr key={record.id} className="hover:bg-gray-50">
+                                  <td className="px-3 py-2 font-semibold">
+                                    {MONTHS[record.month - 1]?.name}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <span className={`px-2 py-1 rounded ${
+                                      record.roomNumber < 200
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-purple-100 text-purple-700'
+                                    } font-semibold`}>
+                                      {record.roomNumber}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    ₹{rent.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">{oldReading}</td>
+                                  <td className="px-3 py-2 text-right">{currentReading}</td>
+                                  <td className="px-3 py-2 text-right font-semibold text-blue-600">{units}</td>
+                                  <td className="px-3 py-2 text-right">₹{ratePerUnit.toFixed(2)}</td>
+                                  <td className="px-3 py-2 text-right">
+                                    ₹{electricity.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-semibold">
+                                    ₹{total.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    ₹{paid.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-center">
+                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                      record.status === 'paid'
+                                        ? 'bg-green-100 text-green-800'
+                                        : record.status === 'partial'
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-red-100 text-red-800'
+                                    }`}>
+                                      {record.status || 'unpaid'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 );
               })}

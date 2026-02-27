@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+import ViewModeToggle from './ui/ViewModeToggle';
+import useResponsiveViewMode from '../utils/useResponsiveViewMode';
 
 const ImportLogsPage = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
+  const { viewMode, setViewMode, isCardView } = useResponsiveViewMode('import-logs-view-mode', 'table');
 
   useEffect(() => {
     fetchImportLogs();
@@ -112,6 +115,9 @@ const ImportLogsPage = () => {
         >
           {loading ? '⏳ Loading...' : '🔄 Refresh Logs'}
         </button>
+        <div className="mt-3">
+          <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
+        </div>
       </div>
 
       {/* Logs Table */}
@@ -124,6 +130,51 @@ const ImportLogsPage = () => {
         ) : logs.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             No import logs found. Logs will appear here after you import CSV files or run backup operations.
+          </div>
+        ) : isCardView ? (
+          <div className="space-y-3">
+            {logs.map((log) => (
+              <div key={log.id} className="rounded-lg border border-gray-200 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500">Date & Time</p>
+                    <p className="text-sm font-semibold text-gray-900">{formatDate(log.timestamp)}</p>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                    log.type === 'backup_and_reset' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {getLogType(log)}
+                  </span>
+                </div>
+
+                <p className="mt-2 text-sm text-gray-700 break-all">{log.fileName || log.backupCollectionName || '-'}</p>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <p>Total: <span className="font-semibold">{log.totalRows || log.originalCount || '-'}</span></p>
+                  <p>Success: <span className="font-semibold text-green-600">{log.successCount || log.backedUpCount || 0}</span></p>
+                  <p>Updated: <span className="font-semibold text-blue-600">{log.updatedCount || 0}</span></p>
+                  <p>Errors: <span className={`font-semibold ${(log.errorCount || 0) > 0 ? 'text-red-600' : 'text-gray-400'}`}>{log.errorCount || 0}</span></p>
+                  <p>Warnings: <span className={`font-semibold ${(log.warningCount || 0) > 0 ? 'text-yellow-600' : 'text-gray-400'}`}>{log.warningCount || 0}</span></p>
+                </div>
+
+                <div className="mt-3 flex gap-3">
+                  <button
+                    onClick={() => viewDetails(log)}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    📄 Details
+                  </button>
+                  {log.errors && log.errors.length > 0 && (
+                    <button
+                      onClick={() => downloadErrorsCSV(log)}
+                      className="text-xs text-red-600 hover:underline"
+                    >
+                      ⬇️ Errors
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -3,6 +3,8 @@ import { collection, getDocs, query, orderBy, doc, updateDoc, addDoc, writeBatch
 import { db, auth } from '../firebase';
 import { validateRoomCount } from '../utils/roomValidation';
 import { useDialog } from './ui/DialogProvider';
+import ViewModeToggle from './ui/ViewModeToggle';
+import useResponsiveViewMode from '../utils/useResponsiveViewMode';
 
 const Rooms = () => {
   const { showConfirm } = useDialog();
@@ -11,6 +13,8 @@ const Rooms = () => {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // all, vacant, occupied
   const [floorFilter, setFloorFilter] = useState('all'); // all, floor1, floor2
+  const { viewMode, setViewMode, isCardView } = useResponsiveViewMode('rooms-view-mode', 'table');
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [selectedRooms, setSelectedRooms] = useState(new Set());
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [modalRoom, setModalRoom] = useState(null);
@@ -20,6 +24,26 @@ const Rooms = () => {
 
   useEffect(() => {
     fetchRooms();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+    const updateViewport = () => {
+      const isMobile = mediaQuery.matches;
+      setIsMobileViewport(isMobile);
+      if (isMobile) {
+        setFloorFilter('all');
+      }
+    };
+
+    updateViewport();
+    mediaQuery.addEventListener('change', updateViewport);
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateViewport);
+    };
   }, []);
 
   const fetchRooms = async () => {
@@ -326,7 +350,7 @@ const Rooms = () => {
         </div>
 
         {/* Floor Filters */}
-        <div>
+        <div className="hidden md:block">
           <label className="text-sm font-semibold text-gray-700 mb-2 block">Floor Filter</label>
           <div className="flex flex-wrap gap-2">
             <button
@@ -360,6 +384,11 @@ const Rooms = () => {
               Floor 2 (First) ({stats.floor2})
             </button>
           </div>
+        </div>
+
+        <div className="hidden md:block">
+          <label className="text-sm font-semibold text-gray-700 mb-2 block">View Mode</label>
+          <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
         </div>
 
         {/* Bulk Actions */}
@@ -408,6 +437,61 @@ const Rooms = () => {
             </div>
           )}
         </div>
+      ) : (isMobileViewport || isCardView) ? (
+        <div className="space-y-3">
+          <div className="card py-3 px-4 flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-700">Select All</span>
+            <input
+              type="checkbox"
+              checked={selectedRooms.size === filteredRooms.length && filteredRooms.length > 0}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 text-primary rounded"
+            />
+          </div>
+
+          {filteredRooms.map((room) => {
+            const roomStatus = room.status || 'vacant';
+            const isVacant = roomStatus === 'vacant';
+
+            return (
+              <div key={room.id} className={`card border ${selectedRooms.has(room.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'} p-4`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500">Room</p>
+                    <p className="text-lg font-bold text-gray-900">{room.roomNumber}</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={selectedRooms.has(room.id)}
+                    onChange={() => toggleRoomSelection(room.id)}
+                    className="w-4 h-4 text-primary rounded mt-1"
+                  />
+                </div>
+
+                <div className="mt-2">
+                  <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    isVacant ? 'bg-gray-100 text-gray-800' : 'bg-green-100 text-green-800'
+                  }`}>
+                    {isVacant ? '⬜ Vacant' : '✅ Occupied'}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <p>Rent: <span className="font-semibold text-gray-900">₹{room.defaultRent?.toLocaleString('en-IN') || 'N/A'}</span></p>
+                  <p>Meter: <span className="font-semibold text-gray-900">{room.electricityMeterNo || 'N/A'}</span></p>
+                  <p className="col-span-2">Last Updated: <span className="font-semibold text-gray-900">{room.lastStatusUpdatedAt ? new Date(room.lastStatusUpdatedAt.seconds * 1000).toLocaleDateString() : 'Never'}</span></p>
+                </div>
+
+                <button
+                  onClick={() => openStatusModal(room)}
+                  className="mt-3 text-primary hover:text-blue-700 font-semibold text-sm"
+                >
+                  Update Status
+                </button>
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <div className="card overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -421,31 +505,19 @@ const Rooms = () => {
                     className="w-4 h-4 text-primary rounded"
                   />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Room
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Default Rent
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Meter No
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Updated
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Default Rent</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meter No</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredRooms.map(room => {
                 const roomStatus = room.status || 'vacant';
                 const isVacant = roomStatus === 'vacant';
-                
+
                 return (
                   <tr key={room.id} className={selectedRooms.has(room.id) ? 'bg-blue-50' : ''}>
                     <td className="px-4 py-4">
@@ -475,7 +547,7 @@ const Rooms = () => {
                       {room.electricityMeterNo || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {room.lastStatusUpdatedAt 
+                      {room.lastStatusUpdatedAt
                         ? new Date(room.lastStatusUpdatedAt.seconds * 1000).toLocaleDateString()
                         : 'Never'}
                     </td>

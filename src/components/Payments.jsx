@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, addDoc, query, where, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
+import ViewModeToggle from './ui/ViewModeToggle';
+import useResponsiveViewMode from '../utils/useResponsiveViewMode';
 
 const Payments = () => {
   const [tenants, setTenants] = useState([]);
@@ -15,6 +17,7 @@ const Payments = () => {
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const { viewMode, setViewMode, isCardView } = useResponsiveViewMode('payments-view-mode', 'table');
 
   const fetchData = useCallback(async () => {
     try {
@@ -185,6 +188,9 @@ const Payments = () => {
           </div>
         </div>
         <p className="text-gray-600">Record rent payments for active tenants</p>
+        <div className="mt-3">
+          <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -272,6 +278,58 @@ const Payments = () => {
           <div className="text-center py-12 text-gray-500">
             <div className="text-5xl mb-2">📋</div>
             <p>No tenants found</p>
+          </div>
+        ) : isCardView ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredTenants.map((tenant) => {
+              const payment = getTenantPaymentStatus(tenant.id);
+              const isPaid = !!payment;
+
+              return (
+                <div
+                  key={tenant.id}
+                  className={`rounded-lg border p-4 ${isPaid ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'}`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase">Room</p>
+                      <p className="text-lg font-bold text-gray-900">{tenant.roomNumber}</p>
+                      <p className="text-sm font-semibold text-gray-900 mt-1">{tenant.name}</p>
+                      <p className="text-sm text-gray-600">{tenant.phone || '-'}</p>
+                    </div>
+                    <p className="text-lg font-bold text-gray-900">₹{(tenant.currentRent || 0).toLocaleString('en-IN')}</p>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between">
+                    {isPaid ? (
+                      <div className="flex flex-col">
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-200 text-green-900 w-fit">
+                          ✅ Paid
+                        </span>
+                        {payment.paidDate && (
+                          <span className="text-xs text-gray-600 mt-1">
+                            {new Date(payment.paidDate).toLocaleDateString('en-IN')}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-200 text-orange-900">
+                        ⏳ Pending
+                      </span>
+                    )}
+
+                    {!isPaid && (
+                      <button
+                        onClick={() => handleRecordPayment(tenant)}
+                        className="px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition text-xs font-semibold"
+                      >
+                        💰 Record
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="overflow-x-auto">
