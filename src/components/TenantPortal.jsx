@@ -906,6 +906,14 @@ const TenantPortal = () => {
       const state = params.get('state');
       const oauthError = params.get('error') || params.get('error_description');
 
+      // Debug: Log all callback parameters
+      console.log('🔍 DigiLocker callback received:');
+      console.log('  URL:', location.href);
+      console.log('  Code:', code ? '✅ Present' : '❌ Missing');
+      console.log('  State:', state ? '✅ Present' : '❌ Missing');
+      console.log('  Error:', oauthError || 'None');
+      console.log('  All params:', Object.fromEntries(params.entries()));
+
       if (oauthError) {
         setKycCallbackStatus('error');
         setKycCallbackMessage(`DigiLocker returned error: ${oauthError}`);
@@ -915,8 +923,8 @@ const TenantPortal = () => {
 
       if (!code || !state) {
         setKycCallbackStatus('error');
-        setKycCallbackMessage('Missing code/state in callback URL.');
-        setTimeout(() => navigate('/tenant-portal', { replace: true }), 1500);
+        setKycCallbackMessage(`Missing code/state in callback URL. This usually means DigiLocker rejected the authorization request (possibly due to invalid scope). Check browser console for details.`);
+        setTimeout(() => navigate('/tenant-portal', { replace: true }), 3000);
         return;
       }
 
