@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import SubmitPayment from './SubmitPayment';
 import googlePayLogo from '../assets/payment-icons/google-pay.svg';
@@ -65,6 +65,24 @@ const TenantPortal = () => {
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
   );
   const [hiddenRejectedSubmissionIds, setHiddenRejectedSubmissionIds] = useState(new Set());
+  const [tenantProfile, setTenantProfile] = useState({
+    firstName: '',
+    lastName: '',
+    phoneNumber: '',
+    occupation: '',
+    aadharNumber: '',
+    panNumber: '',
+    aadharImage: '',
+    panImage: '',
+    selfieImage: '',
+    agreementAccepted: false,
+    agreementSignature: '',
+    agreementSignedAt: null
+  });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const signatureCanvasRef = useRef(null);
+  const [isSigning, setIsSigning] = useState(false);
 
   const t = (en, hi) => (portalLanguage === 'hi' ? hi : en);
 
@@ -105,6 +123,190 @@ const TenantPortal = () => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     const permission = await Notification.requestPermission();
     setNotificationPermission(permission);
+  };
+
+  const splitName = (fullName = '') => {
+    const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return { firstName: '', lastName: '' };
+    if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+    return {
+      firstName: parts[0],
+      lastName: parts.slice(1).join(' ')
+    };
+  };
+
+  const toDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const getCanvasPoint = (event) => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+
+    if (event.touches && event.touches[0]) {
+      return {
+        x: event.touches[0].clientX - rect.left,
+        y: event.touches[0].clientY - rect.top
+      };
+    }
+
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+  };
+
+  const startSignature = (event) => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const point = getCanvasPoint(event);
+    if (!point) return;
+
+    const context = canvas.getContext('2d');
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.lineWidth = 2;
+    context.strokeStyle = '#111827';
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    setIsSigning(true);
+  };
+
+  const moveSignature = (event) => {
+    if (!isSigning) return;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+
+    const point = getCanvasPoint(event);
+    if (!point) return;
+
+    const context = canvas.getContext('2d');
+    context.lineTo(point.x, point.y);
+    context.stroke();
+  };
+
+  const stopSignature = () => {
+    if (!isSigning) return;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    setIsSigning(false);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    setTenantProfile((prev) => ({
+      ...prev,
+      agreementSignature: dataUrl,
+      agreementSignedAt: new Date().toISOString()
+    }));
+  };
+
+  const clearSignature = () => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    setTenantProfile((prev) => ({
+      ...prev,
+      agreementSignature: '',
+      agreementSignedAt: null
+    }));
+  };
+
+  const getProfileCompletion = () => {
+    const checklist = [
+      !!tenantProfile.firstName,
+      !!tenantProfile.lastName,
+      !!tenantProfile.phoneNumber,
+      !!tenantProfile.occupation,
+      !!tenantProfile.aadharNumber,
+      !!tenantProfile.panNumber,
+      !!tenantProfile.aadharImage,
+      !!tenantProfile.panImage,
+      !!tenantProfile.selfieImage,
+      !!tenantProfile.agreementAccepted,
+      !!tenantProfile.agreementSignature
+    ];
+
+    const filled = checklist.filter(Boolean).length;
+    const total = checklist.length;
+    const percentage = Math.round((filled / total) * 100);
+    return { filled, total, percentage };
+  };
+
+  const handleProfileChange = (field, value) => {
+    setTenantProfile((prev) => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleProfileFileChange = async (field, file) => {
+    if (!file) return;
+    try {
+      const dataUrl = await toDataUrl(file);
+      setTenantProfile((prev) => ({
+        ...prev,
+        [field]: dataUrl
+      }));
+    } catch (fileError) {
+      console.error('Profile file read error:', fileError);
+      alert('Failed to read file. Please try again.');
+    }
+  };
+
+  const loadTenantProfile = async (tenantData) => {
+    if (!tenantData?.id) return;
+    setProfileLoading(true);
+    try {
+      const profileRef = doc(db, 'tenantProfiles', tenantData.id);
+      const profileSnap = await getDoc(profileRef);
+      const profileData = profileSnap.exists() ? profileSnap.data() : {};
+
+      const split = splitName(tenantData?.name || '');
+      setTenantProfile({
+        firstName: profileData.firstName || split.firstName || '',
+        lastName: profileData.lastName || split.lastName || '',
+        phoneNumber: profileData.phoneNumber || tenantData.phone || '',
+        occupation: profileData.occupation || '',
+        aadharNumber: profileData.aadharNumber || '',
+        panNumber: profileData.panNumber || '',
+        aadharImage: profileData.aadharImage || '',
+        panImage: profileData.panImage || '',
+        selfieImage: profileData.selfieImage || '',
+        agreementAccepted: !!profileData.agreementAccepted,
+        agreementSignature: profileData.agreementSignature || '',
+        agreementSignedAt: profileData.agreementSignedAt || null
+      });
+    } catch (profileError) {
+      console.error('Error loading tenant profile:', profileError);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const saveTenantProfile = async () => {
+    if (!tenant?.id) return;
+    setProfileSaving(true);
+    try {
+      const profilePayload = {
+        ...tenantProfile,
+        tenantId: tenant.id,
+        roomNumber: tenant.roomNumber || null,
+        fullName: `${tenantProfile.firstName} ${tenantProfile.lastName}`.trim(),
+        updatedAt: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, 'tenantProfiles', tenant.id), profilePayload, { merge: true });
+      alert('✅ Profile saved successfully.');
+    } catch (saveError) {
+      console.error('Error saving tenant profile:', saveError);
+      alert('Failed to save profile. Please try again.');
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   const notifyTenant = (eventId, title, body) => {
@@ -621,6 +823,8 @@ const TenantPortal = () => {
       if (!upiSnapshot.empty) {
         setActiveUPI({ id: upiSnapshot.docs[0].id, ...upiSnapshot.docs[0].data() });
       }
+
+      await loadTenantProfile(tenantData);
     } catch (error) {
       console.error('Error loading tenant data:', error);
     } finally {
@@ -643,6 +847,20 @@ const TenantPortal = () => {
     setPassword('');
     setPreviousMeterReadings({});
     setCurrentMeterReadings({});
+    setTenantProfile({
+      firstName: '',
+      lastName: '',
+      phoneNumber: '',
+      occupation: '',
+      aadharNumber: '',
+      panNumber: '',
+      aadharImage: '',
+      panImage: '',
+      selfieImage: '',
+      agreementAccepted: false,
+      agreementSignature: '',
+      agreementSignedAt: null
+    });
   };
 
   // Calculate next due date and payment status
@@ -1551,6 +1769,211 @@ const TenantPortal = () => {
                 <p className="text-xs text-red-700 mt-2">कृपया सही screenshot और UTR के साथ दोबारा submit करें।</p>
               </div>
             )}
+
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+              {(() => {
+                const completion = getProfileCompletion();
+                const radius = 46;
+                const circumference = 2 * Math.PI * radius;
+                const strokeOffset = circumference - (completion.percentage / 100) * circumference;
+
+                return (
+                  <>
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <div>
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">🪪 Tenant KYC Profile</h2>
+                        <p className="text-sm text-gray-600 mt-1">Fill your details, upload documents, and sign rent agreement.</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <svg width="110" height="110" viewBox="0 0 110 110" className="-rotate-90">
+                          <circle cx="55" cy="55" r={radius} stroke="#E5E7EB" strokeWidth="10" fill="none" />
+                          <circle
+                            cx="55"
+                            cy="55"
+                            r={radius}
+                            stroke="#2563EB"
+                            strokeWidth="10"
+                            fill="none"
+                            strokeDasharray={circumference}
+                            strokeDashoffset={strokeOffset}
+                            strokeLinecap="round"
+                            style={{ transition: 'stroke-dashoffset 0.4s ease' }}
+                          />
+                        </svg>
+                        <div className="-ml-[86px] w-[110px] text-center">
+                          <p className="text-2xl font-bold text-gray-900">{completion.percentage}%</p>
+                          <p className="text-xs text-gray-600">Profile Complete</p>
+                          <p className="text-[11px] text-gray-500">{completion.filled}/{completion.total}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">First Name</label>
+                        <input
+                          type="text"
+                          value={tenantProfile.firstName}
+                          onChange={(e) => handleProfileChange('firstName', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          placeholder="Enter first name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Last Name</label>
+                        <input
+                          type="text"
+                          value={tenantProfile.lastName}
+                          onChange={(e) => handleProfileChange('lastName', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          placeholder="Enter last name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Phone Number</label>
+                        <input
+                          type="tel"
+                          value={tenantProfile.phoneNumber}
+                          onChange={(e) => handleProfileChange('phoneNumber', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          placeholder="Enter phone"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Occupation</label>
+                        <input
+                          type="text"
+                          value={tenantProfile.occupation}
+                          onChange={(e) => handleProfileChange('occupation', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          placeholder="Enter occupation"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Aadhar Number</label>
+                        <input
+                          type="text"
+                          value={tenantProfile.aadharNumber}
+                          onChange={(e) => handleProfileChange('aadharNumber', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          placeholder="XXXX XXXX XXXX"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">PAN Number</label>
+                        <input
+                          type="text"
+                          value={tenantProfile.panNumber}
+                          onChange={(e) => handleProfileChange('panNumber', e.target.value.toUpperCase())}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm uppercase"
+                          placeholder="ABCDE1234F"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                      <div className="border border-gray-200 rounded-lg p-3">
+                        <label className="block text-xs font-semibold text-gray-700 mb-2">Upload Aadhar</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleProfileFileChange('aadharImage', e.target.files?.[0])}
+                          className="w-full text-xs"
+                        />
+                        {tenantProfile.aadharImage && (
+                          <img src={tenantProfile.aadharImage} alt="Aadhar" className="mt-2 h-20 w-full object-cover rounded border" />
+                        )}
+                      </div>
+
+                      <div className="border border-gray-200 rounded-lg p-3">
+                        <label className="block text-xs font-semibold text-gray-700 mb-2">Upload PAN</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleProfileFileChange('panImage', e.target.files?.[0])}
+                          className="w-full text-xs"
+                        />
+                        {tenantProfile.panImage && (
+                          <img src={tenantProfile.panImage} alt="PAN" className="mt-2 h-20 w-full object-cover rounded border" />
+                        )}
+                      </div>
+
+                      <div className="border border-gray-200 rounded-lg p-3">
+                        <label className="block text-xs font-semibold text-gray-700 mb-2">Selfie (Current Photo)</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="user"
+                          onChange={(e) => handleProfileFileChange('selfieImage', e.target.files?.[0])}
+                          className="w-full text-xs"
+                        />
+                        {tenantProfile.selfieImage && (
+                          <img src={tenantProfile.selfieImage} alt="Selfie" className="mt-2 h-20 w-full object-cover rounded border" />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                      <p className="text-xs font-semibold text-amber-900 mb-2">📄 Rent Agreement (Digital Acceptance)</p>
+                      <p className="text-xs text-amber-800 leading-relaxed mb-3">
+                        I confirm that the information provided is correct, and I agree to pay rent/electricity on time as per lodge terms.
+                      </p>
+                      <label className="flex items-center gap-2 text-sm text-amber-900 font-semibold mb-3">
+                        <input
+                          type="checkbox"
+                          checked={tenantProfile.agreementAccepted}
+                          onChange={(e) => handleProfileChange('agreementAccepted', e.target.checked)}
+                        />
+                        I accept the rent agreement terms.
+                      </label>
+
+                      <div className="bg-white border border-amber-300 rounded-lg p-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-semibold text-gray-700">Digital Signature</p>
+                          <button
+                            type="button"
+                            onClick={clearSignature}
+                            className="text-xs font-semibold text-red-700 hover:underline"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <canvas
+                          ref={signatureCanvasRef}
+                          width={640}
+                          height={180}
+                          className="w-full h-28 border border-gray-300 rounded touch-none"
+                          onMouseDown={startSignature}
+                          onMouseMove={moveSignature}
+                          onMouseUp={stopSignature}
+                          onMouseLeave={stopSignature}
+                          onTouchStart={(e) => { e.preventDefault(); startSignature(e); }}
+                          onTouchMove={(e) => { e.preventDefault(); moveSignature(e); }}
+                          onTouchEnd={(e) => { e.preventDefault(); stopSignature(); }}
+                        />
+                        {tenantProfile.agreementSignedAt && (
+                          <p className="text-[11px] text-gray-500 mt-1">Signed on: {new Date(tenantProfile.agreementSignedAt).toLocaleString('en-IN')}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-gray-500">
+                        Existing tenant data auto-prefilled where available. New tenants can fill fresh KYC details.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={saveTenantProfile}
+                        disabled={profileSaving || profileLoading}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg text-sm disabled:opacity-60"
+                      >
+                        {profileSaving ? 'Saving...' : profileLoading ? 'Loading...' : '💾 Save Profile'}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
 
             {/* Quick Payment Action - NEW */}
             {!showPaymentForm && (() => {

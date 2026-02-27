@@ -414,6 +414,56 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         new Map(tenantPayments.map((payment) => [payment.id, payment])).values()
       );
 
+      const roomWiseMap = {};
+      tenantRoomNumbers.forEach((roomNumber) => {
+        roomWiseMap[String(roomNumber)] = {
+          roomNumber: String(roomNumber),
+          rentAmount: 0,
+          electricityAmount: 0,
+          collectedAmount: 0,
+          paymentRecordsCount: 0,
+          latestPaidTimestamp: 0,
+          latestPaidDate: null,
+          status: 'pending'
+        };
+      });
+
+      uniqueTenantPayments.forEach((payment) => {
+        const roomKey = String(payment.roomNumber || '');
+        if (!roomKey) return;
+
+        if (!roomWiseMap[roomKey]) {
+          roomWiseMap[roomKey] = {
+            roomNumber: roomKey,
+            rentAmount: 0,
+            electricityAmount: 0,
+            collectedAmount: 0,
+            paymentRecordsCount: 0,
+            latestPaidTimestamp: 0,
+            latestPaidDate: null,
+            status: 'pending'
+          };
+        }
+
+        roomWiseMap[roomKey].rentAmount += Number(payment.rent || payment.rentAmount) || 0;
+        roomWiseMap[roomKey].electricityAmount += Number(payment.electricity || payment.electricityAmount) || 0;
+        roomWiseMap[roomKey].collectedAmount += Number(payment.paidAmountValue) || 0;
+        roomWiseMap[roomKey].paymentRecordsCount += 1;
+
+        const paidAtTime = payment?.paidAt ? new Date(payment.paidAt).getTime() : 0;
+        if (payment.isPaidStatus && paidAtTime >= roomWiseMap[roomKey].latestPaidTimestamp) {
+          roomWiseMap[roomKey].latestPaidTimestamp = paidAtTime;
+          roomWiseMap[roomKey].latestPaidDate = payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('en-IN') : null;
+          roomWiseMap[roomKey].status = 'paid';
+        }
+      });
+
+      const roomWiseSplit = Object.values(roomWiseMap).sort((firstRoom, secondRoom) => {
+        const firstValue = Number(String(firstRoom.roomNumber).replace(/\D/g, '')) || 0;
+        const secondValue = Number(String(secondRoom.roomNumber).replace(/\D/g, '')) || 0;
+        return firstValue - secondValue;
+      });
+
       const totalElectricity = uniqueTenantPayments.reduce((sum, payment) => sum + payment.electricityValue, 0);
       const collectedAmount = uniqueTenantPayments.reduce((sum, payment) => sum + payment.paidAmountValue, 0);
       const latestPaidRecord = uniqueTenantPayments
@@ -486,9 +536,11 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         status,
         dueDate: dueDateFormatted,
         paidDate,
+        paidTimestamp: latestPaidRecord?.paidAt ? new Date(latestPaidRecord.paidAt).getTime() : 0,
         isDelayed,
         paymentMethod: latestPaidRecord ? latestPaidRecord.paymentMethod : null,
-        paymentRecordsCount: uniqueTenantPayments.length
+        paymentRecordsCount: uniqueTenantPayments.length,
+        roomWiseSplit
       });
       
       totalExpected += expectedTotal;

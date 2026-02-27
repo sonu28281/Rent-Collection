@@ -68,6 +68,12 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    // Tenant KYC profiles - tenant portal reads/writes, token validation is done in app logic
+    match /tenantProfiles/{tenantId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // Import logs - Admin only
     match /importLogs/{logId} {
       allow read: if isAdmin();
