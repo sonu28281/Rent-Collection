@@ -50,6 +50,7 @@ function App() {
           
           {/* Public Tenant Portal Routes */}
           <Route path="/tenant-portal" element={<TenantPortal />} />
+          <Route path="/kyc/callback" element={<TenantPortal />} />
           <Route path="/t/:token" element={<TenantPortal />} />
           
           <Route path="/login" element={isTenantPortalDomain ? tenantPortalRedirect : <Login />} />

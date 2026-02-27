@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { collection, query, where, getDocs, limit, doc, getDoc, setDoc } from 'firebase/firestore';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import SubmitPayment from './SubmitPayment';
 import googlePayLogo from '../assets/payment-icons/google-pay.svg';
@@ -22,6 +23,8 @@ import Tesseract from 'tesseract.js';
 const TenantPortal = () => {
   const REMEMBER_ME_KEY = 'tenant_portal_saved_login_v1';
   const TENANT_PORTAL_LANG_KEY = 'tenant_portal_language_v1';
+  const KYC_PENDING_KEY = 'digilocker_kyc_pending_v1';
+  const DEFAULT_KYC_FUNCTION_BASE_URL = 'https://us-central1-rent-collection-5e1d2.cloudfunctions.net';
 
   // Login state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -67,6 +70,8 @@ const TenantPortal = () => {
   );
   const [startingDigiLockerKyc, setStartingDigiLockerKyc] = useState(false);
   const [digiLockerError, setDigiLockerError] = useState('');
+  const [kycCallbackStatus, setKycCallbackStatus] = useState('idle');
+  const [kycCallbackMessage, setKycCallbackMessage] = useState('');
   const [hiddenRejectedSubmissionIds, setHiddenRejectedSubmissionIds] = useState(new Set());
   const [tenantProfile, setTenantProfile] = useState({
     firstName: '',
@@ -97,6 +102,8 @@ const TenantPortal = () => {
   const [ocrAnalyzing, setOcrAnalyzing] = useState(false);
   const signatureCanvasRef = useRef(null);
   const [isSigning, setIsSigning] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const t = (en, hi) => (portalLanguage === 'hi' ? hi : en);
 
@@ -736,7 +743,17 @@ const TenantPortal = () => {
     const base = import.meta.env.VITE_KYC_FUNCTION_BASE_URL;
     if (base) return `${String(base).replace(/\/$/, '')}/initiateKyc`;
 
-    return '';
+    return `${DEFAULT_KYC_FUNCTION_BASE_URL}/initiateKyc`;
+  };
+
+  const getKycCallbackHandlerUrl = () => {
+    const direct = import.meta.env.VITE_KYC_CALLBACK_HANDLER_URL;
+    if (direct) return String(direct);
+
+    const base = import.meta.env.VITE_KYC_FUNCTION_BASE_URL;
+    if (base) return `${String(base).replace(/\/$/, '')}/handleKycCallback`;
+
+    return `${DEFAULT_KYC_FUNCTION_BASE_URL}/handleKycCallback`;
   };
 
   const startDigiLockerVerification = async () => {
@@ -753,13 +770,21 @@ const TenantPortal = () => {
     try {
       const response = await fetch(initiateUrl, { method: 'GET' });
       const payload = await response.json().catch(() => ({}));
+      const payloadData = payload?.data || {};
+      const authorizationUrl = payload?.authorizationUrl || payloadData?.authorizationUrl;
+      const state = payload?.state || payloadData?.state;
+      const stateCreatedAt = payloadData?.stateCreatedAt || Date.now();
 
-      if (!response.ok || !payload?.authorizationUrl || !payload?.state) {
-        throw new Error(payload?.error || 'Unable to initiate DigiLocker verification');
+      if (!response.ok || !authorizationUrl || !state) {
+        throw new Error(payload?.message || payload?.error || 'Unable to initiate DigiLocker verification');
       }
 
-      localStorage.setItem(`kyc_oauth_state_${tenant.id}`, String(payload.state));
-      window.location.href = String(payload.authorizationUrl);
+      localStorage.setItem(KYC_PENDING_KEY, JSON.stringify({
+        tenantId: tenant.id,
+        state: String(state),
+        stateCreatedAt: Number(stateCreatedAt)
+      }));
+      window.location.href = String(authorizationUrl);
     } catch (error) {
       console.error('DigiLocker initiate failed:', error);
       setDigiLockerError(error?.message || 'Unable to start DigiLocker verification. Please try again.');
@@ -767,6 +792,88 @@ const TenantPortal = () => {
       setStartingDigiLockerKyc(false);
     }
   };
+
+  useEffect(() => {
+    const processKycCallback = async () => {
+      if (location.pathname !== '/kyc/callback') return;
+
+      setKycCallbackStatus('processing');
+      setKycCallbackMessage('Processing DigiLocker verification...');
+
+      const params = new URLSearchParams(location.search || '');
+      const code = params.get('code');
+      const state = params.get('state');
+      const oauthError = params.get('error') || params.get('error_description');
+
+      if (oauthError) {
+        setKycCallbackStatus('error');
+        setKycCallbackMessage(`DigiLocker returned error: ${oauthError}`);
+        setTimeout(() => navigate('/tenant-portal', { replace: true }), 1500);
+        return;
+      }
+
+      if (!code || !state) {
+        setKycCallbackStatus('error');
+        setKycCallbackMessage('Missing code/state in callback URL.');
+        setTimeout(() => navigate('/tenant-portal', { replace: true }), 1500);
+        return;
+      }
+
+      let pending = null;
+      try {
+        const raw = localStorage.getItem(KYC_PENDING_KEY);
+        pending = raw ? JSON.parse(raw) : null;
+      } catch {
+        pending = null;
+      }
+
+      if (!pending?.tenantId || !pending?.state) {
+        setKycCallbackStatus('error');
+        setKycCallbackMessage('KYC session missing. Please start verification again.');
+        setTimeout(() => navigate('/tenant-portal', { replace: true }), 1500);
+        return;
+      }
+
+      const callbackUrl = getKycCallbackHandlerUrl();
+      if (!callbackUrl) {
+        setKycCallbackStatus('error');
+        setKycCallbackMessage('KYC callback URL missing. Set VITE_KYC_CALLBACK_HANDLER_URL or VITE_KYC_FUNCTION_BASE_URL.');
+        return;
+      }
+
+      try {
+        const response = await fetch(callbackUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            tenantId: pending.tenantId,
+            code,
+            state,
+            expectedState: pending.state,
+            stateCreatedAt: pending.stateCreatedAt
+          })
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.message || payload?.error || 'KYC verification failed');
+        }
+
+        localStorage.removeItem(KYC_PENDING_KEY);
+        setKycCallbackStatus('success');
+        setKycCallbackMessage('DigiLocker verification completed successfully. Redirecting...');
+        setTimeout(() => navigate('/tenant-portal', { replace: true }), 1200);
+      } catch (error) {
+        console.error('KYC callback processing failed:', error);
+        setKycCallbackStatus('error');
+        setKycCallbackMessage(error?.message || 'Unable to complete KYC callback. Please retry.');
+      }
+    };
+
+    processKycCallback();
+  }, [location.pathname, location.search, navigate]);
 
   const getAssignedRoomNumbers = (tenantData) => {
     if (Array.isArray(tenantData?.assignedRooms) && tenantData.assignedRooms.length > 0) {
@@ -1780,6 +1887,41 @@ const TenantPortal = () => {
       return acc;
     }, { rentPaid: 0, electricityPaid: 0 });
   };
+
+  if (location.pathname === '/kyc/callback') {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+        <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full text-center border border-gray-200">
+          <h2 className="text-xl font-bold text-gray-800 mb-2">DigiLocker KYC Callback</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            {kycCallbackStatus === 'processing'
+              ? 'Please wait while we verify your DigiLocker response.'
+              : (kycCallbackStatus === 'success' ? 'Verification successful.' : 'Verification could not be completed.')}
+          </p>
+
+          {kycCallbackStatus === 'processing' && (
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          )}
+
+          {kycCallbackMessage && (
+            <p className={`text-sm ${kycCallbackStatus === 'error' ? 'text-red-700' : 'text-gray-700'}`}>
+              {kycCallbackMessage}
+            </p>
+          )}
+
+          {kycCallbackStatus === 'error' && (
+            <button
+              type="button"
+              onClick={() => navigate('/tenant-portal', { replace: true })}
+              className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm"
+            >
+              Back to Tenant Portal
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // ============ LOGIN SCREEN ============
   if (!isLoggedIn) {
