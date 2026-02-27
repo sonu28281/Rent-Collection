@@ -19,7 +19,6 @@ const Sidebar = () => {
     { icon: '💳', label: 'Payments', path: '/payments' },
     { icon: '🔍', label: 'Verify Payments', path: '/verify-payments' },
     { icon: '🔧', label: 'Maintenance', path: '/maintenance' },
-    { icon: '📥', label: 'Import CSV', path: '/import' },
     { icon: '📚', label: 'History Manager', path: '/history' },
     { icon: '📊', label: 'Vacancy Report', path: '/vacancy-report' },
     { icon: '🕰️', label: 'Tenant History', path: '/tenant-history' },
@@ -36,6 +35,7 @@ const Sidebar = () => {
     { icon: '⚙️', label: 'General Settings', path: '/settings' },
     { icon: '🏦', label: 'Bank Accounts', path: '/bank-accounts' },
     { icon: '💾', label: 'Backup & Restore', path: '/backup' },
+    { icon: '📥', label: 'Import CSV', path: '/import' },
     { icon: '📋', label: 'Import Logs', path: '/import-logs' },
   ];
 
