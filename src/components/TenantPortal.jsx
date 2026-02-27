@@ -426,20 +426,24 @@ const TenantPortal = () => {
     const step1_occupation = !!tenantProfile.occupation;
     const step1Complete = step1_firstName && step1_lastName && step1_phoneNumber && step1_occupation;
     
-    // Step 2: Document Upload (Aadhaar both sides + Secondary ID + Selfie)
+    // Step 2: Document Upload (Aadhaar both sides + Secondary ID + Selfie + OCR verified)
     const step2_aadharFrontUploaded = !!tenantProfile.aadharFrontImage;
     const step2_aadharBackUploaded = !!tenantProfile.aadharBackImage;
-    const step2_aadharComplete = step2_aadharFrontUploaded && step2_aadharBackUploaded;
+    const step2_aadharOcrVerified = tenantProfile.aadharDocStatus === 'verified';
+    const step2_aadharComplete = step2_aadharFrontUploaded && step2_aadharBackUploaded && step2_aadharOcrVerified;
     
     const step2_secondaryIdNumber = !!tenantProfile.secondaryIdNumber;
     const step2_secondaryIdUploaded = tenantProfile.secondaryIdType === 'PAN' 
       ? !!tenantProfile.panImage 
       : !!tenantProfile.dlImage;
-    const step2_secondaryIdComplete = step2_secondaryIdNumber && step2_secondaryIdUploaded;
+    const step2_secondaryOcrVerified = tenantProfile.secondaryIdType === 'PAN'
+      ? tenantProfile.panDocStatus === 'verified'
+      : tenantProfile.dlDocStatus === 'verified';
+    const step2_secondaryIdComplete = step2_secondaryIdNumber && step2_secondaryIdUploaded && step2_secondaryOcrVerified;
     
     const step2_selfieUploaded = !!tenantProfile.selfieImage;
     
-    // Complete if: Aadhaar (both) + Secondary ID (number + image) + Selfie
+    // Complete if: Aadhaar (both + OCR) + Secondary ID (number + image + OCR) + Selfie
     const step2Complete = step2_aadharComplete && step2_secondaryIdComplete && step2_selfieUploaded;
     const step2Partial = step2_aadharFrontUploaded || step2_aadharBackUploaded || step2_secondaryIdUploaded || step2_selfieUploaded;
     
@@ -462,13 +466,15 @@ const TenantPortal = () => {
         items: {
           aadharFront: step2_aadharFrontUploaded,
           aadharBack: step2_aadharBackUploaded,
+          aadharOcr: step2_aadharOcrVerified,
           secondaryId: step2_secondaryIdUploaded,
           secondaryIdNumber: step2_secondaryIdNumber,
+          secondaryOcr: step2_secondaryOcrVerified,
           selfie: step2_selfieUploaded
         },
         partial: step2Partial,
         label: 'Step 2: Upload & Verify Documents',
-        description: 'Upload Aadhaar front/back + PAN or DL with number'
+        description: 'Upload documents — OCR auto-verify hoga'
       },
       step3: {
         complete: step3Complete,
@@ -2779,14 +2785,7 @@ const TenantPortal = () => {
                                       Complete
                                     </span>
                                   ) : kycProgress.step2.partial ? (
-                                    <button
-                                      type="button"
-                                      onClick={runKycOcrAnalysis}
-                                      disabled={ocrAnalyzing}
-                                      className="mt-2 w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-lg text-sm disabled:opacity-60 transition-colors"
-                                    >
-                                      {ocrAnalyzing ? '⏳ Checking...' : '🔍 Verify OCR'}
-                                    </button>
+                                    <p className="text-xs sm:text-sm text-yellow-700 mt-2 font-semibold">⏳ Documents uploaded — OCR auto-verifying</p>
                                   ) : (
                                     <p className="text-xs sm:text-sm text-gray-500 mt-2 font-semibold">⚠️ Complete Step 1 first</p>
                                   )}
@@ -2971,8 +2970,8 @@ const TenantPortal = () => {
                       <div className="space-y-4">
                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-4 mb-4">
                           <h3 className="text-lg font-bold text-green-900 mb-2">📄 Step 2: Upload Documents</h3>
-                          <p className="text-sm text-green-700 mb-1">Aadhaar front + Aadhaar back mandatory hai.</p>
-                          <p className="text-sm text-green-700">Uske baad PAN ya Driving License me se ek select karke upload karein aur number manually fill karein.</p>
+                          <p className="text-sm text-green-700 mb-1">Aadhaar front + back mandatory hai. Upload karte hi OCR auto-scan hoga.</p>
+                          <p className="text-sm text-green-700">PAN/DL me se ek select karke number fill karein aur upload karein — number match auto-check hoga.</p>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -2987,7 +2986,7 @@ const TenantPortal = () => {
                                 type="file"
                                 accept="image/*"
                                 onChange={(e) => handleProfileFileChange('aadharFrontImage', e.target.files?.[0])}
-                                className="hidden"
+                                className="sr-only"
                               />
                               <button
                                 type="button"
@@ -3003,7 +3002,7 @@ const TenantPortal = () => {
                                 accept="image/*"
                                 capture="environment"
                                 onChange={(e) => handleProfileFileChange('aadharFrontImage', e.target.files?.[0])}
-                                className="hidden"
+                                className="sr-only"
                               />
                               <button
                                 type="button"
@@ -3034,7 +3033,7 @@ const TenantPortal = () => {
                                 type="file"
                                 accept="image/*"
                                 onChange={(e) => handleProfileFileChange('aadharBackImage', e.target.files?.[0])}
-                                className="hidden"
+                                className="sr-only"
                               />
                               <button
                                 type="button"
@@ -3050,7 +3049,7 @@ const TenantPortal = () => {
                                 accept="image/*"
                                 capture="environment"
                                 onChange={(e) => handleProfileFileChange('aadharBackImage', e.target.files?.[0])}
-                                className="hidden"
+                                className="sr-only"
                               />
                               <button
                                 type="button"
@@ -3070,6 +3069,36 @@ const TenantPortal = () => {
                             </p>
                           </div>
                         </div>
+
+                        {/* Aadhaar OCR Verification Status - auto shown after upload */}
+                        {tenantProfile.aadharFrontImage && tenantProfile.aadharDocStatus && tenantProfile.aadharDocStatus !== 'not_uploaded' && (
+                          <div className={`rounded-xl p-4 border-2 mb-4 ${
+                            tenantProfile.aadharDocStatus === 'checking' ? 'bg-yellow-50 border-yellow-300 animate-pulse' :
+                            tenantProfile.aadharDocStatus === 'verified' ? 'bg-green-50 border-green-300' :
+                            tenantProfile.aadharDocStatus === 'number_not_found' ? 'bg-orange-50 border-orange-300' :
+                            tenantProfile.aadharDocStatus === 'name_mismatch' ? 'bg-orange-50 border-orange-300' :
+                            tenantProfile.aadharDocStatus === 'error' ? 'bg-red-50 border-red-300' :
+                            'bg-gray-50 border-gray-300'
+                          }`}>
+                            <h4 className="text-sm font-bold mb-2 flex items-center gap-2">
+                              {tenantProfile.aadharDocStatus === 'checking' && <span className="text-yellow-700">⏳ Aadhaar Scan Jaari Hai...</span>}
+                              {tenantProfile.aadharDocStatus === 'verified' && <span className="text-green-700">✅ Aadhaar Verified</span>}
+                              {tenantProfile.aadharDocStatus === 'number_not_found' && <span className="text-orange-700">⚠️ Aadhaar Number Nahi Mila</span>}
+                              {tenantProfile.aadharDocStatus === 'name_mismatch' && <span className="text-orange-700">⚠️ Name Match Nahi Hua</span>}
+                              {tenantProfile.aadharDocStatus === 'error' && <span className="text-red-700">❌ OCR Scan Failed</span>}
+                            </h4>
+                            {tenantProfile.aadharDocStatus === 'verified' && tenantProfile.aadharExtractedNumber && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-gray-600">Extracted Number:</span>
+                                <span className="font-mono font-bold text-sm text-green-800 bg-green-100 px-2 py-0.5 rounded">{tenantProfile.aadharExtractedNumber}</span>
+                                {tenantProfile.aadharNameMatched && <span className="text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded-full font-bold">✓ Name Matched</span>}
+                              </div>
+                            )}
+                            {(tenantProfile.aadharDocStatus === 'number_not_found' || tenantProfile.aadharDocStatus === 'name_mismatch' || tenantProfile.aadharDocStatus === 'error') && (
+                              <p className="text-xs mt-1 text-gray-700">{tenantProfile.aadharDocReason} — Clear image dobara upload karein.</p>
+                            )}
+                          </div>
+                        )}
 
                         <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm mb-4">
                           <h4 className="text-sm font-bold text-gray-800 mb-3">🧾 Secondary ID (Choose One)</h4>
@@ -3108,7 +3137,7 @@ const TenantPortal = () => {
                                   type="file"
                                   accept="image/*"
                                   onChange={(e) => handleProfileFileChange('panImage', e.target.files?.[0])}
-                                  className="hidden"
+                                  className="sr-only"
                                 />
                                 <button
                                   type="button"
@@ -3123,7 +3152,7 @@ const TenantPortal = () => {
                                   accept="image/*"
                                   capture="environment"
                                   onChange={(e) => handleProfileFileChange('panImage', e.target.files?.[0])}
-                                  className="hidden"
+                                  className="sr-only"
                                 />
                                 <button
                                   type="button"
@@ -3143,7 +3172,7 @@ const TenantPortal = () => {
                                   type="file"
                                   accept="image/*"
                                   onChange={(e) => handleProfileFileChange('dlImage', e.target.files?.[0])}
-                                  className="hidden"
+                                  className="sr-only"
                                 />
                                 <button
                                   type="button"
@@ -3158,7 +3187,7 @@ const TenantPortal = () => {
                                   accept="image/*"
                                   capture="environment"
                                   onChange={(e) => handleProfileFileChange('dlImage', e.target.files?.[0])}
-                                  className="hidden"
+                                  className="sr-only"
                                 />
                                 <button
                                   type="button"
@@ -3181,6 +3210,71 @@ const TenantPortal = () => {
                           </p>
                         </div>
 
+                        {/* Secondary ID OCR Verification Status - auto shown after upload */}
+                        {(() => {
+                          const isPan = tenantProfile.secondaryIdType === 'PAN';
+                          const secImage = isPan ? tenantProfile.panImage : tenantProfile.dlImage;
+                          const secStatus = isPan ? tenantProfile.panDocStatus : tenantProfile.dlDocStatus;
+                          const secReason = isPan ? tenantProfile.panDocReason : tenantProfile.dlDocReason;
+                          const secExtracted = isPan ? tenantProfile.panExtractedNumber : tenantProfile.dlExtractedNumber;
+                          const secEntered = tenantProfile.secondaryIdNumber;
+                          const secNameMatched = isPan ? tenantProfile.panNameMatched : tenantProfile.dlNameMatched;
+                          const secLabel = isPan ? 'PAN' : 'DL';
+                          const normalizedEntered = isPan
+                            ? (secEntered ? secEntered.toUpperCase().replace(/[^A-Z0-9]/g, '') : '')
+                            : (secEntered ? secEntered.toUpperCase().replace(/[^A-Z0-9]/g, '') : '');
+                          const numbersMatch = secExtracted && normalizedEntered && secExtracted === normalizedEntered;
+                          const numbersMismatch = secExtracted && normalizedEntered && secExtracted !== normalizedEntered;
+
+                          if (!secImage || !secStatus || secStatus === 'not_uploaded') return null;
+
+                          return (
+                            <div className={`rounded-xl p-4 border-2 mb-4 ${
+                              secStatus === 'checking' ? 'bg-yellow-50 border-yellow-300 animate-pulse' :
+                              secStatus === 'verified' && numbersMatch ? 'bg-green-50 border-green-300' :
+                              secStatus === 'verified' && !normalizedEntered ? 'bg-green-50 border-green-300' :
+                              secStatus === 'number_mismatch' || numbersMismatch ? 'bg-red-50 border-red-300' :
+                              secStatus === 'number_not_found' ? 'bg-orange-50 border-orange-300' :
+                              secStatus === 'name_mismatch' ? 'bg-orange-50 border-orange-300' :
+                              secStatus === 'error' ? 'bg-red-50 border-red-300' :
+                              'bg-gray-50 border-gray-300'
+                            }`}>
+                              <h4 className="text-sm font-bold mb-2 flex items-center gap-2">
+                                {secStatus === 'checking' && <span className="text-yellow-700">⏳ {secLabel} Scan Jaari Hai...</span>}
+                                {secStatus === 'verified' && numbersMatch && <span className="text-green-700">✅ {secLabel} Verified — Number Match ✓</span>}
+                                {secStatus === 'verified' && !normalizedEntered && <span className="text-green-700">✅ {secLabel} Verified</span>}
+                                {(secStatus === 'number_mismatch' || (secStatus === 'verified' && numbersMismatch)) && <span className="text-red-700">❌ {secLabel} Number Mismatch!</span>}
+                                {secStatus === 'number_not_found' && <span className="text-orange-700">⚠️ {secLabel} Number Nahi Mila</span>}
+                                {secStatus === 'name_mismatch' && <span className="text-orange-700">⚠️ Name Match Nahi Hua</span>}
+                                {secStatus === 'error' && <span className="text-red-700">❌ OCR Scan Failed</span>}
+                              </h4>
+                              {secExtracted && (
+                                <div className="space-y-1 mt-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs text-gray-600">Document se:</span>
+                                    <span className="font-mono font-bold text-sm bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{secExtracted}</span>
+                                  </div>
+                                  {normalizedEntered && (
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs text-gray-600">Aapne likha:</span>
+                                      <span className="font-mono font-bold text-sm bg-gray-100 text-gray-800 px-2 py-0.5 rounded">{normalizedEntered}</span>
+                                      {numbersMatch && <span className="text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded-full font-bold">✓ Match</span>}
+                                      {numbersMismatch && <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded-full font-bold">✗ Mismatch</span>}
+                                    </div>
+                                  )}
+                                  {secNameMatched && <span className="text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded-full font-bold mt-1 inline-block">✓ Name Matched</span>}
+                                </div>
+                              )}
+                              {(secStatus === 'number_not_found' || secStatus === 'name_mismatch' || secStatus === 'error') && (
+                                <p className="text-xs mt-1 text-gray-700">{secReason} — Clear image dobara upload karein.</p>
+                              )}
+                              {numbersMismatch && secStatus === 'verified' && (
+                                <p className="text-xs mt-2 text-red-700 font-semibold">⚠️ Entered number aur document ka number alag hai. Sahi number daalen ya correct document upload karein.</p>
+                              )}
+                            </div>
+                          );
+                        })()}
+
                         <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm">
                           <div className="flex items-center gap-2 mb-3">
                             <span className="text-2xl">📸</span>
@@ -3192,7 +3286,7 @@ const TenantPortal = () => {
                               type="file"
                               accept="image/*"
                               onChange={(e) => handleProfileFileChange('selfieImage', e.target.files?.[0])}
-                              className="hidden"
+                              className="sr-only"
                             />
                             <button
                               type="button"
@@ -3207,7 +3301,7 @@ const TenantPortal = () => {
                               accept="image/*"
                               capture="user"
                               onChange={(e) => handleProfileFileChange('selfieImage', e.target.files?.[0])}
-                              className="hidden"
+                              className="sr-only"
                             />
                             <button
                               type="button"
@@ -3224,32 +3318,6 @@ const TenantPortal = () => {
                             {tenantProfile.selfieImage ? '✅ Selfie Uploaded' : '⏺️ Selfie Not Uploaded'}
                           </p>
                         </div>
-
-                        {(tenantProfile.aadharExtractedNumber || tenantProfile.panExtractedNumber || tenantProfile.dlExtractedNumber) && (
-                          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-4">
-                            <h4 className="text-sm font-bold text-blue-900 mb-3">📄 OCR Extracted Numbers</h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {tenantProfile.aadharExtractedNumber && (
-                                <div className="bg-white rounded-lg p-3 border border-blue-200">
-                                  <p className="text-xs font-semibold text-gray-600 mb-1">Aadhaar (Extracted)</p>
-                                  <p className="text-sm font-bold text-gray-900">{tenantProfile.aadharExtractedNumber}</p>
-                                </div>
-                              )}
-                              {tenantProfile.secondaryIdType === 'PAN' && tenantProfile.panExtractedNumber && (
-                                <div className="bg-white rounded-lg p-3 border border-blue-200">
-                                  <p className="text-xs font-semibold text-gray-600 mb-1">PAN (Extracted)</p>
-                                  <p className="text-sm font-bold text-gray-900 uppercase">{tenantProfile.panExtractedNumber}</p>
-                                </div>
-                              )}
-                              {tenantProfile.secondaryIdType === 'DL' && tenantProfile.dlExtractedNumber && (
-                                <div className="bg-white rounded-lg p-3 border border-blue-200">
-                                  <p className="text-xs font-semibold text-gray-600 mb-1">DL (Extracted)</p>
-                                  <p className="text-sm font-bold text-gray-900 uppercase">{tenantProfile.dlExtractedNumber}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
 
                         <div className="flex justify-between">
                           <button
@@ -3272,6 +3340,17 @@ const TenantPortal = () => {
                                 alert('Aadhaar front aur back dono upload karna mandatory hai.');
                                 return;
                               }
+
+                              // Check Aadhaar OCR verification
+                              if (tenantProfile.aadharDocStatus === 'checking') {
+                                alert('Aadhaar OCR scan abhi chal raha hai, thoda wait karein...');
+                                return;
+                              }
+                              if (tenantProfile.aadharDocStatus !== 'verified') {
+                                alert('Aadhaar OCR verification pending ya failed hai. Clear image upload karein.');
+                                return;
+                              }
+
                               if (!secondaryNumberOk) {
                                 alert(`Please enter ${tenantProfile.secondaryIdType === 'PAN' ? 'PAN' : 'Driving License'} number.`);
                                 return;
@@ -3280,6 +3359,26 @@ const TenantPortal = () => {
                                 alert(`Please upload ${tenantProfile.secondaryIdType === 'PAN' ? 'PAN' : 'Driving License'} image.`);
                                 return;
                               }
+
+                              // Check Secondary ID OCR verification
+                              const secStatus = tenantProfile.secondaryIdType === 'PAN' ? tenantProfile.panDocStatus : tenantProfile.dlDocStatus;
+                              if (secStatus === 'checking') {
+                                alert(`${tenantProfile.secondaryIdType} OCR scan abhi chal raha hai, thoda wait karein...`);
+                                return;
+                              }
+                              if (secStatus !== 'verified') {
+                                alert(`${tenantProfile.secondaryIdType} OCR verification failed. Clear image upload karein.`);
+                                return;
+                              }
+
+                              // Check number match for secondary ID
+                              const secExtracted = tenantProfile.secondaryIdType === 'PAN' ? tenantProfile.panExtractedNumber : tenantProfile.dlExtractedNumber;
+                              const secEntered = tenantProfile.secondaryIdNumber ? tenantProfile.secondaryIdNumber.toUpperCase().replace(/[^A-Z0-9]/g, '') : '';
+                              if (secExtracted && secEntered && secExtracted !== secEntered) {
+                                alert('Entered ID number aur document ka number match nahi kar raha! Sahi number daalen ya correct document upload karein.');
+                                return;
+                              }
+
                               if (!selfieOk) {
                                 alert('Please upload your selfie before proceeding.');
                                 return;
