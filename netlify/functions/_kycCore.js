@@ -185,6 +185,16 @@ const validateKycMatch = async ({ tenantId, profile, documentData }) => {
   const tenantName = tenant?.name || '';
   const tenantPhone = tenant?.phone || tenant?.phoneNumber || '';
 
+  // Fetch tenantProfile document (Step 1 filled data)
+  const profileRef = await db.collection('tenantProfiles').doc(tenantId).get();
+  const profileData = profileRef.exists ? profileRef.data() : {};
+  
+  // Get filled form data from Step 1
+  const filledFirstName = profileData.firstName || '';
+  const filledLastName = profileData.lastName || '';
+  const filledFullName = `${filledFirstName} ${filledLastName}`.trim();
+  const filledPhone = profileData.phoneNumber || tenantPhone;
+
   // Extract DigiLocker data
   const normalizedProfile = profile?.profile || profile || {};
   const digilockerName = extractProfileValue(normalizedProfile, ['fullName', 'name']);
@@ -192,28 +202,33 @@ const validateKycMatch = async ({ tenantId, profile, documentData }) => {
   
   // Also check Aadhaar document for name/phone if available
   const aadhaarName = documentData?.name || '';
-  const aadhaarPhone = '';
 
   console.log('🔍 Validation check:', {
     tenant: { name: tenantName, phone: tenantPhone },
+    filledForm: { name: filledFullName, phone: filledPhone },
     digilocker: { name: digilockerName, phone: digilockerPhone },
     aadhaar: { name: aadhaarName }
   });
 
   // Normalize names for comparison
   const normalizedTenantName = normalizeString(tenantName);
+  const normalizedFilledName = normalizeString(filledFullName);
   const normalizedDigilockerName = normalizeString(digilockerName);
   const normalizedAadhaarName = normalizeString(aadhaarName);
 
-  // Check if any DigiLocker name matches tenant name
+  // Priority: Check against filled form name first, then tenant name
+  const nameToCheck = normalizedFilledName || normalizedTenantName;
+  
+  // Check if DigiLocker name matches filled form or tenant name
   const nameMatch = 
-    (normalizedDigilockerName && normalizedTenantName.includes(normalizedDigilockerName)) ||
-    (normalizedDigilockerName && normalizedDigilockerName.includes(normalizedTenantName)) ||
-    (normalizedAadhaarName && normalizedTenantName.includes(normalizedAadhaarName)) ||
-    (normalizedAadhaarName && normalizedAadhaarName.includes(normalizedTenantName));
+    (normalizedDigilockerName && nameToCheck.includes(normalizedDigilockerName)) ||
+    (normalizedDigilockerName && normalizedDigilockerName.includes(nameToCheck)) ||
+    (normalizedAadhaarName && nameToCheck.includes(normalizedAadhaarName)) ||
+    (normalizedAadhaarName && normalizedAadhaarName.includes(nameToCheck));
 
   if (!nameMatch) {
-    const errorMsg = `❌ Name mismatch! Tenant name: "${tenantName}" | DigiLocker name: "${digilockerName || aadhaarName}" | Names must match for security.`;
+    const checkedName = filledFullName || tenantName;
+    const errorMsg = `❌ Name mismatch! Your filled name: "${checkedName}" | DigiLocker name: "${digilockerName || aadhaarName}" | Names must match for security. Please use DigiLocker account with your own name.`;
     console.error(errorMsg);
     throw new Error(errorMsg);
   }
@@ -221,12 +236,13 @@ const validateKycMatch = async ({ tenantId, profile, documentData }) => {
   console.log('✅ Name validation passed');
 
   // Validate phone number if both are available
-  if (tenantPhone && digilockerPhone) {
-    const normalizedTenantPhone = normalizePhone(tenantPhone);
+  const phoneToCheck = filledPhone || tenantPhone;
+  if (phoneToCheck && digilockerPhone) {
+    const normalizedCheckedPhone = normalizePhone(phoneToCheck);
     const normalizedDigilockerPhone = normalizePhone(digilockerPhone);
 
-    if (normalizedTenantPhone && normalizedDigilockerPhone && normalizedTenantPhone !== normalizedDigilockerPhone) {
-      const errorMsg = `❌ Mobile number mismatch! Tenant phone: "${tenantPhone}" | DigiLocker phone: "${digilockerPhone}" | Numbers must match for security.`;
+    if (normalizedCheckedPhone && normalizedDigilockerPhone && normalizedCheckedPhone !== normalizedDigilockerPhone) {
+      const errorMsg = `❌ Mobile number mismatch! Your phone: "${phoneToCheck}" | DigiLocker phone: "${digilockerPhone}" | Numbers must match for security.`;
       console.error(errorMsg);
       throw new Error(errorMsg);
     }
