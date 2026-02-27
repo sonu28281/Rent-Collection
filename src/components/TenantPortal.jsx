@@ -102,6 +102,15 @@ const TenantPortal = () => {
   const [ocrAnalyzing, setOcrAnalyzing] = useState(false);
   const signatureCanvasRef = useRef(null);
   const [isSigning, setIsSigning] = useState(false);
+  
+  // Camera capture refs
+  const aadharFileInputRef = useRef(null);
+  const aadharCameraInputRef = useRef(null);
+  const panFileInputRef = useRef(null);
+  const panCameraInputRef = useRef(null);
+  const selfieFileInputRef = useRef(null);
+  const selfieCameraInputRef = useRef(null);
+  
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -2789,12 +2798,40 @@ const TenantPortal = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                       <div className="border border-gray-200 rounded-lg p-3">
                         <label className="block text-xs font-semibold text-gray-700 mb-2">Upload Aadhar</label>
+                        
+                        {/* File Upload Button */}
                         <input
+                          ref={aadharFileInputRef}
                           type="file"
                           accept="image/*"
                           onChange={(e) => handleProfileFileChange('aadharImage', e.target.files?.[0])}
-                          className="w-full text-xs"
+                          className="hidden"
                         />
+                        <button
+                          type="button"
+                          onClick={() => aadharFileInputRef.current?.click()}
+                          className="w-full bg-blue-100 hover:bg-blue-200 text-blue-700 font-semibold py-2 px-3 rounded text-xs mb-1 flex items-center justify-center gap-1"
+                        >
+                          📁 Choose File
+                        </button>
+                        
+                        {/* Camera Capture Button */}
+                        <input
+                          ref={aadharCameraInputRef}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => handleProfileFileChange('aadharImage', e.target.files?.[0])}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => aadharCameraInputRef.current?.click()}
+                          className="w-full bg-green-100 hover:bg-green-200 text-green-700 font-semibold py-2 px-3 rounded text-xs flex items-center justify-center gap-1"
+                        >
+                          📸 Take Photo
+                        </button>
+                        
                         {tenantProfile.aadharImage && (
                           <img src={tenantProfile.aadharImage} alt="Aadhar" className="mt-2 h-20 w-full object-cover rounded border" />
                         )}
@@ -2808,12 +2845,40 @@ const TenantPortal = () => {
 
                       <div className="border border-gray-200 rounded-lg p-3">
                         <label className="block text-xs font-semibold text-gray-700 mb-2">Upload PAN</label>
+                        
+                        {/* File Upload Button */}
                         <input
+                          ref={panFileInputRef}
                           type="file"
                           accept="image/*"
                           onChange={(e) => handleProfileFileChange('panImage', e.target.files?.[0])}
-                          className="w-full text-xs"
+                          className="hidden"
                         />
+                        <button
+                          type="button"
+                          onClick={() => panFileInputRef.current?.click()}
+                          className="w-full bg-blue-100 hover:bg-blue-200 text-blue-700 font-semibold py-2 px-3 rounded text-xs mb-1 flex items-center justify-center gap-1"
+                        >
+                          📁 Choose File
+                        </button>
+                        
+                        {/* Camera Capture Button */}
+                        <input
+                          ref={panCameraInputRef}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => handleProfileFileChange('panImage', e.target.files?.[0])}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => panCameraInputRef.current?.click()}
+                          className="w-full bg-green-100 hover:bg-green-200 text-green-700 font-semibold py-2 px-3 rounded text-xs flex items-center justify-center gap-1"
+                        >
+                          📸 Take Photo
+                        </button>
+                        
                         {tenantProfile.panImage && (
                           <img src={tenantProfile.panImage} alt="PAN" className="mt-2 h-20 w-full object-cover rounded border" />
                         )}
@@ -2827,13 +2892,40 @@ const TenantPortal = () => {
 
                       <div className="border border-gray-200 rounded-lg p-3">
                         <label className="block text-xs font-semibold text-gray-700 mb-2">Selfie (Current Photo)</label>
+                        
+                        {/* File Upload Button */}
                         <input
+                          ref={selfieFileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleProfileFileChange('selfieImage', e.target.files?.[0])}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => selfieFileInputRef.current?.click()}
+                          className="w-full bg-blue-100 hover:bg-blue-200 text-blue-700 font-semibold py-2 px-3 rounded text-xs mb-1 flex items-center justify-center gap-1"
+                        >
+                          📁 Choose File
+                        </button>
+                        
+                        {/* Camera Capture Button (Front Camera for Selfie) */}
+                        <input
+                          ref={selfieCameraInputRef}
                           type="file"
                           accept="image/*"
                           capture="user"
                           onChange={(e) => handleProfileFileChange('selfieImage', e.target.files?.[0])}
-                          className="w-full text-xs"
+                          className="hidden"
                         />
+                        <button
+                          type="button"
+                          onClick={() => selfieCameraInputRef.current?.click()}
+                          className="w-full bg-green-100 hover:bg-green-200 text-green-700 font-semibold py-2 px-3 rounded text-xs flex items-center justify-center gap-1"
+                        >
+                          🤳 Take Selfie
+                        </button>
+                        
                         {tenantProfile.selfieImage && (
                           <img src={tenantProfile.selfieImage} alt="Selfie" className="mt-2 h-20 w-full object-cover rounded border" />
                         )}
