@@ -59,7 +59,12 @@ const generateCodeChallenge = (verifier) => {
 };
 
 const normalizeScopes = (value) => {
-  return 'openid';
+  if (!value || typeof value !== 'string') {
+    return 'openid';
+  }
+  // Split by space, trim, and join back
+  const scopes = value.split(/\s+/).map(s => s.trim()).filter(Boolean).join(' ');
+  return scopes || 'openid';
 };
 
 const resolveConfig = () => {
@@ -464,6 +469,9 @@ const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreat
   try {
     const tokenPayload = await exchangeCodeInternal(code, cfg, { simulateFailure, codeVerifier });
     const profile = await fetchProfileInternal(tokenPayload.access_token, cfg, { simulateFailure, tenantId });
+
+    // Debug: Log configured scopes
+    console.log('🔍 Configured scopes:', cfg.scopes);
 
     // Fetch Aadhaar document if scope includes issued_documents
     let documentData = null;

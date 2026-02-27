@@ -2297,11 +2297,17 @@ const TenantPortal = () => {
                 ? verifiedDateValue.toLocaleDateString('en-IN')
                 : null;
 
+              // Aadhaar details
+              const hasAadhaar = kycInfo.hasDocuments && kycInfo.aadhaar;
+              const aadhaarData = kycInfo.aadhaar || {};
+
               console.log('🔍 KYC Render Check:', {
                 hasTenant: !!tenant,
                 tenantId: tenant?.id,
                 kycInfo,
                 isVerified,
+                hasAadhaar,
+                aadhaarData,
                 buttonWillShow: !isVerified
               });
 
@@ -2316,6 +2322,11 @@ const TenantPortal = () => {
                           <p className="text-xs text-green-700">
                             {verifiedDate ? `Verification Date: ${verifiedDate}` : 'Verification completed'}
                           </p>
+                          {hasAadhaar && (
+                            <p className="text-xs text-blue-700 mt-1">
+                              📄 Aadhaar document verified
+                            </p>
+                          )}
                         </div>
                       ) : (
                         <p className="text-sm text-gray-600 mt-1">Complete KYC to verify your identity securely.</p>
@@ -2336,6 +2347,56 @@ const TenantPortal = () => {
                       </button>
                     )}
                   </div>
+
+                  {/* Aadhaar Details Display */}
+                  {isVerified && hasAadhaar && (
+                    <div className="mt-4 pt-4 border-t border-green-200">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">📄 Verified Aadhaar Details</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {aadhaarData.name && (
+                          <div>
+                            <span className="text-gray-500">Name:</span>
+                            <span className="ml-2 font-medium text-gray-800">{aadhaarData.name}</span>
+                          </div>
+                        )}
+                        {aadhaarData.dob && (
+                          <div>
+                            <span className="text-gray-500">DOB:</span>
+                            <span className="ml-2 font-medium text-gray-800">{aadhaarData.dob}</span>
+                          </div>
+                        )}
+                        {aadhaarData.gender && (
+                          <div>
+                            <span className="text-gray-500">Gender:</span>
+                            <span className="ml-2 font-medium text-gray-800">{aadhaarData.gender === 'M' ? 'Male' : aadhaarData.gender === 'F' ? 'Female' : aadhaarData.gender}</span>
+                          </div>
+                        )}
+                        {aadhaarData.aadhaarNumber && (
+                          <div>
+                            <span className="text-gray-500">Aadhaar:</span>
+                            <span className="ml-2 font-medium text-gray-800">{aadhaarData.aadhaarNumber}</span>
+                          </div>
+                        )}
+                        {aadhaarData.pincode && (
+                          <div>
+                            <span className="text-gray-500">Pincode:</span>
+                            <span className="ml-2 font-medium text-gray-800">{aadhaarData.pincode}</span>
+                          </div>
+                        )}
+                        {aadhaarData.address && (
+                          <div className="sm:col-span-2">
+                            <span className="text-gray-500">Address:</span>
+                            <span className="ml-2 font-medium text-gray-800">{aadhaarData.address}</span>
+                          </div>
+                        )}
+                      </div>
+                      {aadhaarData.xmlSizeBytes && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          ✅ Document stored securely ({Math.round(aadhaarData.xmlSizeBytes / 1024)} KB)
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {digiLockerError && (
                     <p className="text-xs text-red-700 mt-2">{digiLockerError}</p>
