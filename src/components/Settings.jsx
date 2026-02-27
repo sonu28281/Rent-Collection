@@ -1,14 +1,20 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, writeBatch, addDoc, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
+import Papa from 'papaparse';
 
 const Settings = () => {
   const [settings, setSettings] = useState(null);
   const [electricityRate, setElectricityRate] = useState('');
+  const [historyEditDeleteEnabled, setHistoryEditDeleteEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
+  const [backupInProgress, setBackupInProgress] = useState(false);
+  const [restoreInProgress, setRestoreInProgress] = useState(false);
+  const [backupHistory, setBackupHistory] = useState([]);
+  const [backupHistoryLoading, setBackupHistoryLoading] = useState(false);
   
   // Database Cleanup States
   const [showCleanupConfirm, setShowCleanupConfirm] = useState(false);
@@ -20,7 +26,27 @@ const Settings = () => {
   useEffect(() => {
     fetchSettings();
     fetchRecordCounts();
+    fetchBackupHistory();
   }, []);
+
+  const fetchBackupHistory = async () => {
+    try {
+      setBackupHistoryLoading(true);
+      const snapshot = await getDocs(collection(db, 'monthlyBackups'));
+      const backups = snapshot.docs
+        .map((backupDoc) => ({ id: backupDoc.id, ...backupDoc.data() }))
+        .sort((a, b) => {
+          const aTime = new Date(a.backupDateISO || a.createdAt || 0).getTime();
+          const bTime = new Date(b.backupDateISO || b.createdAt || 0).getTime();
+          return bTime - aTime;
+        });
+      setBackupHistory(backups);
+    } catch (err) {
+      console.error('Error loading backup history:', err);
+    } finally {
+      setBackupHistoryLoading(false);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -34,9 +60,11 @@ const Settings = () => {
         const settingsData = { id: settingsSnapshot.docs[0].id, ...settingsSnapshot.docs[0].data() };
         setSettings(settingsData);
         setElectricityRate(settingsData.electricityRate || '9');
+        setHistoryEditDeleteEnabled(settingsData.historyEditDeleteEnabled === true);
       } else {
         // No settings exist yet, set defaults
         setElectricityRate('9');
+        setHistoryEditDeleteEnabled(false);
       }
       
       setLoading(false);
@@ -63,6 +91,7 @@ const Settings = () => {
 
       const settingsData = {
         electricityRate: rate,
+        historyEditDeleteEnabled,
         updatedAt: new Date().toISOString()
       };
 
@@ -88,6 +117,234 @@ const Settings = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const downloadFile = (content, filename, mimeType) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleMonthlyBackupDownload = async () => {
+    try {
+      setBackupInProgress(true);
+      setError(null);
+      setSuccessMessage('');
+
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth() + 1;
+      const lastDayOfMonth = new Date(year, month, 0).getDate();
+
+      if (today.getDate() !== lastDayOfMonth) {
+        setError(`Month-end backup is only allowed on the last day of month (${lastDayOfMonth}).`);
+        return;
+      }
+
+      const paymentsRef = collection(db, 'payments');
+      const paymentsQuery = query(
+        paymentsRef,
+        where('year', '==', year),
+        where('month', '==', month)
+      );
+      const paymentsSnapshot = await getDocs(paymentsQuery);
+
+      if (paymentsSnapshot.empty) {
+        setError('No payment records found for current month.');
+        return;
+      }
+
+      const monthPayments = paymentsSnapshot.docs.map((paymentDoc) => ({
+        id: paymentDoc.id,
+        ...paymentDoc.data()
+      }));
+
+      const unpaidRecords = monthPayments.filter((record) => {
+        const rent = Number(record.rent) || 0;
+        const electricity = Number(record.electricity) || 0;
+        const total = Number(record.total ?? record.totalAmount ?? (rent + electricity)) || 0;
+        const paidAmount = Number(record.paidAmount) || 0;
+        return record.status !== 'paid' && paidAmount < total;
+      });
+
+      if (unpaidRecords.length > 0) {
+        setError(`Backup blocked: ${unpaidRecords.length} record(s) are still unpaid/partial for this month.`);
+        return;
+      }
+
+      const backupDateLabel = today.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+
+      const backupRows = monthPayments.map((record) => ({
+        docId: record.id,
+        roomNumber: record.roomNumber || '',
+        tenantName: record.tenantNameSnapshot || record.tenantName || '',
+        year: record.year || year,
+        month: record.month || month,
+        rent: Number(record.rent) || 0,
+        oldReading: Number(record.oldReading) || 0,
+        currentReading: Number(record.currentReading) || 0,
+        units: Number(record.units) || 0,
+        ratePerUnit: Number(record.ratePerUnit) || 0,
+        electricity: Number(record.electricity) || 0,
+        total: Number(record.total ?? record.totalAmount ?? 0) || 0,
+        totalAmount: Number(record.totalAmount ?? record.total ?? 0) || 0,
+        paidAmount: Number(record.paidAmount) || 0,
+        status: record.status || 'pending',
+        roomStatus: record.roomStatus || 'occupied',
+        paymentDate: record.paymentDate || '',
+        paymentMode: record.paymentMode || '',
+        balance: Number(record.balance) || 0
+      }));
+
+      const csv = Papa.unparse(backupRows);
+      const fileName = `${backupDateLabel}.csv`;
+
+      await addDoc(collection(db, 'monthlyBackups'), {
+        year,
+        month,
+        backupDateLabel,
+        backupDateISO: today.toISOString(),
+        fileName,
+        recordCount: backupRows.length,
+        records: backupRows,
+        createdAt: new Date().toISOString(),
+        source: 'settings-month-end-download'
+      });
+
+      downloadFile(csv, fileName, 'text/csv');
+      setSuccessMessage(`✅ Month-end backup created and downloaded: ${backupDateLabel}`);
+      fetchBackupHistory();
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      console.error('Error creating month-end backup:', err);
+      setError('Failed to create month-end backup. Please try again.');
+    } finally {
+      setBackupInProgress(false);
+    }
+  };
+
+  const toNumber = (value, fallback = 0) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const handleRestoreBackupFile = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowed = window.confirm(
+      'Restore backup from selected CSV file?\n\nThis can overwrite existing payment history for matching document IDs and cannot be undone automatically.'
+    );
+
+    if (!allowed) {
+      event.target.value = '';
+      return;
+    }
+
+    setRestoreInProgress(true);
+    setError(null);
+    setSuccessMessage('');
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          const rows = (results.data || []).filter((row) => Object.keys(row || {}).length > 0);
+
+          if (rows.length === 0) {
+            setError('Restore failed: backup file is empty.');
+            return;
+          }
+
+          const batchSize = 400;
+          let restoredCount = 0;
+
+          for (let i = 0; i < rows.length; i += batchSize) {
+            const batch = writeBatch(db);
+            const chunk = rows.slice(i, i + batchSize);
+
+            chunk.forEach((row, index) => {
+              const roomNumber = String(row.roomNumber || '').trim();
+              const year = toNumber(row.year, new Date().getFullYear());
+              const month = toNumber(row.month, 1);
+              const docId = String(row.docId || '').trim() || `restore_${year}_${month}_${roomNumber || 'unknown'}_${i + index + 1}`;
+
+              const rent = toNumber(row.rent, 0);
+              const oldReading = toNumber(row.oldReading, 0);
+              const currentReading = toNumber(row.currentReading, 0);
+              const unitsFromRow = toNumber(row.units, currentReading - oldReading);
+              const units = unitsFromRow < 0 ? 0 : unitsFromRow;
+              const ratePerUnit = toNumber(row.ratePerUnit, 0);
+              const electricity = toNumber(row.electricity, units * ratePerUnit);
+              const total = toNumber(row.total, rent + electricity);
+              const paidAmount = toNumber(row.paidAmount, 0);
+
+              let status = String(row.status || '').toLowerCase();
+              if (!status) {
+                status = paidAmount >= total ? 'paid' : paidAmount > 0 ? 'partial' : 'pending';
+              }
+
+              const payload = {
+                roomNumber: toNumber(roomNumber, roomNumber || 0),
+                tenantNameSnapshot: String(row.tenantName || row.tenantNameSnapshot || '').trim(),
+                year,
+                month,
+                rent,
+                oldReading,
+                currentReading,
+                units,
+                ratePerUnit,
+                electricity,
+                total,
+                totalAmount: toNumber(row.totalAmount, total),
+                paidAmount,
+                status,
+                roomStatus: String(row.roomStatus || 'occupied').toLowerCase() === 'vacant' ? 'vacant' : 'occupied',
+                paymentDate: row.paymentDate || '',
+                paymentMode: row.paymentMode || '',
+                balance: toNumber(row.balance, total - paidAmount),
+                restoredAt: new Date().toISOString(),
+                restoreSource: file.name,
+                updatedAt: new Date().toISOString()
+              };
+
+              const paymentRef = doc(db, 'payments', docId);
+              batch.set(paymentRef, payload, { merge: true });
+              restoredCount += 1;
+            });
+
+            await batch.commit();
+          }
+
+          setSuccessMessage(`✅ Restore complete: ${restoredCount} payment record(s) restored from ${file.name}`);
+          setTimeout(() => setSuccessMessage(''), 6000);
+          fetchRecordCounts();
+        } catch (err) {
+          console.error('Restore error:', err);
+          setError('Failed to restore backup file. Please check CSV format and try again.');
+        } finally {
+          setRestoreInProgress(false);
+          event.target.value = '';
+        }
+      },
+      error: (parseError) => {
+        console.error('CSV parse error:', parseError);
+        setError('Invalid CSV file. Please upload a valid backup CSV.');
+        setRestoreInProgress(false);
+        event.target.value = '';
+      }
+    });
   };
 
   // Fetch record counts for cleanup confirmation
@@ -296,6 +553,24 @@ const Settings = () => {
             </ul>
           </div>
 
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h4 className="font-semibold text-yellow-900 mb-2">🛡️ History Edit/Delete Control</h4>
+            <label className="inline-flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={historyEditDeleteEnabled}
+                onChange={(e) => setHistoryEditDeleteEnabled(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <span className="text-sm text-yellow-900 font-semibold">
+                Enable Edit/Delete actions on History page
+              </span>
+            </label>
+            <p className="text-xs text-yellow-800 mt-2">
+              When disabled, history records can be viewed but not edited or deleted.
+            </p>
+          </div>
+
           <div className="flex gap-3 pt-4 border-t border-gray-200">
             <button 
               type="submit" 
@@ -314,6 +589,78 @@ const Settings = () => {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Month End Backup */}
+      <div className="card max-w-2xl mt-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="text-4xl">🗂️</div>
+          <div>
+            <h3 className="text-xl font-bold text-gray-800">Month-End Backup Download</h3>
+            <p className="text-sm text-gray-600">Create monthly backup on month&apos;s last day after full rent collection</p>
+          </div>
+        </div>
+
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+          <p className="text-sm text-orange-900 font-semibold mb-1">Rule:</p>
+          <ul className="text-sm text-orange-800 space-y-1">
+            <li>• Backup can run only on the last day of current month</li>
+            <li>• All current month payment records must be fully paid</li>
+            <li>• Backup file name format: 28 Feb 2026</li>
+          </ul>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleMonthlyBackupDownload}
+          disabled={backupInProgress || restoreInProgress}
+          className="btn-primary"
+        >
+          {backupInProgress ? '⏳ Creating Backup...' : '📥 Create & Download Month-End Backup'}
+        </button>
+
+        <div className="mt-5 pt-5 border-t border-gray-200">
+          <h4 className="font-semibold text-gray-800 mb-2">♻️ Restore from Downloaded Backup</h4>
+          <p className="text-sm text-gray-600 mb-3">
+            Upload backup CSV (downloaded from this section) to restore records back into payment history.
+          </p>
+          <label className="btn-secondary inline-flex items-center cursor-pointer">
+            {restoreInProgress ? '⏳ Restoring...' : '📤 Upload Backup CSV & Restore'}
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleRestoreBackupFile}
+              className="hidden"
+              disabled={restoreInProgress || backupInProgress}
+            />
+          </label>
+          <p className="text-xs text-red-600 mt-2">
+            ⚠️ Restore can overwrite existing records for matching document IDs.
+          </p>
+        </div>
+
+        <div className="mt-5 pt-5 border-t border-gray-200">
+          <h4 className="font-semibold text-gray-800 mb-2">🕘 Backup History</h4>
+          {backupHistoryLoading ? (
+            <p className="text-sm text-gray-500">Loading backup history...</p>
+          ) : backupHistory.length === 0 ? (
+            <p className="text-sm text-gray-500">No month-end backups yet.</p>
+          ) : (
+            <div className="space-y-2 max-h-56 overflow-auto pr-1">
+              {backupHistory.slice(0, 12).map((backup) => (
+                <div key={backup.id} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-gray-800">{backup.backupDateLabel || backup.fileName || 'Monthly Backup'}</p>
+                    <span className="text-xs text-gray-500">{backup.recordCount || 0} records</span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {backup.year || '-'} / {backup.month || '-'} • {backup.fileName || 'No file name'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Additional Info */}

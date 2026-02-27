@@ -6,6 +6,7 @@ import {
   orderBy, 
   onSnapshot,
   doc,
+  getDoc,
   updateDoc,
   writeBatch,
   getDocs,
@@ -39,6 +40,7 @@ const HistoryManager = () => {
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [historyEditDeleteEnabled, setHistoryEditDeleteEnabled] = useState(false);
 
   const ADMIN_EMAIL = 'sonu28281@gmail.com';
 
@@ -79,6 +81,35 @@ const HistoryManager = () => {
       mediaQuery.removeEventListener('change', updateViewport);
     };
   }, []);
+
+  useEffect(() => {
+    const fetchHistorySettings = async () => {
+      try {
+        const settingsDoc = await getDoc(doc(db, 'settings', 'global'));
+        if (!settingsDoc.exists()) {
+          setHistoryEditDeleteEnabled(false);
+          return;
+        }
+
+        const settingsData = settingsDoc.data();
+        setHistoryEditDeleteEnabled(settingsData?.historyEditDeleteEnabled === true);
+      } catch (error) {
+        console.error('Error loading history edit/delete setting:', error);
+        setHistoryEditDeleteEnabled(false);
+      }
+    };
+
+    if (isAdmin) {
+      fetchHistorySettings();
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!historyEditDeleteEnabled && editingId) {
+      setEditingId(null);
+      setEditData({});
+    }
+  }, [historyEditDeleteEnabled, editingId]);
 
   // Fetch Available Years
   useEffect(() => {
@@ -262,6 +293,11 @@ const HistoryManager = () => {
 
   // Edit Handlers
   const startEdit = (payment) => {
+    if (!historyEditDeleteEnabled) {
+      showToast('History edit/delete is disabled from Settings', 'error');
+      return;
+    }
+
     setEditingId(payment.id);
     setEditData({
       rent: payment.rent || 0,
@@ -280,6 +316,17 @@ const HistoryManager = () => {
   };
 
   const saveEdit = async (paymentId) => {
+    if (!historyEditDeleteEnabled) {
+      showToast('History edit/delete is disabled from Settings', 'error');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Confirm edit?\n\nThis will overwrite historical data. Once old values are replaced, they cannot be recovered automatically.'
+    );
+
+    if (!confirmed) return;
+
     try {
       const rent = Number(editData.rent) || 0;
       const oldReading = Number(editData.oldReading) || 0;
@@ -387,6 +434,18 @@ const HistoryManager = () => {
 
   // Delete by Year/Month
   const deleteByYearMonth = async () => {
+    if (!historyEditDeleteEnabled) {
+      showToast('History edit/delete is disabled from Settings', 'error');
+      setShowDeleteConfirm(false);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Final confirmation: delete selected history records?\n\nThis data will be permanently deleted and cannot be recovered.'
+    );
+
+    if (!confirmed) return;
+
     try {
       const recordsToDelete = filteredPayments;
       
@@ -776,12 +835,20 @@ const HistoryManager = () => {
 
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            disabled={filteredPayments.length === 0}
+            disabled={filteredPayments.length === 0 || !historyEditDeleteEnabled}
             className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm font-medium"
           >
             🗑️ Delete {selectedPeriodLabel}
           </button>
           </div>
+
+          {!historyEditDeleteEnabled && (
+            <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+              <p className="text-xs md:text-sm text-yellow-800 font-medium">
+                🔒 History edit/delete is currently disabled. Enable it from Settings to allow edits or deletions.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1137,7 +1204,8 @@ const HistoryManager = () => {
                                 <div className="flex gap-1">
                                   <button
                                     onClick={() => startEdit(payment)}
-                                    className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                                    disabled={!historyEditDeleteEnabled}
+                                    className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
                                     Edit
                                   </button>
@@ -1398,7 +1466,8 @@ const HistoryManager = () => {
                           <div className="flex gap-1 justify-center">
                             <button
                               onClick={() => startEdit(payment)}
-                              className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                              disabled={!historyEditDeleteEnabled}
+                              className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               Edit
                             </button>
@@ -1550,7 +1619,7 @@ const HistoryManager = () => {
               </div>
               <div>
                 <h3 className="text-xl font-bold text-gray-800">Confirm Delete</h3>
-                <p className="text-sm text-gray-600">This action cannot be undone</p>
+                <p className="text-sm text-gray-600">This action is permanent and data cannot be recovered</p>
               </div>
             </div>
             
@@ -1564,7 +1633,7 @@ const HistoryManager = () => {
                 <li>• Month: <strong>{selectedMonth === 'all' ? 'All Months' : MONTHS.find(m => m.num === selectedMonth)?.name}</strong></li>
               </ul>
               <p className="text-red-800 font-bold mt-3">
-                ⚠️ This will permanently delete all matching records from the database!
+                ⚠️ This will permanently delete all matching records from the database. Once deleted, this data will not come back.
               </p>
             </div>
             
