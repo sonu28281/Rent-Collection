@@ -485,28 +485,7 @@ const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreat
             if (docContent.type === 'xml') {
               const aadhaarDetails = parseAadhaarXML(docContent.content);
               
-              // Store in Firebase Storage
-              const bucket = admin.storage().bucket();
-              const fileName = `kyc-documents/${tenantId}/aadhaar_${Date.now()}.xml`;
-              const file = bucket.file(fileName);
-              
-              await file.save(docContent.content, {
-                contentType: 'application/xml',
-                metadata: {
-                  tenantId,
-                  documentType: 'aadhaar',
-                  verifiedAt: new Date().toISOString()
-                }
-              });
-              
-              console.log('✅ Aadhaar document stored in Firebase Storage:', fileName);
-              
-              // Generate signed URL (valid for 10 years)
-              const [downloadUrl] = await file.getSignedUrl({
-                action: 'read',
-                expires: '03-01-2535'
-              });
-              
+              // Store parsed data in Firestore (NO Firebase Storage needed! 🆓)
               documentData = {
                 aadhaarNumber: aadhaarDetails.aadhaarNumber,
                 name: aadhaarDetails.name,
@@ -515,13 +494,23 @@ const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreat
                 address: aadhaarDetails.address,
                 pincode: aadhaarDetails.pincode,
                 documentUri: aadhaarDoc.uri,
-                storagePath: fileName,
-                downloadUrl: downloadUrl,
+                documentName: aadhaarDoc.name,
+                source: 'DigiLocker',
                 fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
                 verified: true
               };
               
-              console.log('✅ Aadhaar data prepared for storage');
+              // Optionally store XML content as base64 (if small enough < 50KB)
+              const xmlSize = Buffer.byteLength(docContent.content, 'utf8');
+              if (xmlSize < 50000) {
+                documentData.xmlContentBase64 = Buffer.from(docContent.content).toString('base64');
+                documentData.xmlSizeBytes = xmlSize;
+                console.log(`✅ XML content stored in Firestore (${xmlSize} bytes)`);
+              } else {
+                console.log(`⚠️ XML too large (${xmlSize} bytes), storing metadata only`);
+              }
+              
+              console.log('✅ Aadhaar data prepared (Firestore only - FREE!)');
             } else {
               console.warn('⚠️ Aadhaar document is not XML format:', docContent.type);
             }

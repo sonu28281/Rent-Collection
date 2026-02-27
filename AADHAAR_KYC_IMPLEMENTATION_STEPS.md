@@ -22,7 +22,7 @@
 
 ## 🔧 Required Configuration Steps
 
-### Step 1: Update DigiLocker Scope in Netlify
+### Step 1: Update DigiLocker Scope in Netlify ⚡ ONLY STEP NEEDED!
 
 **CRITICAL**: Scope must include `issued_documents` for document fetching.
 
@@ -42,54 +42,22 @@ DIGILOCKER_SCOPES=openid issued_documents
 5. Edit value: Change to `openid issued_documents`
 6. Click: **Save**
 
-### Step 2: Enable Firebase Storage
+### ~~Step 2: Enable Firebase Storage~~ ❌ NOT NEEDED! 🆓
 
-Firebase Storage must be enabled for document storage.
+**GOOD NEWS**: Firebase Storage NOT required anymore!
 
-**Option A: Firebase Console (Recommended)**
-```
-1. Go to: https://console.firebase.google.com
-2. Select project: rent-collection-5e1d2
-3. Navigate: Build → Storage
-4. Click: "Get Started"
-5. Choose: Production mode
-6. Select: Default location
-7. Click: "Done"
-```
+We're now storing everything in **Firestore** (completely free on Spark plan):
+- ✅ Parsed Aadhaar data (name, DOB, address, etc.)
+- ✅ Document metadata
+- ✅ XML content (base64 encoded, if < 50KB)
 
-**Option B: Firebase CLI**
-```bash
-firebase init storage
-# Follow prompts and select production mode
-```
+**Benefits:**
+- 🆓 No billing required
+- ⚡ Faster access (direct database query)
+- 🔒 Same security (Firestore rules)
+- 📊 All data in one place
 
-### Step 3: Configure Storage Security Rules
-
-Create or update `storage.rules`:
-
-```javascript
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    // KYC Documents - Admin only
-    match /kyc-documents/{tenantId}/{document} {
-      // Only authenticated admin can read
-      allow read: if request.auth != null && 
-                     request.auth.token.admin == true;
-      
-      // Only backend (admin SDK) can write
-      allow write: if false;
-    }
-  }
-}
-```
-
-Deploy rules:
-```bash
-firebase deploy --only storage
-```
-
-### Step 4: Trigger Netlify Deployment
+### Step 2: Trigger Netlify Deployment
 
 After updating environment variables:
 
@@ -101,7 +69,7 @@ git push origin main
 Or manually trigger from Netlify Dashboard:
 - Deploys → Trigger Deploy → Deploy site
 
-### Step 5: Check DigiLocker App Permissions
+### Step 3: Check DigiLocker App Permissions
 
 **Important**: Your DigiLocker app needs document access permission.
 
@@ -114,8 +82,8 @@ Or manually trigger from Netlify Dashboard:
 
 ### Pre-Test Checklist
 - [ ] Netlify env var updated (`issued_documents` scope)
-- [ ] Firebase Storage enabled
-- [ ] Storage rules deployed
+- [ ] ~~Firebase Storage enabled~~ ❌ NOT NEEDED (using Firestore)
+- [ ] ~~Storage rules deployed~~ ❌ NOT NEEDED
 - [ ] Netlify deployment completed (wait 2-3 minutes)
 - [ ] DigiLocker app has document access
 
@@ -154,8 +122,8 @@ Look for these log entries:
 📄 Attempting to fetch Aadhaar documents from DigiLocker...
 📥 Found X documents
 ✅ Aadhaar document found: [document name]
-✅ Aadhaar document stored in Firebase Storage: kyc-documents/...
-✅ Aadhaar data prepared for storage
+✅ XML content stored in Firestore (15234 bytes)
+✅ Aadhaar data prepared (Firestore only - FREE!)
 ✅ KYC data written to Firestore
 ```
 
@@ -174,7 +142,7 @@ Should see:
     dob: "...",
     address: "...",
     
-    // NEW: Aadhaar document data
+    // NEW: Aadhaar document data (ALL stored in Firestore - FREE!)
     aadhaar: {
       aadhaarNumber: "XXXXXXXX1234",  // Masked
       name: "...",
@@ -183,10 +151,14 @@ Should see:
       address: "...",
       pincode: "110001",
       documentUri: "in.gov.uidai...",
-      storagePath: "kyc-documents/tenant_id/aadhaar_1234567890.xml",
-      downloadUrl: "https://storage.googleapis.com/...",
+      documentName: "Aadhaar Card",
+      source: "DigiLocker",
       fetchedAt: Timestamp,
-      verified: true
+      verified: true,
+      
+      // XML content stored as base64 (if < 50KB)
+      xmlContentBase64: "PD94bWw...",
+      xmlSizeBytes: 15234
     },
     
     hasDocuments: true
@@ -194,18 +166,11 @@ Should see:
 }
 ```
 
-#### 7. Verify in Firebase Storage
+#### 7. ~~Verify in Firebase Storage~~ ❌ NOT NEEDED
 
-Firebase Console → Storage → Files
+**Storage NOT used anymore!** Everything in Firestore.
 
-Should see:
-```
-kyc-documents/
-  └── tenant_id/
-      └── aadhaar_1234567890.xml
-```
-
-#### 8. Check Tenant Portal UI
+#### 7. Check Tenant Portal UI
 
 After verification completes:
 - ✅ Green badge: "Verified by DigiLocker"
@@ -233,29 +198,13 @@ After verification completes:
 
 **Solution**: Add user-friendly error message in UI
 
-### Issue 3: Firebase Storage not initialized
+### ~~Issue 3: Firebase Storage not initialized~~ ✅ SOLVED - NOT NEEDED!
 
-**Error**: "Storage bucket not configured"
+**GOOD NEWS**: We don't use Firebase Storage anymore!
 
-**Solution**:
-```bash
-# Enable Firebase Storage
-firebase init storage
+Everything stored in Firestore (free tier). No configuration needed.
 
-# Or via console
-# Firebase Console → Storage → Get Started
-```
-
-### Issue 4: Document fetch succeeds but storage fails
-
-**Error**: "Failed to save document"
-
-**Solution**:
-1. Check Firebase Storage is enabled
-2. Verify Storage rules allow admin write
-3. Check Storage quota not exceeded
-
-### Issue 5: Profile works but documents fail
+### Issue 3: Document fetch succeeds but Firestore write fails
 
 **Logs show**: "✅ Profile fetch successful" but "❌ Error fetching documents"
 
@@ -319,22 +268,17 @@ firebase init storage
 ### Backend
 ```
 netlify/functions/
-├── _kycCore.js              ← Updated with document fetching
+├── _kycCore.js              ← Updated (NO Firebase Storage!)
 ├── _kycDocuments.js         ← Document fetching module
 ├── initiateKyc.js
 ├── handleKycCallback.js
 └── ...
 ```
 
-### Storage
+### ~~Storage~~ ✅ NOT NEEDED
 ```
-Firebase Storage:
-  kyc-documents/
-    ├── tenant_abc123/
-    │   └── aadhaar_1709030400000.xml
-    ├── tenant_xyz456/
-    │   └── aadhaar_1709031200000.xml
-    └── ...
+Everything in Firestore now!
+No Firebase Storage required.
 ```
 
 ### Firestore
@@ -349,8 +293,11 @@ tenants/
   │       hasDocuments: true,
   │       aadhaar: {
   │         aadhaarNumber: "XXXXXXXX1234",
-  │         downloadUrl: "...",
-  │         ...
+  │         name: "...",
+  │         gender: "M",
+  │         address: "...",
+  │         xmlContentBase64: "...",  // Full XML stored here
+  │         xmlSizeBytes: 15234
   │       }
   │     }
   └── ...
@@ -358,37 +305,37 @@ tenants/
 
 ## 🎯 Next Actions (Priority Order)
 
-### Action 1: Update Scope 🔴 URGENT
+### Action 1: Update Scope 🔴 URGENT (ONLY REQUIRED STEP!)
 ```
 Netlify → Environment Variables
 DIGILOCKER_SCOPES=openid issued_documents
 ```
 
-### Action 2: Enable Firebase Storage 🔴 URGENT
+### ~~Action 2: Enable Firebase Storage~~ ✅ NOT NEEDED - FREE SOLUTION!
 ```
-Firebase Console → Storage → Get Started
+Skipped! Using Firestore only (100% free)
 ```
 
-### Action 3: Deploy & Test 🟡 HIGH
+### Action 2: Deploy & Test 🟡 HIGH
 ```bash
 git push  # Triggers deployment
 # Wait 2-3 minutes
 # Test KYC flow
 ```
 
-### Action 4: Check DigiLocker Permissions 🟡 HIGH
+### Action 3: Check DigiLocker Permissions 🟡 HIGH
 ```
 Login to DigiLocker developer portal
 Check document access enabled
 ```
 
-### Action 5: Monitor Logs 🟢 MEDIUM
+### Action 4: Monitor Logs 🟢 MEDIUM
 ```
 Netlify Functions logs
 Check for success/error messages
 ```
 
-### Action 6: Update Admin UI 🟢 LOW
+### Action 5: Update Admin UI 🟢 LOW
 ```
 Add "View Aadhaar Document" button
 Show document status
@@ -403,22 +350,37 @@ Display Aadhaar details (masked)
 - ✅ Popup-based authentication
 - ✅ Auto-refresh on completion
 - ✅ Reset KYC button in admin
+- ✅ **Firestore-only storage (FREE!)**
 
 ### What's Ready (Needs Configuration)
 - ✅ Aadhaar document fetching code
 - ✅ XML parsing logic
-- ✅ Firebase Storage integration
+- ✅ **Firestore storage integration (NO Firebase Storage!)**
 - ✅ Error handling & fallback
-- ⏳ Needs: Scope update
-- ⏳ Needs: Storage enabled
+- ⏳ Needs: Scope update ONLY
 - ⏳ Needs: DigiLocker permission
+- ✅ **NO billing required!** 🆓
 
 ### Timeline
-- Scope update: 5 minutes
-- Storage setup: 10 minutes
+- ~~Scope update: 5 minutes~~
+- ~~Storage setup: 10 minutes~~ ✅ Skipped (FREE!)
 - Deployment: 2-3 minutes
 - Testing: 15 minutes
-- **Total: ~30 minutes**
+- **Total: ~20 minutes** (10 minutes less!)
+
+### 💰 Cost Comparison
+
+#### Before (Firebase Storage)
+- ❌ Required Blaze plan activation
+- ❌ Risk of charges if quota exceeded
+- ❌ Complex setup (Storage + Rules)
+
+#### Now (Firestore Only) 🎉
+- ✅ 100% FREE (Spark plan)
+- ✅ No billing ever
+- ✅ Simpler setup
+- ✅ Faster access
+- ✅ All data in one place
 
 ## 🔒 Security Considerations
 
