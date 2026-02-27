@@ -73,6 +73,7 @@ const TenantPortal = () => {
   const [kycCallbackStatus, setKycCallbackStatus] = useState('idle');
   const [kycCallbackMessage, setKycCallbackMessage] = useState('');
   const [hiddenRejectedSubmissionIds, setHiddenRejectedSubmissionIds] = useState(new Set());
+  const [currentKycStep, setCurrentKycStep] = useState(1); // Track current active KYC step (1, 2, or 3)
   const [tenantProfile, setTenantProfile] = useState({
     firstName: '',
     lastName: '',
@@ -2755,74 +2756,110 @@ const TenantPortal = () => {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">First Name</label>
-                        <input
-                          type="text"
-                          value={tenantProfile.firstName}
-                          onChange={(e) => handleProfileChange('firstName', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          placeholder="Enter first name"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Last Name</label>
-                        <input
-                          type="text"
-                          value={tenantProfile.lastName}
-                          onChange={(e) => handleProfileChange('lastName', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          placeholder="Enter last name"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Phone Number</label>
-                        <input
-                          type="tel"
-                          value={tenantProfile.phoneNumber}
-                          onChange={(e) => handleProfileChange('phoneNumber', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          placeholder="Enter phone"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Occupation</label>
-                        <input
-                          type="text"
-                          value={tenantProfile.occupation}
-                          onChange={(e) => handleProfileChange('occupation', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          placeholder="Enter occupation"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Aadhar Number</label>
-                        <input
-                          type="text"
-                          value={tenantProfile.aadharExtractedNumber || tenantProfile.aadharNumber}
-                          readOnly
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50"
-                          placeholder="Auto-extracted from Aadhaar"
-                        />
-                        <p className="text-[11px] text-gray-500 mt-1">Auto extracted from uploaded Aadhaar.</p>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">PAN Number</label>
-                        <input
-                          type="text"
-                          value={tenantProfile.panExtractedNumber || tenantProfile.panNumber}
-                          readOnly
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm uppercase bg-gray-50"
-                          placeholder="Auto-extracted from PAN"
-                        />
-                        <p className="text-[11px] text-gray-500 mt-1">Auto extracted from uploaded PAN.</p>
-                      </div>
-                    </div>
+                    {/* Step 1: Fill Details */}
+                    {currentKycStep === 1 && (
+                      <div className="space-y-4">
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-4 mb-4">
+                          <h3 className="text-lg font-bold text-blue-900 mb-2">📝 Step 1: Fill Your Details</h3>
+                          <p className="text-sm text-blue-700">Complete all fields below to proceed to document upload.</p>
+                        </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                      {/* Aadhaar Upload Card */}
-                      <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">First Name</label>
+                            <input
+                              type="text"
+                              value={tenantProfile.firstName}
+                              onChange={(e) => handleProfileChange('firstName', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              placeholder="Enter first name"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">Last Name</label>
+                            <input
+                              type="text"
+                              value={tenantProfile.lastName}
+                              onChange={(e) => handleProfileChange('lastName', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              placeholder="Enter last name"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">Phone Number</label>
+                            <input
+                              type="tel"
+                              value={tenantProfile.phoneNumber}
+                              onChange={(e) => handleProfileChange('phoneNumber', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              placeholder="Enter phone"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">Occupation</label>
+                            <input
+                              type="text"
+                              value={tenantProfile.occupation}
+                              onChange={(e) => handleProfileChange('occupation', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              placeholder="Enter occupation"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">Aadhar Number</label>
+                            <input
+                              type="text"
+                              value={tenantProfile.aadharExtractedNumber || tenantProfile.aadharNumber}
+                              readOnly
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50"
+                              placeholder="Auto-extracted from Aadhaar"
+                            />
+                            <p className="text-[11px] text-gray-500 mt-1">Auto extracted from uploaded Aadhaar.</p>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">PAN Number</label>
+                            <input
+                              type="text"
+                              value={tenantProfile.panExtractedNumber || tenantProfile.panNumber}
+                              readOnly
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm uppercase bg-gray-50"
+                              placeholder="Auto-extracted from PAN"
+                            />
+                            <p className="text-[11px] text-gray-500 mt-1">Auto extracted from uploaded PAN.</p>
+                          </div>
+                        </div>
+
+                        {/* Step 1 Navigation */}
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Check if basic details are filled
+                              if (tenantProfile.firstName && tenantProfile.lastName && tenantProfile.phoneNumber && tenantProfile.occupation) {
+                                setCurrentKycStep(2);
+                              } else {
+                                alert('Please fill all required details (Name, Phone, Occupation) before proceeding.');
+                              }
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors"
+                          >
+                            Next: Upload Documents →
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Step 2: Upload Documents */}
+                    {currentKycStep === 2 && (
+                      <div className="space-y-4">
+                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-4 mb-4">
+                          <h3 className="text-lg font-bold text-green-900 mb-2">📄 Step 2: Upload Documents</h3>
+                          <p className="text-sm text-green-700">Upload Aadhaar, PAN, and Selfie to verify with OCR.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                          {/* Aadhaar Upload Card */}
+                          <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center gap-2 mb-3">
                           <span className="text-2xl">🪪</span>
                           <label className="block text-sm font-bold text-gray-800">Aadhaar Card</label>
@@ -2890,10 +2927,10 @@ const TenantPortal = () => {
                             <p className="text-[10px] text-gray-600 mt-1">{tenantProfile.aadharDocReason}</p>
                           )}
                         </div>
-                      </div>
+                          </div>
 
-                      {/* PAN Upload Card */}
-                      <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                          {/* PAN Upload Card */}
+                          <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center gap-2 mb-3">
                           <span className="text-2xl">💳</span>
                           <label className="block text-sm font-bold text-gray-800">PAN Card</label>
@@ -2961,10 +2998,10 @@ const TenantPortal = () => {
                             <p className="text-[10px] text-gray-600 mt-1">{tenantProfile.panDocReason}</p>
                           )}
                         </div>
-                      </div>
+                          </div>
 
-                      {/* Selfie Upload Card */}
-                      <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                          {/* Selfie Upload Card */}
+                          <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center gap-2 mb-3">
                           <span className="text-2xl">📸</span>
                           <label className="block text-sm font-bold text-gray-800">Your Selfie</label>
@@ -3022,66 +3059,108 @@ const TenantPortal = () => {
                             {tenantProfile.selfieImage ? '✅ Uploaded' : '⏺️ Not Uploaded'}
                           </p>
                         </div>
-                      </div>
-                    </div>
+                          </div>
+                        </div>
 
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-                      <p className="text-xs font-semibold text-amber-900 mb-2">📄 Rent Agreement (Digital Acceptance)</p>
-                      <p className="text-xs text-amber-800 leading-relaxed mb-3">
-                        I confirm that the information provided is correct, and I agree to pay rent/electricity on time as per lodge terms.
-                      </p>
-                      <label className="flex items-center gap-2 text-sm text-amber-900 font-semibold mb-3">
-                        <input
-                          type="checkbox"
-                          checked={tenantProfile.agreementAccepted}
-                          onChange={(e) => handleProfileChange('agreementAccepted', e.target.checked)}
-                        />
-                        I accept the rent agreement terms.
-                      </label>
-
-                      <div className="bg-white border border-amber-300 rounded-lg p-2">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-semibold text-gray-700">Digital Signature</p>
+                        {/* Step 2 Navigation */}
+                        <div className="flex justify-between">
                           <button
                             type="button"
-                            onClick={clearSignature}
-                            className="text-xs font-semibold text-red-700 hover:underline"
+                            onClick={() => setCurrentKycStep(1)}
+                            className="bg-gray-400 hover:bg-gray-500 text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors"
                           >
-                            Clear
+                            ← Back to Details
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Check if documents are uploaded
+                              if (tenantProfile.aadharImage && tenantProfile.panImage && tenantProfile.selfieImage) {
+                                setCurrentKycStep(3);
+                              } else {
+                                alert('Please upload all 3 documents (Aadhaar, PAN, Selfie) before proceeding.');
+                              }
+                            }}
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors"
+                          >
+                            Next: Verify with DigiLocker →
                           </button>
                         </div>
-                        <canvas
-                          ref={signatureCanvasRef}
-                          width={640}
-                          height={180}
-                          className="w-full h-28 border border-gray-300 rounded touch-none"
-                          onMouseDown={startSignature}
-                          onMouseMove={moveSignature}
-                          onMouseUp={stopSignature}
-                          onMouseLeave={stopSignature}
-                          onTouchStart={(e) => { e.preventDefault(); startSignature(e); }}
-                          onTouchMove={(e) => { e.preventDefault(); moveSignature(e); }}
-                          onTouchEnd={(e) => { e.preventDefault(); stopSignature(); }}
-                        />
-                        {tenantProfile.agreementSignedAt && (
-                          <p className="text-[11px] text-gray-500 mt-1">Signed on: {new Date(tenantProfile.agreementSignedAt).toLocaleString('en-IN')}</p>
-                        )}
                       </div>
-                    </div>
+                    )}
 
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs text-gray-500">
-                        Existing tenant data auto-prefilled where available. New tenants can fill fresh KYC details.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={saveTenantProfile}
-                        disabled={profileSaving || profileLoading}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg text-sm disabled:opacity-60"
-                      >
-                        {profileSaving ? 'Saving...' : profileLoading ? 'Loading...' : '💾 Save Profile'}
-                      </button>
-                    </div>
+                    {/* Step 3: DigiLocker & Agreement */}
+                    {currentKycStep === 3 && (
+                      <div className="space-y-4">
+                        <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 rounded-xl p-4 mb-4">
+                          <h3 className="text-lg font-bold text-purple-900 mb-2">🛡️ Step 3: DigiLocker & Agreement</h3>
+                          <p className="text-sm text-purple-700">Verify documents with DigiLocker and sign the rent agreement.</p>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                          <p className="text-xs font-semibold text-amber-900 mb-2">📄 Rent Agreement (Digital Acceptance)</p>
+                          <p className="text-xs text-amber-800 leading-relaxed mb-3">
+                            I confirm that the information provided is correct, and I agree to pay rent/electricity on time as per lodge terms.
+                          </p>
+                          <label className="flex items-center gap-2 text-sm text-amber-900 font-semibold mb-3">
+                            <input
+                              type="checkbox"
+                              checked={tenantProfile.agreementAccepted}
+                              onChange={(e) => handleProfileChange('agreementAccepted', e.target.checked)}
+                            />
+                            I accept the rent agreement terms.
+                          </label>
+
+                          <div className="bg-white border border-amber-300 rounded-lg p-2">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-xs font-semibold text-gray-700">Digital Signature</p>
+                              <button
+                                type="button"
+                                onClick={clearSignature}
+                                className="text-xs font-semibold text-red-700 hover:underline"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                            <canvas
+                              ref={signatureCanvasRef}
+                              width={640}
+                              height={180}
+                              className="w-full h-28 border border-gray-300 rounded touch-none"
+                              onMouseDown={startSignature}
+                              onMouseMove={moveSignature}
+                              onMouseUp={stopSignature}
+                              onMouseLeave={stopSignature}
+                              onTouchStart={(e) => { e.preventDefault(); startSignature(e); }}
+                              onTouchMove={(e) => { e.preventDefault(); moveSignature(e); }}
+                              onTouchEnd={(e) => { e.preventDefault(); stopSignature(); }}
+                            />
+                            {tenantProfile.agreementSignedAt && (
+                              <p className="text-[11px] text-gray-500 mt-1">Signed on: {new Date(tenantProfile.agreementSignedAt).toLocaleString('en-IN')}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Step 3 Navigation */}
+                        <div className="flex items-center justify-between gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setCurrentKycStep(2)}
+                            className="bg-gray-400 hover:bg-gray-500 text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors"
+                          >
+                            ← Back to Documents
+                          </button>
+                          <button
+                            type="button"
+                            onClick={saveTenantProfile}
+                            disabled={profileSaving || profileLoading}
+                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-6 py-3 rounded-lg text-sm disabled:opacity-60 transition-colors"
+                          >
+                            {profileSaving ? '⏳ Saving...' : profileLoading ? '⏳ Loading...' : '✅ Complete KYC'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </>
                 );
               })()}
