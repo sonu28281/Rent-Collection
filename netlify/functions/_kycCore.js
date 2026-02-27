@@ -237,6 +237,7 @@ const validateKycMatch = async ({ tenantId, profile, documentData }) => {
 
   // Validate phone number if both are available
   const phoneToCheck = filledPhone || tenantPhone;
+  let phoneMatch = false;
   if (phoneToCheck && digilockerPhone) {
     const normalizedCheckedPhone = normalizePhone(phoneToCheck);
     const normalizedDigilockerPhone = normalizePhone(digilockerPhone);
@@ -247,15 +248,28 @@ const validateKycMatch = async ({ tenantId, profile, documentData }) => {
       throw new Error(errorMsg);
     }
 
+    phoneMatch = true;
     console.log('✅ Phone validation passed');
   } else {
     console.log('ℹ️ Phone validation skipped (not enough data)');
   }
 
-  return { nameMatch: true, phoneMatch: true };
+  // Return validation details for storage
+  return { 
+    nameMatch: true, 
+    phoneMatch,
+    validationDetails: {
+      filledName: filledFullName || tenantName,
+      digilockerName: digilockerName || aadhaarName,
+      filledPhone: phoneToCheck,
+      digilockerPhone: digilockerPhone || '',
+      validatedAt: new Date().toISOString(),
+      validationSource: filledFullName ? 'form_data' : 'tenant_name'
+    }
+  };
 };
 
-const writeKycToFirestore = async ({ tenantId, profile, tokenPayload, documentData }) => {
+const writeKycToFirestore = async ({ tenantId, profile, tokenPayload, documentData, validationDetails }) => {
   const app = getAdminApp();
   const db = admin.firestore(app);
 
@@ -279,6 +293,20 @@ const writeKycToFirestore = async ({ tenantId, profile, tokenPayload, documentDa
   if (documentData) {
     kycData.aadhaar = documentData;
     kycData.hasDocuments = true;
+  }
+  
+  // Add validation details for transparency
+  if (validationDetails) {
+    kycData.validation = {
+      filledName: validationDetails.filledName,
+      digilockerName: validationDetails.digilockerName,
+      filledPhone: validationDetails.filledPhone,
+      digilockerPhone: validationDetails.digilockerPhone,
+      nameMatch: validationDetails.nameMatch || true,
+      phoneMatch: validationDetails.phoneMatch || false,
+      validatedAt: validationDetails.validatedAt,
+      validationSource: validationDetails.validationSource
+    };
   }
 
   await db.collection('tenants').doc(tenantId).set({
@@ -649,10 +677,16 @@ const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreat
     if (!isKycTestMode()) {
       // Validate that DigiLocker data matches tenant data before writing
       console.log('🔐 Validating KYC data matches tenant...');
-      await validateKycMatch({ tenantId, profile, documentData });
-      console.log('✅ Validation passed, writing to Firestore...');
+      const validationResult = await validateKycMatch({ tenantId, profile, documentData });
+      console.log('✅ Validation passed:', validationResult.validationDetails);
       
-      storedKyc = await writeKycToFirestore({ tenantId, profile, tokenPayload, documentData });
+      storedKyc = await writeKycToFirestore({ 
+        tenantId, 
+        profile, 
+        tokenPayload, 
+        documentData,
+        validationDetails: validationResult.validationDetails 
+      });
     }
 
     return {

@@ -2608,6 +2608,16 @@ const TenantPortal = () => {
                                     {kycProgress.step3.complete && hasAadhaar && (
                                       <p className="text-[9px] text-green-600 mt-0.5">📄 Aadhaar verified • {verifiedDate}</p>
                                     )}
+                                    {kycProgress.step3.complete && kycInfo.validation && (
+                                      <div className="mt-1 text-[9px] bg-green-50 border border-green-200 rounded px-1.5 py-0.5">
+                                        <p className="text-green-700">
+                                          <span className="font-semibold">Form:</span> {kycInfo.validation.filledName} 
+                                          <span className="mx-1">↔</span>
+                                          <span className="font-semibold">DigiLocker:</span> {kycInfo.validation.digilockerName}
+                                          <span className="ml-1 text-green-600">✓ Match</span>
+                                        </p>
+                                      </div>
+                                    )}
                                   </div>
                                   {kycProgress.step3.complete ? (
                                     <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded">Verified ✅</span>
@@ -2632,6 +2642,43 @@ const TenantPortal = () => {
                         {digiLockerError && (
                           <div className="bg-red-50 border border-red-300 rounded px-3 py-2 mt-2">
                             <p className="text-xs text-red-700 font-semibold">{digiLockerError}</p>
+                          </div>
+                        )}
+                        
+                        {/* Name Validation Display - Show after DigiLocker verification */}
+                        {isDigiLockerVerified && kycInfo.validation && (
+                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg p-3 mt-3">
+                            <div className="flex items-start gap-2">
+                              <span className="text-2xl">✅</span>
+                              <div className="flex-1">
+                                <p className="font-bold text-green-900 text-sm mb-1">Name Verification Successful</p>
+                                <div className="space-y-1 text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-green-800 w-24">Your Name:</span>
+                                    <span className="bg-white px-2 py-0.5 rounded border border-green-200 text-gray-900">
+                                      {kycInfo.validation.filledName}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-green-800 w-24">DigiLocker:</span>
+                                    <span className="bg-white px-2 py-0.5 rounded border border-green-200 text-gray-900">
+                                      {kycInfo.validation.digilockerName}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 pt-1">
+                                    <span className="font-semibold text-green-700 w-24">Status:</span>
+                                    <span className="bg-green-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">
+                                      ✓ VERIFIED - Names Match
+                                    </span>
+                                  </div>
+                                  {kycInfo.validation.validatedAt && (
+                                    <p className="text-[10px] text-green-700 mt-1">
+                                      Validated: {new Date(kycInfo.validation.validatedAt).toLocaleString('en-IN')}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
