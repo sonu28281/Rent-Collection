@@ -1069,7 +1069,6 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc }) => 
     ? tenant.assignedRooms.map((room) => String(room))
     : (tenant?.roomNumber ? [String(tenant.roomNumber)] : []);
   const primaryRoom = assignedRooms[0] || tenant.roomNumber;
-  const isKycVerified = tenant?.kyc?.verified === true && tenant?.kyc?.verifiedBy === 'DigiLocker';
   
   // Calculate living duration
   const calculateDuration = () => {
