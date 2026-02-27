@@ -447,29 +447,39 @@ const TenantPortal = () => {
       const profileData = profileSnap.exists() ? profileSnap.data() : {};
 
       const split = splitName(tenantData?.name || '');
+      
+      // Check for DigiLocker KYC data
+      const kycData = tenantData?.kyc || {};
+      const hasDigiLockerData = kycData.verified && kycData.verifiedBy === 'DigiLocker';
+      
       setTenantProfile({
-        firstName: profileData.firstName || split.firstName || '',
-        lastName: profileData.lastName || split.lastName || '',
+        firstName: profileData.firstName || (hasDigiLockerData && kycData.name ? splitName(kycData.name).firstName : '') || split.firstName || '',
+        lastName: profileData.lastName || (hasDigiLockerData && kycData.name ? splitName(kycData.name).lastName : '') || split.lastName || '',
         phoneNumber: profileData.phoneNumber || tenantData.phone || '',
         occupation: profileData.occupation || '',
-        aadharNumber: profileData.aadharNumber || '',
+        aadharNumber: profileData.aadharNumber || (kycData.aadhaar?.aadhaarNumber || ''),
         panNumber: profileData.panNumber || '',
         aadharImage: profileData.aadharImage || '',
         panImage: profileData.panImage || '',
         selfieImage: profileData.selfieImage || '',
-        aadharDocStatus: profileData.aadharDocStatus || (profileData.aadharImage ? 'recheck_needed' : 'not_uploaded'),
+        aadharDocStatus: hasDigiLockerData && kycData.aadhaar ? 'verified' : (profileData.aadharDocStatus || (profileData.aadharImage ? 'recheck_needed' : 'not_uploaded')),
         panDocStatus: profileData.panDocStatus || (profileData.panImage ? 'recheck_needed' : 'not_uploaded'),
-        aadharDocReason: profileData.aadharDocReason || '',
+        aadharDocReason: hasDigiLockerData && kycData.aadhaar ? 'Verified via DigiLocker' : (profileData.aadharDocReason || ''),
         panDocReason: profileData.panDocReason || '',
-        aadharNameMatched: !!profileData.aadharNameMatched,
+        aadharNameMatched: hasDigiLockerData ? true : !!profileData.aadharNameMatched,
         panNameMatched: !!profileData.panNameMatched,
-        aadharExtractedNumber: profileData.aadharExtractedNumber || profileData.aadharNumber || '',
+        aadharExtractedNumber: kycData.aadhaar?.aadhaarNumber || profileData.aadharExtractedNumber || profileData.aadharNumber || '',
         panExtractedNumber: profileData.panExtractedNumber || profileData.panNumber || '',
-        aadharDocConfidence: Number(profileData.aadharDocConfidence || 0),
+        aadharDocConfidence: hasDigiLockerData ? 100 : Number(profileData.aadharDocConfidence || 0),
         panDocConfidence: Number(profileData.panDocConfidence || 0),
         agreementAccepted: !!profileData.agreementAccepted,
         agreementSignature: profileData.agreementSignature || '',
         agreementSignedAt: profileData.agreementSignedAt || null
+      });
+      
+      console.log('✅ Tenant profile loaded', {
+        hasDigiLockerKYC: hasDigiLockerData,
+        hasAadhaar: !!kycData.aadhaar
       });
     } catch (profileError) {
       console.error('Error loading tenant profile:', profileError);
@@ -1033,6 +1043,49 @@ const TenantPortal = () => {
     return [];
   };
 
+  // Sync DigiLocker KYC data to tenant profile
+  const syncDigiLockerDataToProfile = (kycData) => {
+    if (!kycData) return;
+
+    const updates = {};
+    
+    // Extract name from DigiLocker
+    if (kycData.name) {
+      const split = splitName(kycData.name);
+      if (split.firstName && !tenantProfile.firstName) {
+        updates.firstName = split.firstName;
+      }
+      if (split.lastName && !tenantProfile.lastName) {
+        updates.lastName = split.lastName;
+      }
+    }
+
+    // Extract Aadhaar number from DigiLocker (if available)
+    if (kycData.aadhaar?.aadhaarNumber && !tenantProfile.aadharExtractedNumber) {
+      updates.aadharExtractedNumber = kycData.aadhaar.aadhaarNumber;
+      updates.aadharNumber = kycData.aadhaar.aadhaarNumber;
+      updates.aadharDocStatus = 'verified';
+      updates.aadharDocReason = 'Verified via DigiLocker';
+    }
+
+    // Update profile if we have any changes
+    if (Object.keys(updates).length > 0) {
+      console.log('📥 Syncing DigiLocker data to profile:', updates);
+      setTenantProfile(prev => ({
+        ...prev,
+        ...updates
+      }));
+      
+      // Auto-save profile with DigiLocker data
+      if (tenant?.id) {
+        const profileRef = doc(db, 'tenantProfiles', tenant.id);
+        setDoc(profileRef, updates, { merge: true })
+          .then(() => console.log('✅ DigiLocker data synced to profile'))
+          .catch(err => console.error('❌ Failed to sync DigiLocker data:', err));
+      }
+    }
+  };
+
   // Refresh tenant document from Firestore (used after KYC verification)
   const refreshTenantFromFirestore = async (currentTenantId) => {
     if (!currentTenantId) {
@@ -1056,10 +1109,17 @@ const TenantPortal = () => {
         id: refreshedTenantData.id,
         name: refreshedTenantData.name,
         kycVerified: refreshedTenantData.kyc?.verified || false,
-        kycVerifiedAt: refreshedTenantData.kyc?.verifiedAt || null
+        kycVerifiedAt: refreshedTenantData.kyc?.verifiedAt || null,
+        hasAadhaar: !!refreshedTenantData.kyc?.aadhaar
       });
       
       setTenant(refreshedTenantData);
+      
+      // Sync DigiLocker KYC data to profile form
+      if (refreshedTenantData.kyc) {
+        syncDigiLockerDataToProfile(refreshedTenantData.kyc);
+      }
+      
       return refreshedTenantData;
     } catch (error) {
       console.error('❌ Error refreshing tenant data:', error);
@@ -2295,123 +2355,7 @@ const TenantPortal = () => {
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">
-            {(() => {
-              const kycInfo = tenant?.kyc || {};
-              const isVerified = kycInfo.verified === true && kycInfo.verifiedBy === 'DigiLocker';
-              const verifiedDateValue = kycInfo.verifiedAt?.seconds
-                ? new Date(kycInfo.verifiedAt.seconds * 1000)
-                : (kycInfo.verifiedAt ? new Date(kycInfo.verifiedAt) : null);
-              const verifiedDate = verifiedDateValue && !Number.isNaN(verifiedDateValue.getTime())
-                ? verifiedDateValue.toLocaleDateString('en-IN')
-                : null;
-
-              // Aadhaar details
-              const hasAadhaar = kycInfo.hasDocuments && kycInfo.aadhaar;
-              const aadhaarData = kycInfo.aadhaar || {};
-
-              console.log('🔍 KYC Render Check:', {
-                hasTenant: !!tenant,
-                tenantId: tenant?.id,
-                kycInfo,
-                isVerified,
-                hasAadhaar,
-                aadhaarData,
-                buttonWillShow: !isVerified
-              });
-
-              return (
-                <div className={`rounded-lg shadow-md p-4 sm:p-5 border ${isVerified ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div>
-                      <h3 className="text-lg sm:text-xl font-bold text-gray-800">🛡️ DigiLocker KYC</h3>
-                      {isVerified ? (
-                        <div className="mt-1">
-                          <p className="text-sm font-semibold text-green-700">✅ Verified by DigiLocker</p>
-                          <p className="text-xs text-green-700">
-                            {verifiedDate ? `Verification Date: ${verifiedDate}` : 'Verification completed'}
-                          </p>
-                          {hasAadhaar && (
-                            <p className="text-xs text-blue-700 mt-1">
-                              📄 Aadhaar document verified
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-600 mt-1">Complete KYC to verify your identity securely.</p>
-                      )}
-                    </div>
-
-                    {!isVerified && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          console.log('🔴 BUTTON CLICKED!', e);
-                          startDigiLockerVerification();
-                        }}
-                        disabled={startingDigiLockerKyc}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm disabled:opacity-60"
-                      >
-                        {startingDigiLockerKyc ? 'Starting...' : 'Verify with DigiLocker'}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Aadhaar Details Display */}
-                  {isVerified && hasAadhaar && (
-                    <div className="mt-4 pt-4 border-t border-green-200">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2">📄 Verified Aadhaar Details</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        {aadhaarData.name && (
-                          <div>
-                            <span className="text-gray-500">Name:</span>
-                            <span className="ml-2 font-medium text-gray-800">{aadhaarData.name}</span>
-                          </div>
-                        )}
-                        {aadhaarData.dob && (
-                          <div>
-                            <span className="text-gray-500">DOB:</span>
-                            <span className="ml-2 font-medium text-gray-800">{aadhaarData.dob}</span>
-                          </div>
-                        )}
-                        {aadhaarData.gender && (
-                          <div>
-                            <span className="text-gray-500">Gender:</span>
-                            <span className="ml-2 font-medium text-gray-800">{aadhaarData.gender === 'M' ? 'Male' : aadhaarData.gender === 'F' ? 'Female' : aadhaarData.gender}</span>
-                          </div>
-                        )}
-                        {aadhaarData.aadhaarNumber && (
-                          <div>
-                            <span className="text-gray-500">Aadhaar:</span>
-                            <span className="ml-2 font-medium text-gray-800">{aadhaarData.aadhaarNumber}</span>
-                          </div>
-                        )}
-                        {aadhaarData.pincode && (
-                          <div>
-                            <span className="text-gray-500">Pincode:</span>
-                            <span className="ml-2 font-medium text-gray-800">{aadhaarData.pincode}</span>
-                          </div>
-                        )}
-                        {aadhaarData.address && (
-                          <div className="sm:col-span-2">
-                            <span className="text-gray-500">Address:</span>
-                            <span className="ml-2 font-medium text-gray-800">{aadhaarData.address}</span>
-                          </div>
-                        )}
-                      </div>
-                      {aadhaarData.xmlSizeBytes && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          ✅ Document stored securely ({Math.round(aadhaarData.xmlSizeBytes / 1024)} KB)
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {digiLockerError && (
-                    <p className="text-xs text-red-700 mt-2">{digiLockerError}</p>
-                  )}
-                </div>
-              );
-            })()}
+            {/* DigiLocker KYC section removed - now integrated into Tenant KYC Profile below */}
 
             {/* Due Date Alert - Mobile Optimized with Smart Logic */}
             {(() => {
@@ -2516,21 +2460,58 @@ const TenantPortal = () => {
                 const radius = 46;
                 const circumference = 2 * Math.PI * radius;
                 const strokeOffset = circumference - (completion.percentage / 100) * circumference;
+                
+                // DigiLocker KYC Status
+                const kycInfo = tenant?.kyc || {};
+                const isDigiLockerVerified = kycInfo.verified === true && kycInfo.verifiedBy === 'DigiLocker';
+                const verifiedDateValue = kycInfo.verifiedAt?.seconds
+                  ? new Date(kycInfo.verifiedAt.seconds * 1000)
+                  : (kycInfo.verifiedAt ? new Date(kycInfo.verifiedAt) : null);
+                const verifiedDate = verifiedDateValue && !Number.isNaN(verifiedDateValue.getTime())
+                  ? verifiedDateValue.toLocaleDateString('en-IN')
+                  : null;
+                const hasAadhaar = kycInfo.hasDocuments && kycInfo.aadhaar;
 
                 return (
                   <>
                     <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
-                      <div>
+                      <div className="flex-1">
                         <h2 className="text-xl sm:text-2xl font-bold text-gray-800">🪪 Tenant KYC Profile</h2>
                         <p className="text-sm text-gray-600 mt-1">Fill your details, upload documents, and sign rent agreement.</p>
+                        
+                        {/* DigiLocker Badge - Integrated */}
+                        {isDigiLockerVerified ? (
+                          <div className="mt-2 inline-flex items-center gap-2 bg-green-100 border border-green-300 rounded-lg px-3 py-1.5">
+                            <span className="text-green-700 font-semibold text-sm">✅ DigiLocker Verified</span>
+                            {verifiedDate && <span className="text-green-600 text-xs">({verifiedDate})</span>}
+                            {hasAadhaar && <span className="text-green-600 text-xs">📄 Aadhaar</span>}
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              console.log('🔴 DigiLocker KYC button clicked');
+                              startDigiLockerVerification();
+                            }}
+                            disabled={startingDigiLockerKyc}
+                            className="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg text-sm disabled:opacity-60 inline-block"
+                          >
+                            {startingDigiLockerKyc ? 'Starting...' : '🛡️ Verify with DigiLocker'}
+                          </button>
+                        )}
+                        
                         <button
                           type="button"
                           onClick={runKycOcrAnalysis}
                           disabled={ocrAnalyzing || profileSaving || profileLoading}
-                          className="mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-1.5 rounded-lg text-xs sm:text-sm disabled:opacity-60"
+                          className="mt-2 ml-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-1.5 rounded-lg text-xs sm:text-sm disabled:opacity-60"
                         >
                           {ocrAnalyzing ? 'Analyzing OCR...' : '🔍 Run OCR Analysis'}
                         </button>
+                        
+                        {digiLockerError && (
+                          <p className="text-xs text-red-700 mt-2">{digiLockerError}</p>
+                        )}
                       </div>
                       <div className="relative w-[110px] h-[110px] flex-shrink-0">
                         <svg width="110" height="110" viewBox="0 0 110 110" className="-rotate-90">
@@ -2539,7 +2520,7 @@ const TenantPortal = () => {
                             cx="55"
                             cy="55"
                             r={radius}
-                            stroke="#2563EB"
+                            stroke={isDigiLockerVerified ? "#10B981" : "#2563EB"}
                             strokeWidth="10"
                             fill="none"
                             strokeDasharray={circumference}
@@ -2552,6 +2533,7 @@ const TenantPortal = () => {
                           <p className="text-2xl font-bold text-gray-900">{completion.percentage}%</p>
                           <p className="text-xs text-gray-600">Profile Complete</p>
                           <p className="text-[11px] text-gray-500">{completion.filled}/{completion.total}</p>
+                          {isDigiLockerVerified && <p className="text-[10px] text-green-600 mt-0.5">✓ DigiLocker</p>}
                         </div>
                       </div>
                     </div>
