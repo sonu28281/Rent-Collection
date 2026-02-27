@@ -810,13 +810,15 @@ const TenantPortal = () => {
       const payloadData = payload?.data || {};
       const authorizationUrl = payload?.authorizationUrl || payloadData?.authorizationUrl;
       const state = payload?.state || payloadData?.state;
+      const codeVerifier = payload?.codeVerifier || payloadData?.codeVerifier;
       const stateCreatedAt = payloadData?.stateCreatedAt || Date.now();
 
       console.log('🔍 Extracted values:', { 
         ok: response.ok, 
         authorizationUrl: authorizationUrl?.substring(0, 100), 
         state,
-        stateCreatedAt 
+        stateCreatedAt,
+        hasCodeVerifier: !!codeVerifier
       });
 
       if (!response.ok || !authorizationUrl || !state) {
@@ -829,6 +831,7 @@ const TenantPortal = () => {
       localStorage.setItem(KYC_PENDING_KEY, JSON.stringify({
         tenantId: tenant.id,
         state: String(state),
+        codeVerifier: codeVerifier ? String(codeVerifier) : undefined,
         stateCreatedAt: Number(stateCreatedAt)
       }));
       
@@ -892,6 +895,19 @@ const TenantPortal = () => {
       }
 
       try {
+        const requestBody = {
+          tenantId: pending.tenantId,
+          code,
+          state,
+          expectedState: pending.state,
+          stateCreatedAt: pending.stateCreatedAt
+        };
+        
+        // Add codeVerifier for PKCE if present
+        if (pending.codeVerifier) {
+          requestBody.codeVerifier = pending.codeVerifier;
+        }
+        
         const response = await fetch(callbackUrl, {
           method: 'POST',
           cache: 'no-store',
@@ -900,13 +916,7 @@ const TenantPortal = () => {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache'
           },
-          body: JSON.stringify({
-            tenantId: pending.tenantId,
-            code,
-            state,
-            expectedState: pending.state,
-            stateCreatedAt: pending.stateCreatedAt
-          })
+          body: JSON.stringify(requestBody)
         });
 
         const payload = await response.json().catch(() => ({}));

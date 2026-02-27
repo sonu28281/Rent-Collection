@@ -1,4 +1,5 @@
 import admin from 'firebase-admin';
+import crypto from 'crypto';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.KYC_API_TIMEOUT_MS || 12000);
 const DEFAULT_STATE_TTL_SECONDS = Number(process.env.KYC_STATE_TTL_SECONDS || 600);
@@ -33,6 +34,23 @@ const safeErrorMessage = (error) => {
 };
 
 const randomState = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+
+// PKCE (Proof Key for Code Exchange) helpers for OAuth 2.0 security
+const generateCodeVerifier = () => {
+  // Generate random 43-128 character string (using 64 bytes = 128 hex chars, then slice to 128)
+  return crypto.randomBytes(64).toString('hex').slice(0, 128);
+};
+
+const generateCodeChallenge = (verifier) => {
+  // SHA256 hash of verifier, then base64url encode
+  return crypto
+    .createHash('sha256')
+    .update(verifier)
+    .digest('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+};
 
 const normalizeScopes = (value) => {
   return 'openid';
@@ -209,6 +227,7 @@ const parseJsonBody = (event) => {
 const exchangeCodeInternal = async (code, cfg, options = {}) => {
   const timeoutMs = Number(options.timeoutMs || DEFAULT_TIMEOUT_MS);
   const simulateFailure = options.simulateFailure;
+  const codeVerifier = options.codeVerifier;
 
   if (!code || String(code).trim().length === 0) {
     throw new Error('Invalid authorization code');
@@ -232,13 +251,20 @@ const exchangeCodeInternal = async (code, cfg, options = {}) => {
     };
   }
 
-  const body = new URLSearchParams({
+  const bodyParams = {
     grant_type: 'authorization_code',
     code,
     redirect_uri: cfg.redirectUri,
     client_id: cfg.clientId,
     client_secret: cfg.clientSecret
-  });
+  };
+  
+  // Add PKCE code_verifier if provided (required by DigiLocker)
+  if (codeVerifier) {
+    bodyParams.code_verifier = codeVerifier;
+  }
+  
+  const body = new URLSearchParams(bodyParams);
 
   const tokenResponse = await withTimeout((signal) => fetch(cfg.tokenEndpoint, {
     method: 'POST',
@@ -305,7 +331,7 @@ const fetchProfileInternal = async (accessToken, cfg, options = {}) => {
   return profilePayload;
 };
 
-const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreatedAt, simulateFailure }) => {
+const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreatedAt, simulateFailure, codeVerifier }) => {
   const stateCheck = validateStateWindow({ state, expectedState, stateCreatedAt });
   if (!stateCheck.ok) {
     return {
@@ -337,7 +363,7 @@ const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreat
   }
 
   try {
-    const tokenPayload = await exchangeCodeInternal(code, cfg, { simulateFailure });
+    const tokenPayload = await exchangeCodeInternal(code, cfg, { simulateFailure, codeVerifier });
     const profile = await fetchProfileInternal(tokenPayload.access_token, cfg, { simulateFailure, tenantId });
 
     if (simulateFailure === 'write') {
@@ -396,6 +422,9 @@ const initiateKycHandler = async (event) => {
 
   const cfg = resolveConfig();
   const state = randomState();
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(codeVerifier);
+  
   const missingFields = getMissingOAuthFields(cfg, {
     clientId: true,
     redirectUri: true,
@@ -411,7 +440,8 @@ const initiateKycHandler = async (event) => {
     return json(200, standardizedResponse(true, 'token', 'KYC initiated (test mode)', {
       state,
       authorizationUrl,
-      stateCreatedAt: Date.now()
+      stateCreatedAt: Date.now(),
+      codeVerifier
     }), buildCorsHeaders(event));
   }
 
@@ -421,11 +451,14 @@ const initiateKycHandler = async (event) => {
   authUrl.searchParams.set('redirect_uri', cfg.redirectUri);
   authUrl.searchParams.set('scope', cfg.scopes);
   authUrl.searchParams.set('state', state);
+  authUrl.searchParams.set('code_challenge', codeChallenge);
+  authUrl.searchParams.set('code_challenge_method', 'S256');
 
   return json(200, standardizedResponse(true, 'token', 'KYC initiated', {
     state,
     authorizationUrl: authUrl.toString(),
-    stateCreatedAt: Date.now()
+    stateCreatedAt: Date.now(),
+    codeVerifier
   }), buildCorsHeaders(event));
 };
 
@@ -509,6 +542,7 @@ const handleKycCallbackHandler = async (event) => {
   const state = body?.state;
   const expectedState = body?.expectedState;
   const stateCreatedAt = body?.stateCreatedAt;
+  const codeVerifier = body?.codeVerifier;
   const tenantId = String(body?.tenantId || '');
 
   if (!tenantId) {
@@ -525,6 +559,7 @@ const handleKycCallbackHandler = async (event) => {
     state,
     expectedState,
     stateCreatedAt,
+    codeVerifier,
     simulateFailure: body?.simulateFailure
   });
 
@@ -545,6 +580,7 @@ const testKycFlowHandler = async (event) => {
   const expectedState = body?.expectedState || 'test_state';
   const stateCreatedAt = body?.stateCreatedAt || Date.now();
   const simulateFailure = body?.simulateFailure;
+  const codeVerifier = body?.codeVerifier;
   const code = body?.code || (isKycTestMode() ? 'MOCK_AUTH_CODE' : 'INVALID_CODE');
 
   if (!tenantId) {
@@ -557,6 +593,7 @@ const testKycFlowHandler = async (event) => {
     state,
     expectedState,
     stateCreatedAt,
+    codeVerifier,
     simulateFailure
   });
 
