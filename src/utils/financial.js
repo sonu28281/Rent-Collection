@@ -363,15 +363,34 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
       )
     );
 
-    // Create a map of payments by room number
-    const paymentsMap = {};
-    paymentsSnapshot.forEach((doc) => {
-      const data = doc.data();
-      paymentsMap[data.roomNumber] = {
-        id: doc.id,
-        ...data
+    // Build normalized payments list for tenant-wise + room-wise matching
+    const normalizedPayments = paymentsSnapshot.docs.map((paymentDoc) => {
+      const paymentData = paymentDoc.data();
+      return {
+        id: paymentDoc.id,
+        ...paymentData,
+        roomNumber: paymentData.roomNumber !== undefined && paymentData.roomNumber !== null
+          ? String(paymentData.roomNumber)
+          : '',
+        tenantId: paymentData.tenantId || null,
+        tenantNameSnapshot: paymentData.tenantNameSnapshot || paymentData.tenantName || '',
+        paidAmountValue: Number(paymentData.paidAmount) || 0,
+        electricityValue: Number(paymentData.electricity || paymentData.electricityAmount) || 0,
+        isPaidStatus: paymentData.status === 'paid' && (Number(paymentData.paidAmount) || 0) > 0
       };
     });
+
+    const getTenantRoomNumbers = (tenantData) => {
+      if (Array.isArray(tenantData?.assignedRooms) && tenantData.assignedRooms.length > 0) {
+        return tenantData.assignedRooms
+          .map((roomNumber) => String(roomNumber))
+          .filter(Boolean);
+      }
+      if (tenantData?.roomNumber !== undefined && tenantData?.roomNumber !== null && tenantData?.roomNumber !== '') {
+        return [String(tenantData.roomNumber)];
+      }
+      return [];
+    };
 
     // Build tenant payment summary
     const tenantList = [];
@@ -381,24 +400,51 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
 
     tenantsSnapshot.forEach((doc) => {
       const tenant = doc.data();
-      const roomNumber = typeof tenant.roomNumber === 'string' 
-        ? parseInt(tenant.roomNumber, 10) 
-        : tenant.roomNumber;
-      
-      const payment = paymentsMap[roomNumber];
+      const tenantRoomNumbers = getTenantRoomNumbers(tenant);
+      const tenantNameNormalized = String(tenant.name || '').trim().toLowerCase();
+
+      const tenantPayments = normalizedPayments.filter((payment) => {
+        const byTenantId = payment.tenantId && payment.tenantId === doc.id;
+        const byRoom = tenantRoomNumbers.length > 0 && tenantRoomNumbers.includes(payment.roomNumber);
+        const byName = tenantNameNormalized && String(payment.tenantNameSnapshot || '').trim().toLowerCase() === tenantNameNormalized;
+        return byTenantId || byRoom || byName;
+      });
+
+      const uniqueTenantPayments = Array.from(
+        new Map(tenantPayments.map((payment) => [payment.id, payment])).values()
+      );
+
+      const totalElectricity = uniqueTenantPayments.reduce((sum, payment) => sum + payment.electricityValue, 0);
+      const collectedAmount = uniqueTenantPayments.reduce((sum, payment) => sum + payment.paidAmountValue, 0);
+      const latestPaidRecord = uniqueTenantPayments
+        .filter((payment) => payment.isPaidStatus)
+        .sort((firstPayment, secondPayment) => {
+          const firstTime = firstPayment?.paidAt ? new Date(firstPayment.paidAt).getTime() : 0;
+          const secondTime = secondPayment?.paidAt ? new Date(secondPayment.paidAt).getTime() : 0;
+          return secondTime - firstTime;
+        })[0] || null;
+
+      const paidRooms = new Set(
+        uniqueTenantPayments
+          .filter((payment) => payment.isPaidStatus)
+          .map((payment) => String(payment.roomNumber))
+      );
+
+      const allRoomsPaid = tenantRoomNumbers.length > 0
+        ? tenantRoomNumbers.every((room) => paidRooms.has(String(room)))
+        : false;
       
       // Calculate expected rent (from tenant data or payment record)
       const expectedRent = tenant.currentRent || 0;
-      const expectedElectricity = payment ? (payment.electricity || 0) : 0;
+      const expectedElectricity = totalElectricity;
       const expectedTotal = expectedRent + expectedElectricity;
       
       // Calculate actual collected amount
-      const collectedAmount = payment ? (payment.paidAmount || 0) : 0;
-      const dueAmount = expectedTotal - collectedAmount;
+      const dueAmount = Math.max(expectedTotal - collectedAmount, 0);
       
       // Payment status - Check BOTH status field AND actual collected amount
       // A payment is only considered 'paid' if status='paid' AND paidAmount > 0
-      const status = (payment && payment.status === 'paid' && collectedAmount > 0) ? 'paid' : 'pending';
+      const status = (allRoomsPaid && collectedAmount > 0) ? 'paid' : 'pending';
       
       // Due Date Calculation (default to 5th of current month if not set)
       const dueDateOfMonth = tenant.dueDate || 5; // Default: 5th of each month
@@ -406,8 +452,8 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
       const dueDateFormatted = dueDate.toLocaleDateString('en-IN');
       
       // Payment Date (actual date when payment was made)
-      const paidDate = payment && payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('en-IN') : null;
-      const paidDateObj = payment && payment.paidAt ? new Date(payment.paidAt) : null;
+      const paidDate = latestPaidRecord?.paidAt ? new Date(latestPaidRecord.paidAt).toLocaleDateString('en-IN') : null;
+      const paidDateObj = latestPaidRecord?.paidAt ? new Date(latestPaidRecord.paidAt) : null;
       
       // Delayed Status Detection
       let isDelayed = false;
@@ -430,6 +476,8 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         id: doc.id,
         name: tenant.name,
         roomNumber: tenant.roomNumber,
+        roomNumbers: tenantRoomNumbers,
+        roomCount: tenantRoomNumbers.length,
         expectedRent,
         expectedElectricity,
         expectedTotal,
@@ -439,7 +487,8 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         dueDate: dueDateFormatted,
         paidDate,
         isDelayed,
-        paymentMethod: payment ? payment.paymentMethod : null
+        paymentMethod: latestPaidRecord ? latestPaidRecord.paymentMethod : null,
+        paymentRecordsCount: uniqueTenantPayments.length
       });
       
       totalExpected += expectedTotal;

@@ -125,10 +125,40 @@ const Dashboard = () => {
     return roomNum >= 200 ? 2 : 1;
   };
 
+  const getTenantRooms = (tenant) => {
+    if (Array.isArray(tenant?.roomNumbers) && tenant.roomNumbers.length > 0) {
+      return tenant.roomNumbers.map((room) => String(room));
+    }
+    if (tenant?.roomNumber !== undefined && tenant?.roomNumber !== null && tenant?.roomNumber !== '') {
+      return [String(tenant.roomNumber)];
+    }
+    return [];
+  };
+
+  const getTenantRoomLabel = (tenant) => {
+    const rooms = getTenantRooms(tenant);
+    if (rooms.length === 0) return '-';
+    return rooms.join(', ');
+  };
+
+  const getFloorRoomCount = (tenants) => {
+    const uniqueRooms = new Set();
+    tenants.forEach((tenant) => {
+      getTenantRooms(tenant).forEach((room) => uniqueRooms.add(String(room)));
+    });
+    return uniqueRooms.size;
+  };
+
   // Helper function to group tenants by floor
   const groupTenantsByFloor = (tenants) => {
-    const floor1 = tenants.filter(t => getFloor(t.roomNumber) === 1);
-    const floor2 = tenants.filter(t => getFloor(t.roomNumber) === 2);
+    const floor1 = tenants.filter((tenant) => {
+      const tenantRooms = getTenantRooms(tenant);
+      return tenantRooms.some((room) => getFloor(room) === 1);
+    });
+    const floor2 = tenants.filter((tenant) => {
+      const tenantRooms = getTenantRooms(tenant);
+      return tenantRooms.some((room) => getFloor(room) === 2);
+    });
     return { floor1, floor2 };
   };
 
@@ -301,11 +331,12 @@ const Dashboard = () => {
                   {floor1.length > 0 && (() => {
                     const paidCount = floor1.filter(t => t.status === 'paid').length;
                     const pendingCount = floor1.filter(t => t.status !== 'paid').length;
+                    const floor1RoomCount = getFloorRoomCount(floor1);
                     return (
                       <div>
                         <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
                           <span className="text-xl">🏠</span>
-                          Floor 1 - Ground Floor ({floor1.length} tenants: {paidCount} paid, {pendingCount} pending)
+                          Floor 1 - Ground Floor ({floor1RoomCount} rooms, {floor1.length} tenants: {paidCount} paid, {pendingCount} pending)
                         </h4>
                         {isCardView ? (
                           <div className="space-y-3">
@@ -315,8 +346,11 @@ const Dashboard = () => {
                                 <div key={tenant.id} className={`rounded-lg border p-3 ${isPaid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
-                                      <p className="text-xs text-gray-500">Room</p>
-                                      <p className="font-bold text-gray-900">{tenant.roomNumber} • {tenant.name}</p>
+                                      <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
+                                      <p className="font-bold text-gray-900">{getTenantRoomLabel(tenant)} • {tenant.name}</p>
+                                      {tenant.roomCount > 1 && (
+                                        <p className="text-xs text-indigo-700 font-semibold mt-1">Multi-room tenant ({tenant.roomCount} rooms)</p>
+                                      )}
                                     </div>
                                     <span className={`text-xs px-2 py-1 rounded font-semibold ${
                                       isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
@@ -332,6 +366,7 @@ const Dashboard = () => {
                                   </div>
                                   <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
                                     <span>Payment: {tenant.paidDate || '-'}</span>
+                                    <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
                                     {tenant.isDelayed && (
                                       <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
                                     )}
@@ -368,8 +403,18 @@ const Dashboard = () => {
                                             : 'bg-red-50 hover:bg-red-100'
                                         }`}
                                       >
-                                        <td className="px-3 py-2 font-semibold">{tenant.roomNumber}</td>
-                                        <td className="px-3 py-2">{tenant.name}</td>
+                                        <td className="px-3 py-2 font-semibold">
+                                          {getTenantRoomLabel(tenant)}
+                                          {tenant.roomCount > 1 && (
+                                            <span className="ml-2 text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">{tenant.roomCount} rooms</span>
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          {tenant.name}
+                                          {tenant.roomCount > 1 && (
+                                            <div className="text-xs text-indigo-700 font-semibold">Multi-room tenant</div>
+                                          )}
+                                        </td>
                                         <td className="px-3 py-2 text-right text-gray-700">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
                                         <td className="px-3 py-2 text-right text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</td>
                                         <td className="px-3 py-2 text-right font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
@@ -379,6 +424,7 @@ const Dashboard = () => {
                                         <td className="px-3 py-2">
                                           <div className="flex items-center gap-2">
                                             <span>{tenant.paidDate || '-'}</span>
+                                            <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
                                             {tenant.isDelayed && (
                                               <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
                                             )}
@@ -407,11 +453,12 @@ const Dashboard = () => {
                   {floor2.length > 0 && (() => {
                     const paidCount = floor2.filter(t => t.status === 'paid').length;
                     const pendingCount = floor2.filter(t => t.status !== 'paid').length;
+                    const floor2RoomCount = getFloorRoomCount(floor2);
                     return (
                       <div>
                         <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
                           <span className="text-xl">🏢</span>
-                          Floor 2 - First Floor ({floor2.length} tenants: {paidCount} paid, {pendingCount} pending)
+                          Floor 2 - First Floor ({floor2RoomCount} rooms, {floor2.length} tenants: {paidCount} paid, {pendingCount} pending)
                         </h4>
                         {isCardView ? (
                           <div className="space-y-3">
@@ -421,8 +468,11 @@ const Dashboard = () => {
                                 <div key={tenant.id} className={`rounded-lg border p-3 ${isPaid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
-                                      <p className="text-xs text-gray-500">Room</p>
-                                      <p className="font-bold text-gray-900">{tenant.roomNumber} • {tenant.name}</p>
+                                      <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
+                                      <p className="font-bold text-gray-900">{getTenantRoomLabel(tenant)} • {tenant.name}</p>
+                                      {tenant.roomCount > 1 && (
+                                        <p className="text-xs text-indigo-700 font-semibold mt-1">Multi-room tenant ({tenant.roomCount} rooms)</p>
+                                      )}
                                     </div>
                                     <span className={`text-xs px-2 py-1 rounded font-semibold ${
                                       isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
@@ -438,6 +488,7 @@ const Dashboard = () => {
                                   </div>
                                   <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
                                     <span>Payment: {tenant.paidDate || '-'}</span>
+                                    <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
                                     {tenant.isDelayed && (
                                       <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
                                     )}
@@ -474,8 +525,18 @@ const Dashboard = () => {
                                             : 'bg-red-50 hover:bg-red-100'
                                         }`}
                                       >
-                                        <td className="px-3 py-2 font-semibold">{tenant.roomNumber}</td>
-                                        <td className="px-3 py-2">{tenant.name}</td>
+                                        <td className="px-3 py-2 font-semibold">
+                                          {getTenantRoomLabel(tenant)}
+                                          {tenant.roomCount > 1 && (
+                                            <span className="ml-2 text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">{tenant.roomCount} rooms</span>
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          {tenant.name}
+                                          {tenant.roomCount > 1 && (
+                                            <div className="text-xs text-indigo-700 font-semibold">Multi-room tenant</div>
+                                          )}
+                                        </td>
                                         <td className="px-3 py-2 text-right text-gray-700">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
                                         <td className="px-3 py-2 text-right text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</td>
                                         <td className="px-3 py-2 text-right font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
@@ -485,6 +546,7 @@ const Dashboard = () => {
                                         <td className="px-3 py-2">
                                           <div className="flex items-center gap-2">
                                             <span>{tenant.paidDate || '-'}</span>
+                                            <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
                                             {tenant.isDelayed && (
                                               <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
                                             )}
