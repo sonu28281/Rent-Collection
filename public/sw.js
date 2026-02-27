@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rent-collection-v3';
+const CACHE_NAME = 'rent-collection-v4';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -34,6 +34,14 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
 
   if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Never cache Netlify Functions or Firebase calls
+  if (url.pathname.startsWith('/.netlify/functions/') || 
+      url.hostname.includes('firebaseio.com') ||
+      url.hostname.includes('googleapis.com') ||
+      url.hostname.includes('firestore.googleapis.com')) {
     return;
   }
 
