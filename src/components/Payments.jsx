@@ -14,6 +14,9 @@ const Payments = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [floorFilter, setFloorFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('room');
+  const [sortOrder, setSortOrder] = useState('asc');
   const [tenantDirectPayEnabled, setTenantDirectPayEnabled] = useState(false);
   const [savingDirectPaySetting, setSavingDirectPaySetting] = useState(false);
   const [historyMonthFilter, setHistoryMonthFilter] = useState('all');
@@ -150,11 +153,35 @@ const Payments = () => {
     };
   };
 
+  const handleSortChange = (column) => {
+    if (sortBy === column) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortBy(column);
+    setSortOrder('asc');
+  };
+
   const filteredTenants = tenants.filter(tenant => {
     const { isPaid } = getTenantPaymentSummary(tenant);
+    const roomString = String(tenant.roomNumber || '').trim();
+    const roomDigits = roomString.replace(/\D/g, '');
+    const derivedFloor = roomDigits.length >= 3 ? roomDigits.charAt(0) : '';
+
+    if (floorFilter !== 'all' && derivedFloor !== floorFilter) return false;
     if (filter === 'paid') return isPaid;
     if (filter === 'pending') return !isPaid;
     return true;
+  }).sort((a, b) => {
+    if (sortBy === 'date') {
+      const dateA = getTenantPaymentSummary(a).latestPaidDate ? new Date(getTenantPaymentSummary(a).latestPaidDate).getTime() : 0;
+      const dateB = getTenantPaymentSummary(b).latestPaidDate ? new Date(getTenantPaymentSummary(b).latestPaidDate).getTime() : 0;
+      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    }
+
+    const roomA = Number(String(a.roomNumber || '').replace(/\D/g, '')) || 0;
+    const roomB = Number(String(b.roomNumber || '').replace(/\D/g, '')) || 0;
+    return sortOrder === 'asc' ? roomA - roomB : roomB - roomA;
   });
 
   if (loading) {
@@ -548,8 +575,8 @@ const Payments = () => {
         </div>
       </div>
 
-      <div className="card mb-6">
-        <div className="flex gap-2">
+      <div className="card mb-6 sticky top-2 z-20 bg-white/95 backdrop-blur">
+        <div className="flex flex-wrap gap-2 items-center">
           <button
             onClick={() => setFilter('all')}
             className={`px-4 py-2 rounded-lg font-semibold transition ${
@@ -579,6 +606,46 @@ const Payments = () => {
             }`}
           >
             Pending ({pendingCount})
+          </button>
+
+          <div className="h-6 w-px bg-gray-300 mx-1"></div>
+
+          <button
+            onClick={() => setFloorFilter('all')}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+              floorFilter === 'all'
+                ? 'bg-slate-700 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            All Floors
+          </button>
+          <button
+            onClick={() => setFloorFilter('1')}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+              floorFilter === '1'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Floor 1
+          </button>
+          <button
+            onClick={() => setFloorFilter('2')}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+              floorFilter === '2'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Floor 2
+          </button>
+
+          <button
+            onClick={() => handleSortChange('room')}
+            className="ml-auto px-3 py-2 rounded-lg text-sm font-semibold bg-gray-100 text-gray-800 hover:bg-gray-200"
+          >
+            Sort: {sortBy === 'date' ? 'Date' : 'Room'} {sortOrder === 'asc' ? 'Asc ↑' : 'Desc ↓'}
           </button>
         </div>
       </div>
@@ -682,11 +749,23 @@ const Payments = () => {
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Room</th>
+                  <th
+                    className="px-4 py-3 text-left font-semibold text-gray-700 cursor-pointer select-none"
+                    onClick={() => handleSortChange('room')}
+                    title="Sort by room"
+                  >
+                    Room {sortBy === 'room' ? (sortOrder === 'asc' ? '↑' : '↓') : ''}
+                  </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Tenant</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Phone</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-700">Rent</th>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Payment Date</th>
+                  <th
+                    className="px-4 py-3 text-center font-semibold text-gray-700 cursor-pointer select-none"
+                    onClick={() => handleSortChange('date')}
+                    title="Sort by payment date"
+                  >
+                    Payment Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : ''}
+                  </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">UTR</th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">Screenshot</th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
