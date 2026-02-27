@@ -174,7 +174,7 @@ const Sidebar = () => {
                     className={`
                       w-full flex items-center px-10 py-1.5 text-left transition
                       ${isActive(item.path)
-                        ? 'bg-primary text-white font-semibold'
+                        ? 'bg-emerald-100 text-emerald-800 font-semibold border-l-4 border-emerald-500'
                         : 'text-gray-600 hover:bg-gray-200'
                       }
                     `}
@@ -241,7 +241,7 @@ const Sidebar = () => {
                     className={`
                       w-full flex items-center px-10 py-1.5 text-left transition
                       ${isActive(item.path)
-                        ? 'bg-primary text-white font-semibold'
+                        ? 'bg-emerald-100 text-emerald-800 font-semibold border-l-4 border-emerald-500'
                         : 'text-gray-600 hover:bg-gray-200'
                       }
                     `}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
+import useResponsiveViewMode from '../utils/useResponsiveViewMode';
 
 const getStatusBadge = (status) => {
   const normalized = String(status || 'not_uploaded').toLowerCase();
@@ -59,6 +60,7 @@ const TenantsKYCDetails = () => {
   const [floorFilter, setFloorFilter] = useState('all');
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState(null);
+  const { viewMode, setViewMode, isCardView } = useResponsiveViewMode('tenants-kyc-view-mode', 'table');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -219,6 +221,21 @@ const TenantsKYCDetails = () => {
             </button>
           </div>
         </div>
+
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            onClick={() => setViewMode('table')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+          >
+            Grid View
+          </button>
+          <button
+            onClick={() => setViewMode('card')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${viewMode === 'card' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+          >
+            Card View
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
@@ -240,8 +257,8 @@ const TenantsKYCDetails = () => {
         </div>
       </div>
 
-      {!isMobileViewport ? (
-      <div className="card overflow-hidden hidden md:block">
+      {!isCardView ? (
+      <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-100">
@@ -353,7 +370,7 @@ const TenantsKYCDetails = () => {
         </div>
       </div>
       ) : (
-        <div className="space-y-3 md:hidden pb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-20">
           {filteredRows.map((row) => (
             <div key={row.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
               <div className="flex items-start justify-between gap-3 mb-2">
