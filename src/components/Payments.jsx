@@ -20,6 +20,7 @@ const Payments = () => {
   const [cleanupMonths, setCleanupMonths] = useState(6);
   const [cleaningScreenshots, setCleaningScreenshots] = useState(false);
   const [downloadingHistoryZip, setDownloadingHistoryZip] = useState(false);
+  const [screenshotPreview, setScreenshotPreview] = useState({ open: false, url: '', title: '' });
 
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
@@ -244,6 +245,15 @@ const Payments = () => {
   };
 
   const getPaymentScreenshot = (payment) => payment?.screenshot || payment?.paymentScreenshot || payment?.proofScreenshot || payment?.proofImageUrl || '';
+
+  const openScreenshotPreview = (screenshotUrl, title = 'Payment Screenshot') => {
+    if (!screenshotUrl) return;
+    setScreenshotPreview({ open: true, url: screenshotUrl, title });
+  };
+
+  const closeScreenshotPreview = () => {
+    setScreenshotPreview({ open: false, url: '', title: '' });
+  };
 
   const handleDownloadScreenshot = (payment) => {
     const screenshotUrl = getPaymentScreenshot(payment);
@@ -716,14 +726,18 @@ const Payments = () => {
                       <td className="px-4 py-3 text-center">
                         {isPaid && screenshotUrl ? (
                           <div className="flex flex-col items-center gap-1">
-                            <a
-                              href={screenshotUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs font-semibold text-blue-700 hover:underline"
+                            <button
+                              type="button"
+                              onClick={() => openScreenshotPreview(screenshotUrl, `${tenant.name} • Room ${tenant.roomNumber}`)}
+                              className="rounded border border-gray-300 overflow-hidden hover:border-blue-500"
+                              title="Click to preview"
                             >
-                              View
-                            </a>
+                              <img
+                                src={screenshotUrl}
+                                alt="Payment proof thumbnail"
+                                className="w-10 h-10 object-cover"
+                              />
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleDownloadScreenshot(latestPayment)}
@@ -854,14 +868,18 @@ const Payments = () => {
                       <td className="px-3 py-2 text-xs font-mono text-gray-700 max-w-[200px] truncate" title={payment.utr || '-'}>{payment.utr || '-'}</td>
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-center gap-3">
-                          <a
-                            href={screenshotUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs font-semibold text-blue-700 hover:underline"
+                          <button
+                            type="button"
+                            onClick={() => openScreenshotPreview(screenshotUrl, `${payment.tenantNameSnapshot || payment.tenantName || 'Tenant'} • Room ${payment.roomNumber || '-'}`)}
+                            className="rounded border border-gray-300 overflow-hidden hover:border-blue-500"
+                            title="Click to preview"
                           >
-                            View
-                          </a>
+                            <img
+                              src={screenshotUrl}
+                              alt="History screenshot thumbnail"
+                              className="w-10 h-10 object-cover"
+                            />
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleDownloadScreenshot(payment)}
@@ -896,6 +914,30 @@ const Payments = () => {
           onClose={handleFormClose}
           onSuccess={handleFormSuccess}
         />
+      )}
+
+      {screenshotPreview.open && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center p-4" onClick={closeScreenshotPreview}>
+          <div className="relative max-w-5xl w-full max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-white text-sm font-semibold truncate">{screenshotPreview.title}</p>
+              <button
+                type="button"
+                onClick={closeScreenshotPreview}
+                className="text-white bg-white bg-opacity-20 hover:bg-opacity-30 px-3 py-1 rounded"
+              >
+                Close
+              </button>
+            </div>
+            <div className="bg-white rounded-lg overflow-hidden max-h-[85vh] flex items-center justify-center">
+              <img
+                src={screenshotPreview.url}
+                alt="Payment screenshot preview"
+                className="max-h-[82vh] w-auto object-contain"
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
