@@ -101,195 +101,119 @@ const Settings = () => {
   }
 
   return (
-    <div className="p-4 lg:p-8">
-      {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">⚙️ Settings</h2>
-        <p className="text-gray-600">Configure global application settings</p>
+    <div className="p-4 lg:p-6">
+      <div className="mb-5 flex flex-col gap-1">
+        <h2 className="text-2xl lg:text-3xl font-bold text-gray-900">⚙️ Settings</h2>
+        <p className="text-sm text-gray-600">Configure global controls from one screen</p>
       </div>
 
-      {/* Error Message */}
       {error && (
-        <div className="card bg-red-50 border border-red-200 mb-6">
-          <p className="text-red-700">{error}</p>
+        <div className="card bg-red-50 border border-red-200 mb-4">
+          <p className="text-red-700 text-sm">{error}</p>
         </div>
       )}
 
-      {/* Success Message */}
       {successMessage && (
-        <div className="card bg-green-50 border border-green-200 mb-6">
-          <p className="text-green-700">{successMessage}</p>
+        <div className="card bg-green-50 border border-green-200 mb-4">
+          <p className="text-green-700 text-sm">{successMessage}</p>
         </div>
       )}
 
-      {/* Electricity Settings Card */}
-      <div className="card max-w-2xl">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="text-4xl">⚡</div>
-          <div>
-            <h3 className="text-xl font-bold text-gray-800">Electricity Rate</h3>
-            <p className="text-sm text-gray-600">Default rate per unit (kWh) for all tenants</p>
+      <form onSubmit={handleSave} className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="card xl:col-span-2">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="text-3xl">⚡</div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-800">Electricity Settings</h3>
+              <p className="text-xs text-gray-600">Default tariff used across rent calculations</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Rate per Unit (₹/kWh)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={electricityRate}
+                  onChange={(e) => setElectricityRate(e.target.value)}
+                  className="input-field pl-8"
+                  placeholder="8.00"
+                  required
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Applied as default where custom tenant rate is not set.
+              </p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <h4 className="font-semibold text-blue-900 text-sm mb-1">Quick Logic</h4>
+              <p className="text-xs text-blue-800 leading-relaxed">
+                Electricity charge = (Current Reading - Previous Reading) × Rate per unit.
+                This amount is auto-added in monthly payment totals.
+              </p>
+            </div>
           </div>
         </div>
 
-        <form onSubmit={handleSave} className="space-y-6">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Rate per Unit (₹/kWh)
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold">
-                ₹
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                value={electricityRate}
-                onChange={(e) => setElectricityRate(e.target.value)}
-                className="input-field pl-8"
-                placeholder="8.00"
-                required
-              />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              💡 This rate will be used by default for all tenants unless overridden for individual tenants
-            </p>
+        <div className="card">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="text-2xl">🛡️</div>
+            <h3 className="text-base font-bold text-gray-800">History Control</h3>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-semibold text-blue-900 mb-2">📋 How it works:</h4>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Set the default electricity rate per unit (kWh)</li>
-              <li>• You can override this rate for individual tenants in the Electricity module</li>
-              <li>• Electricity charges = (Current Reading - Previous Reading) × Rate</li>
-              <li>• Charges are automatically added to monthly records</li>
-            </ul>
-          </div>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={historyEditDeleteEnabled}
+              onChange={(e) => setHistoryEditDeleteEnabled(e.target.checked)}
+              className="w-4 h-4 mt-1"
+            />
+            <span className="text-sm text-gray-800 font-medium">
+              Enable Edit/Delete actions on History page
+            </span>
+          </label>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <h4 className="font-semibold text-yellow-900 mb-2">🛡️ History Edit/Delete Control</h4>
-            <label className="inline-flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={historyEditDeleteEnabled}
-                onChange={(e) => setHistoryEditDeleteEnabled(e.target.checked)}
-                className="w-4 h-4"
-              />
-              <span className="text-sm text-yellow-900 font-semibold">
-                Enable Edit/Delete actions on History page
-              </span>
-            </label>
-            <p className="text-xs text-yellow-800 mt-2">
-              When disabled, history records can be viewed but not edited or deleted.
-            </p>
-          </div>
+          <p className="text-xs text-gray-600 mt-3">
+            Keep this off for view-only protection. Turn on only when records must be corrected.
+          </p>
 
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
-            <button 
-              type="submit" 
-              className="btn-primary"
+          <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+            <button
+              type="submit"
+              className="btn-primary w-full"
               disabled={saving}
             >
               {saving ? '💾 Saving...' : '💾 Save Settings'}
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={fetchSettings}
-              className="btn-secondary"
+              className="btn-secondary w-full"
               disabled={saving}
             >
               🔄 Reset
             </button>
           </div>
-        </form>
-      </div>
+        </div>
+      </form>
 
-      {/* Month End Backup */}
-      <div className="card max-w-2xl mt-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="text-4xl">🗂️</div>
-          <div>
-            <h3 className="text-xl font-bold text-gray-800">Month-End Backup Download</h3>
-            <p className="text-sm text-gray-600">Create monthly backup on month&apos;s last day after full rent collection</p>
+      <div className="card mt-4 bg-gray-50 border border-gray-200">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">ℹ️</span>
+            <p className="text-sm text-gray-700 font-medium">Global settings apply across all modules.</p>
           </div>
-        </div>
-
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
-          <p className="text-sm text-orange-900 font-semibold mb-1">Rule:</p>
-          <ul className="text-sm text-orange-800 space-y-1">
-            <li>• Backup can run only on the last day of current month</li>
-            <li>• All current month payment records must be fully paid</li>
-            <li>• Backup file name format: 28 Feb 2026</li>
-          </ul>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleMonthlyBackupDownload}
-          disabled={backupInProgress || restoreInProgress}
-          className="btn-primary"
-        >
-          {backupInProgress ? '⏳ Creating Backup...' : '📥 Create & Download Month-End Backup'}
-        </button>
-
-        <div className="mt-5 pt-5 border-t border-gray-200">
-          <h4 className="font-semibold text-gray-800 mb-2">♻️ Restore from Downloaded Backup</h4>
-          <p className="text-sm text-gray-600 mb-3">
-            Upload backup CSV (downloaded from this section) to restore records back into payment history.
+          <p className="text-xs text-gray-500">
+            Last updated: {settings?.updatedAt ? new Date(settings.updatedAt).toLocaleString('en-IN') : 'Never'}
           </p>
-          <label className="btn-secondary inline-flex items-center cursor-pointer">
-            {restoreInProgress ? '⏳ Restoring...' : '📤 Upload Backup CSV & Restore'}
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleRestoreBackupFile}
-              className="hidden"
-              disabled={restoreInProgress || backupInProgress}
-            />
-          </label>
-          <p className="text-xs text-red-600 mt-2">
-            ⚠️ Restore can overwrite existing records for matching document IDs.
-          </p>
-        </div>
-
-        <div className="mt-5 pt-5 border-t border-gray-200">
-          <h4 className="font-semibold text-gray-800 mb-2">🕘 Backup History</h4>
-          {backupHistoryLoading ? (
-            <p className="text-sm text-gray-500">Loading backup history...</p>
-          ) : backupHistory.length === 0 ? (
-            <p className="text-sm text-gray-500">No month-end backups yet.</p>
-          ) : (
-            <div className="space-y-2 max-h-56 overflow-auto pr-1">
-              {backupHistory.slice(0, 12).map((backup) => (
-                <div key={backup.id} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-gray-800">{backup.backupDateLabel || backup.fileName || 'Monthly Backup'}</p>
-                    <span className="text-xs text-gray-500">{backup.recordCount || 0} records</span>
-                  </div>
-                  <p className="text-xs text-gray-600 mt-1">
-                    {backup.year || '-'} / {backup.month || '-'} • {backup.fileName || 'No file name'}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Additional Info */}
-      <div className="card max-w-2xl mt-6 bg-gray-50">
-        <div className="flex items-start gap-3">
-          <div className="text-3xl">ℹ️</div>
-          <div>
-            <h4 className="font-semibold text-gray-800 mb-2">About Settings</h4>
-            <p className="text-sm text-gray-600 mb-2">
-              Settings are stored globally and apply to all tenants by default. 
-              Individual tenant overrides can be set in the Electricity module.
-            </p>
-            <p className="text-xs text-gray-500">
-              Last updated: {settings?.updatedAt ? new Date(settings.updatedAt).toLocaleString('en-IN') : 'Never'}
-            </p>
-          </div>
         </div>
       </div>
     </div>
