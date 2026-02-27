@@ -64,6 +64,7 @@ const TenantPortal = () => {
   const [notificationPermission, setNotificationPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
   );
+  const [hiddenRejectedSubmissionIds, setHiddenRejectedSubmissionIds] = useState(new Set());
 
   const t = (en, hi) => (portalLanguage === 'hi' ? hi : en);
 
@@ -72,6 +73,7 @@ const TenantPortal = () => {
   };
 
   const getTenantNotifiedKey = (tenantId) => `tenant_notified_events_${tenantId || 'guest'}_v1`;
+  const getTenantHiddenRejectedKey = (tenantId) => `tenant_hidden_rejected_${tenantId || 'guest'}_v1`;
 
   const getNotifiedEventIds = (tenantId) => {
     try {
@@ -84,6 +86,19 @@ const TenantPortal = () => {
 
   const saveNotifiedEventIds = (tenantId, idSet) => {
     localStorage.setItem(getTenantNotifiedKey(tenantId), JSON.stringify(Array.from(idSet)));
+  };
+
+  const getHiddenRejectedIds = (tenantId) => {
+    try {
+      const raw = localStorage.getItem(getTenantHiddenRejectedKey(tenantId));
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  };
+
+  const saveHiddenRejectedIds = (tenantId, idSet) => {
+    localStorage.setItem(getTenantHiddenRejectedKey(tenantId), JSON.stringify(Array.from(idSet)));
   };
 
   const requestNotificationPermission = async () => {
@@ -192,7 +207,9 @@ const TenantPortal = () => {
       );
     }
 
-    if (latestSubmission?.status === 'rejected') {
+    const isRejectedVisible = latestSubmission?.status === 'rejected' && !hiddenRejectedSubmissionIds.has(latestSubmission.id);
+
+    if (isRejectedVisible) {
       notifyTenant(
         `payment_rejected_${latestSubmission.id}`,
         '❌ Payment Rejected',
@@ -207,7 +224,23 @@ const TenantPortal = () => {
         'Aapki payment verify ho gayi hai aur aapke account me add kar di gayi hai. Thank you!'
       );
     }
-  }, [isLoggedIn, tenant?.id, loading, latestSubmission, pendingSubmissions]);
+  }, [isLoggedIn, tenant?.id, loading, latestSubmission, pendingSubmissions, hiddenRejectedSubmissionIds]);
+
+  useEffect(() => {
+    if (!tenant?.id) {
+      setHiddenRejectedSubmissionIds(new Set());
+      return;
+    }
+    setHiddenRejectedSubmissionIds(getHiddenRejectedIds(tenant.id));
+  }, [tenant?.id]);
+
+  const handleHideRejectedNotice = (submissionId) => {
+    if (!tenant?.id || !submissionId) return;
+    const updated = new Set(hiddenRejectedSubmissionIds);
+    updated.add(submissionId);
+    setHiddenRejectedSubmissionIds(updated);
+    saveHiddenRejectedIds(tenant.id, updated);
+  };
 
   useEffect(() => {
     const roomTabs = (roomsData || []).map((entry) => String(entry.roomNumber));
@@ -1497,9 +1530,18 @@ const TenantPortal = () => {
               </p>
             </div>
 
-            {latestSubmission?.status === 'rejected' && (
+            {latestSubmission?.status === 'rejected' && !hiddenRejectedSubmissionIds.has(latestSubmission.id) && (
               <div className="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300 rounded-lg p-4">
-                <p className="text-sm font-bold text-red-900">❌ आपकी पिछली payment reject (decline) हो गई है</p>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-bold text-red-900">❌ आपकी पिछली payment reject (decline) हो गई है</p>
+                  <button
+                    type="button"
+                    onClick={() => handleHideRejectedNotice(latestSubmission.id)}
+                    className="text-xs font-semibold text-red-700 hover:text-red-900 underline"
+                  >
+                    Hide
+                  </button>
+                </div>
                 <p className="text-xs text-red-800 mt-1">
                   Month: {getMonthName(Number(latestSubmission.month))} {latestSubmission.year}
                 </p>
