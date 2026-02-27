@@ -370,67 +370,100 @@ const TenantsKYCDetails = () => {
         </div>
       </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-20">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-20">
           {filteredRows.map((row) => (
-            <div key={row.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
-              <div className="flex items-start justify-between gap-3 mb-2">
+            <div
+              key={row.id}
+              className={`card p-4 border-2 transition-all ${
+                ((row.aadharDocStatus !== 'verified' && row.aadharImage) || (row.panDocStatus !== 'verified' && row.panImage))
+                  ? 'border-red-300 bg-red-50/40'
+                  : 'border-green-300 bg-green-50/40'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                   <button
                     type="button"
                     onClick={() => setSelectedTenant(row)}
-                    className="text-base font-bold text-gray-900 hover:text-blue-700 underline-offset-2 hover:underline text-left"
+                    className="text-lg font-bold text-gray-900 hover:text-blue-700 underline-offset-2 hover:underline text-left"
                   >
                     {row.name}
                   </button>
-                  <p className="text-xs text-gray-500">Rooms: {row.rooms.length ? row.rooms.join(', ') : '-'}</p>
+                  <p className="text-sm text-gray-600">Rooms: {row.rooms.length ? row.rooms.join(', ') : '-'}</p>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>
+                <span className={`text-sm px-3 py-1 rounded-full font-semibold ${row.isActive ? 'bg-green-500 text-white' : 'bg-gray-400 text-white'}`}>
                   {row.isActive ? 'Active' : 'Inactive'}
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <p><span className="text-gray-500">Phone:</span> {row.phoneNumber || '-'}</p>
-                <p><span className="text-gray-500">Occupation:</span> {row.occupation || '-'}</p>
-                <p><span className="text-gray-500">Aadhaar (OCR):</span> {row.aadharExtractedNumber || row.aadharNumber || '-'}</p>
-                <p><span className="text-gray-500">PAN (OCR):</span> {row.panExtractedNumber || row.panNumber || '-'}</p>
-                <p><span className="text-gray-500">Aadhaar Check:</span> {getStatusBadge(row.aadharDocStatus).label}</p>
-                <p><span className="text-gray-500">PAN Check:</span> {getStatusBadge(row.panDocStatus).label}</p>
-                <p><span className="text-gray-500">Agreement:</span> {row.agreementAccepted ? 'Accepted' : 'Pending'}</p>
-                <p><span className="text-gray-500">Completion:</span> {row.completion.percentage}%</p>
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadge(row.aadharDocStatus).className}`}>
+                  Aadhaar: {getStatusBadge(row.aadharDocStatus).label}
+                </span>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadge(row.panDocStatus).className}`}>
+                  PAN: {getStatusBadge(row.panDocStatus).label}
+                </span>
+                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                  Completion: {row.completion.percentage}%
+                </span>
+              </div>
+
+              <div className="space-y-2 mb-3">
+                <div className="flex items-center justify-between py-2 border-b border-gray-300">
+                  <span className="text-sm font-medium text-gray-600">📱 Phone</span>
+                  <span className="text-sm font-semibold text-gray-800">{row.phoneNumber || '-'}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-gray-300">
+                  <span className="text-sm font-medium text-gray-600">💼 Occupation</span>
+                  <span className="text-sm font-semibold text-gray-800">{row.occupation || '-'}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-gray-300">
+                  <span className="text-sm font-medium text-gray-600">🪪 Aadhaar (OCR)</span>
+                  <span className="text-sm font-semibold text-gray-800 font-mono">{row.aadharExtractedNumber || row.aadharNumber || '-'}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-gray-300">
+                  <span className="text-sm font-medium text-gray-600">🧾 PAN (OCR)</span>
+                  <span className="text-sm font-semibold text-gray-800 font-mono uppercase">{row.panExtractedNumber || row.panNumber || '-'}</span>
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm font-medium text-gray-600">📄 Agreement</span>
+                  <span className={`text-sm font-semibold ${row.agreementAccepted ? 'text-green-700' : 'text-red-700'}`}>
+                    {row.agreementAccepted ? 'Accepted' : 'Pending'}
+                  </span>
+                </div>
               </div>
 
               {(row.aadharDocReason || row.panDocReason) && (
-                <div className="mt-2 rounded border border-red-200 bg-red-50 p-2">
-                  <p className="text-[11px] text-red-700">
+                <div className="mb-3 rounded border border-red-200 bg-red-50 p-3">
+                  <p className="text-xs text-red-700 font-medium">
                     {row.aadharDocReason || row.panDocReason}
                   </p>
                 </div>
               )}
 
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <div className="border rounded p-1 bg-gray-50">
-                  <p className="text-[10px] text-gray-600 text-center mb-1">Aadhaar</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="border rounded-lg p-2 bg-gray-50">
+                  <p className="text-xs font-semibold text-gray-700 text-center mb-2">Aadhaar</p>
                   {row.aadharImage ? (
-                    <img src={row.aadharImage} alt="Aadhaar" className="h-14 w-full object-cover rounded" />
+                    <img src={row.aadharImage} alt="Aadhaar" className="h-24 w-full object-cover rounded" />
                   ) : (
-                    <p className="text-[10px] text-gray-400 text-center py-4">Not uploaded</p>
+                    <p className="text-xs text-gray-400 text-center py-8">Not uploaded</p>
                   )}
                 </div>
-                <div className="border rounded p-1 bg-gray-50">
-                  <p className="text-[10px] text-gray-600 text-center mb-1">PAN</p>
+                <div className="border rounded-lg p-2 bg-gray-50">
+                  <p className="text-xs font-semibold text-gray-700 text-center mb-2">PAN</p>
                   {row.panImage ? (
-                    <img src={row.panImage} alt="PAN" className="h-14 w-full object-cover rounded" />
+                    <img src={row.panImage} alt="PAN" className="h-24 w-full object-cover rounded" />
                   ) : (
-                    <p className="text-[10px] text-gray-400 text-center py-4">Not uploaded</p>
+                    <p className="text-xs text-gray-400 text-center py-8">Not uploaded</p>
                   )}
                 </div>
-                <div className="border rounded p-1 bg-gray-50">
-                  <p className="text-[10px] text-gray-600 text-center mb-1">Selfie</p>
+                <div className="border rounded-lg p-2 bg-gray-50">
+                  <p className="text-xs font-semibold text-gray-700 text-center mb-2">Selfie</p>
                   {row.selfieImage ? (
-                    <img src={row.selfieImage} alt="Selfie" className="h-14 w-full object-cover rounded" />
+                    <img src={row.selfieImage} alt="Selfie" className="h-24 w-full object-cover rounded" />
                   ) : (
-                    <p className="text-[10px] text-gray-400 text-center py-4">Not uploaded</p>
+                    <p className="text-xs text-gray-400 text-center py-8">Not uploaded</p>
                   )}
                 </div>
               </div>
