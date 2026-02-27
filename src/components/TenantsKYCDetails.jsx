@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
+import Tesseract from 'tesseract.js';
 
 const getStatusBadge = (status) => {
   const normalized = String(status || 'not_uploaded').toLowerCase();
@@ -61,6 +62,81 @@ const TenantsKYCDetails = () => {
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState(null);
   const { viewMode, setViewMode, isCardView } = useResponsiveViewMode('tenants-kyc-view-mode', 'table');
+  const [ocrRechecking, setOcrRechecking] = useState(false);
+
+  const normalizeDocText = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalizeAadhar = (value) => String(value || '').replace(/\D/g, '').slice(0, 12);
+  const normalizePan = (value) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const extractAadharNumberFromText = (text) => {
+    const dense = String(text || '').replace(/\s+/g, ' ');
+    const grouped = dense.match(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/);
+    if (grouped?.[0]) return normalizeAadhar(grouped[0]);
+    const plain = dense.match(/\b\d{12}\b/);
+    if (plain?.[0]) return normalizeAadhar(plain[0]);
+    return '';
+  };
+
+  const extractPanFromText = (text) => {
+    const match = String(text || '').toUpperCase().match(/\b[A-Z]{5}[0-9]{4}[A-Z]\b/);
+    return match?.[0] ? normalizePan(match[0]) : '';
+  };
+
+  const getExpectedNameTokens = (row) => {
+    const profileName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
+    const sourceName = profileName || String(row.name || '').trim();
+    return sourceName
+      .toLowerCase()
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2);
+  };
+
+  const runDocOcr = async (docType, imageDataUrl, row) => {
+    if (!imageDataUrl) {
+      return {
+        status: 'not_uploaded',
+        reason: 'Document image not uploaded.',
+        extractedNumber: '',
+        nameMatched: false,
+        confidence: 0
+      };
+    }
+
+    try {
+      const ocrResult = await Tesseract.recognize(imageDataUrl, 'eng');
+      const rawText = String(ocrResult?.data?.text || '');
+      const confidence = Number(ocrResult?.data?.confidence || 0);
+      const normalizedText = normalizeDocText(rawText);
+      const expectedTokens = getExpectedNameTokens(row);
+      const nameMatched = expectedTokens.length === 0 || expectedTokens.every((token) => normalizedText.includes(token));
+
+      const extractedNumber = docType === 'aadhar'
+        ? extractAadharNumberFromText(rawText)
+        : extractPanFromText(rawText);
+
+      let status = 'verified';
+      let reason = 'Document verified successfully.';
+
+      if (!extractedNumber) {
+        status = 'number_not_found';
+        reason = `${docType === 'aadhar' ? 'Aadhaar' : 'PAN'} number not detected in document.`;
+      } else if (!nameMatched) {
+        status = 'name_mismatch';
+        reason = 'Uploaded document name does not match tenant profile name.';
+      }
+
+      return { status, reason, extractedNumber, nameMatched, confidence };
+    } catch (error) {
+      return {
+        status: 'error',
+        reason: 'OCR failed. Please upload a clear image.',
+        extractedNumber: '',
+        nameMatched: false,
+        confidence: 0
+      };
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -164,6 +240,67 @@ const TenantsKYCDetails = () => {
     return { aadharVerified, panVerified, aadharMismatched, panMismatched };
   }, [filteredRows]);
 
+  const runOcrRecheckForFiltered = async () => {
+    const candidates = filteredRows.filter((row) => row.aadharImage || row.panImage);
+    if (candidates.length === 0) {
+      alert('No uploaded Aadhaar/PAN documents found in current filter.');
+      return;
+    }
+
+    setOcrRechecking(true);
+    try {
+      for (const row of candidates) {
+        let updatePayload = {
+          updatedAt: new Date().toISOString()
+        };
+
+        if (row.aadharImage) {
+          const aadhar = await runDocOcr('aadhar', row.aadharImage, row);
+          updatePayload = {
+            ...updatePayload,
+            aadharDocStatus: aadhar.status,
+            aadharDocReason: aadhar.reason,
+            aadharNameMatched: !!aadhar.nameMatched,
+            aadharExtractedNumber: aadhar.extractedNumber || '',
+            aadharDocConfidence: aadhar.confidence || 0,
+            aadharNumber: aadhar.extractedNumber || row.aadharNumber || ''
+          };
+        }
+
+        if (row.panImage) {
+          const pan = await runDocOcr('pan', row.panImage, row);
+          updatePayload = {
+            ...updatePayload,
+            panDocStatus: pan.status,
+            panDocReason: pan.reason,
+            panNameMatched: !!pan.nameMatched,
+            panExtractedNumber: pan.extractedNumber || '',
+            panDocConfidence: pan.confidence || 0,
+            panNumber: pan.extractedNumber || row.panNumber || ''
+          };
+        }
+
+        await setDoc(doc(db, 'tenantProfiles', row.id), updatePayload, { merge: true });
+      }
+
+      const tenantsSnapshot = await getDocs(query(collection(db, 'tenants'), orderBy('createdAt', 'desc')));
+      const tenantsData = tenantsSnapshot.docs.map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }));
+      const profilesSnapshot = await getDocs(collection(db, 'tenantProfiles'));
+      const profileMap = {};
+      profilesSnapshot.forEach((snapshot) => {
+        profileMap[snapshot.id] = snapshot.data() || {};
+      });
+      setTenants(tenantsData);
+      setProfilesByTenantId(profileMap);
+      alert('OCR analysis completed and KYC records updated.');
+    } catch (error) {
+      console.error('Failed to run OCR recheck:', error);
+      alert('Failed to run OCR recheck. Please try again.');
+    } finally {
+      setOcrRechecking(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-4 lg:p-8">
@@ -234,6 +371,13 @@ const TenantsKYCDetails = () => {
             className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${viewMode === 'card' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
           >
             Card View
+          </button>
+          <button
+            onClick={runOcrRecheckForFiltered}
+            disabled={ocrRechecking}
+            className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-60"
+          >
+            {ocrRechecking ? 'Analyzing OCR...' : '🔎 Run OCR Analysis'}
           </button>
         </div>
       </div>
