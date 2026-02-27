@@ -768,7 +768,16 @@ const TenantPortal = () => {
     setStartingDigiLockerKyc(true);
     setDigiLockerError('');
     try {
-      const response = await fetch(initiateUrl, { method: 'GET' });
+      // Add cache-busting timestamp to prevent cached 500 errors
+      const cacheBustedUrl = `${initiateUrl}${initiateUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
+      const response = await fetch(cacheBustedUrl, { 
+        method: 'GET',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       const payload = await response.json().catch(() => ({}));
       const payloadData = payload?.data || {};
       const authorizationUrl = payload?.authorizationUrl || payloadData?.authorizationUrl;
@@ -844,8 +853,11 @@ const TenantPortal = () => {
       try {
         const response = await fetch(callbackUrl, {
           method: 'POST',
+          cache: 'no-store',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
           },
           body: JSON.stringify({
             tenantId: pending.tenantId,
