@@ -79,21 +79,35 @@ const TenantPortal = () => {
     lastName: '',
     phoneNumber: '',
     occupation: '',
+    // Aadhaar (Required - both sides)
+    aadharFrontImage: '',
+    aadharBackImage: '',
     aadharNumber: '',
-    panNumber: '',
-    aadharImage: '',
-    panImage: '',
-    selfieImage: '',
-    aadharDocStatus: 'not_uploaded',
-    panDocStatus: 'not_uploaded',
-    aadharDocReason: '',
-    panDocReason: '',
-    aadharNameMatched: false,
-    panNameMatched: false,
     aadharExtractedNumber: '',
-    panExtractedNumber: '',
+    aadharDocStatus: 'not_uploaded',
+    aadharDocReason: '',
+    aadharNameMatched: false,
     aadharDocConfidence: 0,
+    // Secondary ID (PAN or DL - user selects)
+    secondaryIdType: 'PAN', // 'PAN' or 'DL'
+    secondaryIdNumber: '', // Manual entry
+    // PAN fields
+    panImage: '',
+    panExtractedNumber: '',
+    panDocStatus: 'not_uploaded',
+    panDocReason: '',
+    panNameMatched: false,
     panDocConfidence: 0,
+    // DL fields
+    dlImage: '',
+    dlNumber: '',
+    dlExtractedNumber: '',
+    dlDocStatus: 'not_uploaded',
+    dlDocReason: '',
+    dlNameMatched: false,
+    dlDocConfidence: 0,
+    // Other
+    selfieImage: '',
     agreementAccepted: false,
     agreementSignature: '',
     agreementSignedAt: null
@@ -105,10 +119,14 @@ const TenantPortal = () => {
   const [isSigning, setIsSigning] = useState(false);
   
   // Camera capture refs
-  const aadharFileInputRef = useRef(null);
-  const aadharCameraInputRef = useRef(null);
+  const aadharFrontFileInputRef = useRef(null);
+  const aadharFrontCameraInputRef = useRef(null);
+  const aadharBackFileInputRef = useRef(null);
+  const aadharBackCameraInputRef = useRef(null);
   const panFileInputRef = useRef(null);
   const panCameraInputRef = useRef(null);
+  const dlFileInputRef = useRef(null);
+  const dlCameraInputRef = useRef(null);
   const selfieFileInputRef = useRef(null);
   const selfieCameraInputRef = useRef(null);
   
@@ -176,6 +194,7 @@ const TenantPortal = () => {
   const normalizeDocText = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
   const normalizeAadhar = (value) => String(value || '').replace(/\D/g, '').slice(0, 12);
   const normalizePan = (value) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const normalizeDl = (value) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   const getExpectedNameTokens = () => {
     const fromProfile = `${tenantProfile.firstName || ''} ${tenantProfile.lastName || ''}`.trim();
@@ -202,6 +221,13 @@ const TenantPortal = () => {
     return match?.[0] ? normalizePan(match[0]) : '';
   };
 
+  const extractDlFromText = (text) => {
+    const raw = String(text || '').toUpperCase().replace(/[^A-Z0-9\s-]/g, ' ');
+    const compact = raw.replace(/[\s-]/g, '');
+    const dlMatch = compact.match(/[A-Z]{2}[0-9]{2}[0-9A-Z]{9,13}/);
+    return dlMatch?.[0] ? normalizeDl(dlMatch[0]) : '';
+  };
+
   const applyDocVerificationToProfile = (profile, docType, verificationResult) => {
     const next = { ...profile };
     if (docType === 'aadhar') {
@@ -226,6 +252,17 @@ const TenantPortal = () => {
       }
     }
 
+    if (docType === 'dl') {
+      next.dlDocStatus = verificationResult.status;
+      next.dlDocReason = verificationResult.reason;
+      next.dlNameMatched = !!verificationResult.nameMatched;
+      next.dlExtractedNumber = verificationResult.extractedNumber || '';
+      next.dlDocConfidence = verificationResult.confidence || 0;
+      if (verificationResult.extractedNumber) {
+        next.dlNumber = verificationResult.extractedNumber;
+      }
+    }
+
     return next;
   };
 
@@ -243,6 +280,7 @@ const TenantPortal = () => {
     if (options.updateState) {
       setTenantProfile((prev) => {
         if (docType === 'aadhar') return { ...prev, aadharDocStatus: 'checking', aadharDocReason: 'Checking OCR...' };
+        if (docType === 'dl') return { ...prev, dlDocStatus: 'checking', dlDocReason: 'Checking OCR...' };
         return { ...prev, panDocStatus: 'checking', panDocReason: 'Checking OCR...' };
       });
     }
@@ -257,14 +295,25 @@ const TenantPortal = () => {
 
       const extractedNumber = docType === 'aadhar'
         ? extractAadharNumberFromText(rawText)
-        : extractPanFromText(rawText);
+        : docType === 'pan'
+          ? extractPanFromText(rawText)
+          : extractDlFromText(rawText);
+
+      const expectedNumber = docType === 'pan'
+        ? normalizePan(tenantProfile.secondaryIdNumber)
+        : docType === 'dl'
+          ? normalizeDl(tenantProfile.secondaryIdNumber)
+          : normalizeAadhar(tenantProfile.aadharNumber);
 
       let status = 'verified';
       let reason = 'Document verified successfully.';
 
       if (!extractedNumber) {
         status = 'number_not_found';
-        reason = `${docType === 'aadhar' ? 'Aadhaar' : 'PAN'} number not detected in document.`;
+        reason = `${docType === 'aadhar' ? 'Aadhaar' : docType === 'pan' ? 'PAN' : 'Driving License'} number not detected in document.`;
+      } else if ((docType === 'pan' || docType === 'dl') && expectedNumber && expectedNumber !== extractedNumber) {
+        status = 'number_mismatch';
+        reason = 'Uploaded document number does not match the manually entered ID number.';
       } else if (!nameMatched) {
         status = 'name_mismatch';
         reason = 'Uploaded document name does not match tenant profile name.';
@@ -377,14 +426,22 @@ const TenantPortal = () => {
     const step1_occupation = !!tenantProfile.occupation;
     const step1Complete = step1_firstName && step1_lastName && step1_phoneNumber && step1_occupation;
     
-    // Step 2: Document Upload + OCR (flexible - at least one ID document required)
-    const step2_aadharUploaded = !!tenantProfile.aadharImage;
-    const step2_aadharVerified = tenantProfile.aadharDocStatus === 'verified' && !!tenantProfile.aadharExtractedNumber;
-    const step2_panUploaded = !!tenantProfile.panImage;
-    const step2_panVerified = tenantProfile.panDocStatus === 'verified' && !!tenantProfile.panExtractedNumber;
+    // Step 2: Document Upload (Aadhaar both sides + Secondary ID + Selfie)
+    const step2_aadharFrontUploaded = !!tenantProfile.aadharFrontImage;
+    const step2_aadharBackUploaded = !!tenantProfile.aadharBackImage;
+    const step2_aadharComplete = step2_aadharFrontUploaded && step2_aadharBackUploaded;
+    
+    const step2_secondaryIdNumber = !!tenantProfile.secondaryIdNumber;
+    const step2_secondaryIdUploaded = tenantProfile.secondaryIdType === 'PAN' 
+      ? !!tenantProfile.panImage 
+      : !!tenantProfile.dlImage;
+    const step2_secondaryIdComplete = step2_secondaryIdNumber && step2_secondaryIdUploaded;
+    
     const step2_selfieUploaded = !!tenantProfile.selfieImage;
-    // Complete if: (at least one ID verified) AND selfie uploaded
-    const step2Complete = (step2_aadharVerified || step2_panVerified) && step2_selfieUploaded;
+    
+    // Complete if: Aadhaar (both) + Secondary ID (number + image) + Selfie
+    const step2Complete = step2_aadharComplete && step2_secondaryIdComplete && step2_selfieUploaded;
+    const step2Partial = step2_aadharFrontUploaded || step2_aadharBackUploaded || step2_secondaryIdUploaded || step2_selfieUploaded;
     
     // Step 3: DigiLocker Verification
     const kycData = tenant?.kyc || {};
@@ -402,10 +459,16 @@ const TenantPortal = () => {
       },
       step2: {
         complete: step2Complete,
-        items: { aadharVerified: step2_aadharVerified, panVerified: step2_panVerified, selfie: step2_selfieUploaded },
-        partial: (step2_aadharUploaded || step2_panUploaded || step2_selfieUploaded),
+        items: {
+          aadharFront: step2_aadharFrontUploaded,
+          aadharBack: step2_aadharBackUploaded,
+          secondaryId: step2_secondaryIdUploaded,
+          secondaryIdNumber: step2_secondaryIdNumber,
+          selfie: step2_selfieUploaded
+        },
+        partial: step2Partial,
         label: 'Step 2: Upload & Verify Documents',
-        description: 'Upload ID (Aadhaar/DL), PAN, Selfie (OCR verification)'
+        description: 'Upload Aadhaar front/back + PAN or DL with number'
       },
       step3: {
         complete: step3Complete,
@@ -428,15 +491,21 @@ const TenantPortal = () => {
   };
 
   const getProfileCompletion = () => {
-    const aadharVerified = tenantProfile.aadharDocStatus === 'verified' && !!tenantProfile.aadharExtractedNumber && !!tenantProfile.aadharImage;
+    const aadharVerified = tenantProfile.aadharDocStatus === 'verified' && !!tenantProfile.aadharExtractedNumber && !!tenantProfile.aadharFrontImage;
     const panVerified = tenantProfile.panDocStatus === 'verified' && !!tenantProfile.panExtractedNumber && !!tenantProfile.panImage;
+    const dlVerified = tenantProfile.dlDocStatus === 'verified' && !!tenantProfile.dlExtractedNumber && !!tenantProfile.dlImage;
+    const secondaryIdVerified = tenantProfile.secondaryIdType === 'PAN' ? panVerified : dlVerified;
     const checklist = [
       !!tenantProfile.firstName,
       !!tenantProfile.lastName,
       !!tenantProfile.phoneNumber,
       !!tenantProfile.occupation,
+      !!tenantProfile.aadharFrontImage,
+      !!tenantProfile.aadharBackImage,
       aadharVerified,
-      panVerified,
+      (tenantProfile.secondaryIdType === 'PAN' ? !!tenantProfile.panImage : !!tenantProfile.dlImage),
+      !!tenantProfile.secondaryIdNumber,
+      secondaryIdVerified,
       !!tenantProfile.selfieImage,
       !!tenantProfile.agreementAccepted,
       !!tenantProfile.agreementSignature
@@ -454,10 +523,25 @@ const TenantPortal = () => {
       [field]: value,
       ...(field === 'firstName' || field === 'lastName'
         ? {
-            aadharDocStatus: prev.aadharImage ? 'recheck_needed' : prev.aadharDocStatus,
+            aadharDocStatus: prev.aadharFrontImage ? 'recheck_needed' : prev.aadharDocStatus,
             panDocStatus: prev.panImage ? 'recheck_needed' : prev.panDocStatus,
-            aadharDocReason: prev.aadharImage ? 'Name changed. Please re-upload/recheck Aadhaar.' : prev.aadharDocReason,
-            panDocReason: prev.panImage ? 'Name changed. Please re-upload/recheck PAN.' : prev.panDocReason
+            dlDocStatus: prev.dlImage ? 'recheck_needed' : prev.dlDocStatus,
+            aadharDocReason: prev.aadharFrontImage ? 'Name changed. Please re-upload/recheck Aadhaar.' : prev.aadharDocReason,
+            panDocReason: prev.panImage ? 'Name changed. Please re-upload/recheck PAN.' : prev.panDocReason,
+            dlDocReason: prev.dlImage ? 'Name changed. Please re-upload/recheck DL.' : prev.dlDocReason
+          }
+        : {}),
+      ...(field === 'secondaryIdType'
+        ? {
+            secondaryIdNumber: '',
+            panImage: value === 'PAN' ? prev.panImage : '',
+            panDocStatus: value === 'PAN' ? prev.panDocStatus : 'not_uploaded',
+            panDocReason: value === 'PAN' ? prev.panDocReason : '',
+            panExtractedNumber: value === 'PAN' ? prev.panExtractedNumber : '',
+            dlImage: value === 'DL' ? prev.dlImage : '',
+            dlDocStatus: value === 'DL' ? prev.dlDocStatus : 'not_uploaded',
+            dlDocReason: value === 'DL' ? prev.dlDocReason : '',
+            dlExtractedNumber: value === 'DL' ? prev.dlExtractedNumber : ''
           }
         : {})
     }));
@@ -475,13 +559,18 @@ const TenantPortal = () => {
       setTenantProfile((prev) => ({
         ...prev,
         [field]: dataUrl,
-        ...(field === 'aadharImage'
+        ...(field === 'aadharFrontImage'
           ? {
               aadharDocStatus: 'checking',
-              aadharDocReason: 'Checking OCR...',
+              aadharDocReason: 'Checking Aadhaar front OCR...',
               aadharExtractedNumber: '',
               aadharNameMatched: false,
               aadharDocConfidence: 0
+            }
+          : {}),
+        ...(field === 'aadharBackImage'
+          ? {
+              aadharDocReason: 'Aadhaar back uploaded.'
             }
           : {}),
         ...(field === 'panImage'
@@ -492,14 +581,26 @@ const TenantPortal = () => {
               panNameMatched: false,
               panDocConfidence: 0
             }
+          : {}),
+        ...(field === 'dlImage'
+          ? {
+              dlDocStatus: 'checking',
+              dlDocReason: 'Checking OCR...',
+              dlExtractedNumber: '',
+              dlNameMatched: false,
+              dlDocConfidence: 0
+            }
           : {})
       }));
 
-      if (field === 'aadharImage') {
-        await verifyKycDocument('aadhar', nextProfile.aadharImage, { updateState: true });
+      if (field === 'aadharFrontImage') {
+        await verifyKycDocument('aadhar', nextProfile.aadharFrontImage, { updateState: true });
       }
       if (field === 'panImage') {
         await verifyKycDocument('pan', nextProfile.panImage, { updateState: true });
+      }
+      if (field === 'dlImage') {
+        await verifyKycDocument('dl', nextProfile.dlImage, { updateState: true });
       }
     } catch (fileError) {
       console.error('Profile file read error:', fileError);
@@ -527,20 +628,29 @@ const TenantPortal = () => {
         phoneNumber: profileData.phoneNumber || tenantData.phone || '',
         occupation: profileData.occupation || '',
         aadharNumber: profileData.aadharNumber || (kycData.aadhaar?.aadhaarNumber || ''),
-        panNumber: profileData.panNumber || '',
-        aadharImage: profileData.aadharImage || '',
+        aadharFrontImage: profileData.aadharFrontImage || profileData.aadharImage || '',
+        aadharBackImage: profileData.aadharBackImage || '',
+        secondaryIdType: profileData.secondaryIdType || 'PAN',
+        secondaryIdNumber: profileData.secondaryIdNumber || '',
         panImage: profileData.panImage || '',
+        dlImage: profileData.dlImage || '',
+        dlNumber: profileData.dlNumber || '',
         selfieImage: profileData.selfieImage || '',
-        aadharDocStatus: hasDigiLockerData && kycData.aadhaar ? 'verified' : (profileData.aadharDocStatus || (profileData.aadharImage ? 'recheck_needed' : 'not_uploaded')),
+        aadharDocStatus: hasDigiLockerData && kycData.aadhaar ? 'verified' : (profileData.aadharDocStatus || (profileData.aadharFrontImage || profileData.aadharImage ? 'recheck_needed' : 'not_uploaded')),
         panDocStatus: profileData.panDocStatus || (profileData.panImage ? 'recheck_needed' : 'not_uploaded'),
+        dlDocStatus: profileData.dlDocStatus || (profileData.dlImage ? 'recheck_needed' : 'not_uploaded'),
         aadharDocReason: hasDigiLockerData && kycData.aadhaar ? 'Verified via DigiLocker' : (profileData.aadharDocReason || ''),
         panDocReason: profileData.panDocReason || '',
+        dlDocReason: profileData.dlDocReason || '',
         aadharNameMatched: hasDigiLockerData ? true : !!profileData.aadharNameMatched,
         panNameMatched: !!profileData.panNameMatched,
+        dlNameMatched: !!profileData.dlNameMatched,
         aadharExtractedNumber: kycData.aadhaar?.aadhaarNumber || profileData.aadharExtractedNumber || profileData.aadharNumber || '',
         panExtractedNumber: profileData.panExtractedNumber || profileData.panNumber || '',
+        dlExtractedNumber: profileData.dlExtractedNumber || profileData.dlNumber || '',
         aadharDocConfidence: hasDigiLockerData ? 100 : Number(profileData.aadharDocConfidence || 0),
         panDocConfidence: Number(profileData.panDocConfidence || 0),
+        dlDocConfidence: Number(profileData.dlDocConfidence || 0),
         agreementAccepted: !!profileData.agreementAccepted,
         agreementSignature: profileData.agreementSignature || '',
         agreementSignedAt: profileData.agreementSignedAt || null
@@ -563,14 +673,19 @@ const TenantPortal = () => {
     try {
       let profileForSave = { ...tenantProfile };
 
-      if (profileForSave.aadharImage && profileForSave.aadharDocStatus !== 'verified') {
-        const aadharResult = await verifyKycDocument('aadhar', profileForSave.aadharImage, { updateState: false });
+      if (profileForSave.aadharFrontImage && profileForSave.aadharDocStatus !== 'verified') {
+        const aadharResult = await verifyKycDocument('aadhar', profileForSave.aadharFrontImage, { updateState: false });
         profileForSave = applyDocVerificationToProfile(profileForSave, 'aadhar', aadharResult);
       }
 
-      if (profileForSave.panImage && profileForSave.panDocStatus !== 'verified') {
+      if (profileForSave.secondaryIdType === 'PAN' && profileForSave.panImage && profileForSave.panDocStatus !== 'verified') {
         const panResult = await verifyKycDocument('pan', profileForSave.panImage, { updateState: false });
         profileForSave = applyDocVerificationToProfile(profileForSave, 'pan', panResult);
+      }
+
+      if (profileForSave.secondaryIdType === 'DL' && profileForSave.dlImage && profileForSave.dlDocStatus !== 'verified') {
+        const dlResult = await verifyKycDocument('dl', profileForSave.dlImage, { updateState: false });
+        profileForSave = applyDocVerificationToProfile(profileForSave, 'dl', dlResult);
       }
 
       setTenantProfile(profileForSave);
@@ -582,6 +697,7 @@ const TenantPortal = () => {
         fullName: `${profileForSave.firstName} ${profileForSave.lastName}`.trim(),
         aadharNumber: profileForSave.aadharExtractedNumber || profileForSave.aadharNumber || '',
         panNumber: profileForSave.panExtractedNumber || profileForSave.panNumber || '',
+        dlNumber: profileForSave.dlExtractedNumber || profileForSave.dlNumber || '',
         updatedAt: new Date().toISOString()
       };
 
@@ -596,8 +712,9 @@ const TenantPortal = () => {
   };
 
   const runKycOcrAnalysis = async () => {
-    if (!tenantProfile.aadharImage && !tenantProfile.panImage) {
-      alert('Please upload Aadhaar or PAN image first.');
+    const secondaryImage = tenantProfile.secondaryIdType === 'PAN' ? tenantProfile.panImage : tenantProfile.dlImage;
+    if (!tenantProfile.aadharFrontImage && !secondaryImage) {
+      alert('Please upload Aadhaar front or selected secondary ID image first.');
       return;
     }
 
@@ -605,14 +722,19 @@ const TenantPortal = () => {
     try {
       let profileForAnalysis = { ...tenantProfile };
 
-      if (profileForAnalysis.aadharImage) {
-        const aadharResult = await verifyKycDocument('aadhar', profileForAnalysis.aadharImage, { updateState: false });
+      if (profileForAnalysis.aadharFrontImage) {
+        const aadharResult = await verifyKycDocument('aadhar', profileForAnalysis.aadharFrontImage, { updateState: false });
         profileForAnalysis = applyDocVerificationToProfile(profileForAnalysis, 'aadhar', aadharResult);
       }
 
-      if (profileForAnalysis.panImage) {
+      if (profileForAnalysis.secondaryIdType === 'PAN' && profileForAnalysis.panImage) {
         const panResult = await verifyKycDocument('pan', profileForAnalysis.panImage, { updateState: false });
         profileForAnalysis = applyDocVerificationToProfile(profileForAnalysis, 'pan', panResult);
+      }
+
+      if (profileForAnalysis.secondaryIdType === 'DL' && profileForAnalysis.dlImage) {
+        const dlResult = await verifyKycDocument('dl', profileForAnalysis.dlImage, { updateState: false });
+        profileForAnalysis = applyDocVerificationToProfile(profileForAnalysis, 'dl', dlResult);
       }
 
       setTenantProfile(profileForAnalysis);
@@ -621,16 +743,22 @@ const TenantPortal = () => {
         await setDoc(doc(db, 'tenantProfiles', tenant.id), {
           aadharDocStatus: profileForAnalysis.aadharDocStatus,
           panDocStatus: profileForAnalysis.panDocStatus,
+          dlDocStatus: profileForAnalysis.dlDocStatus,
           aadharDocReason: profileForAnalysis.aadharDocReason,
           panDocReason: profileForAnalysis.panDocReason,
+          dlDocReason: profileForAnalysis.dlDocReason,
           aadharNameMatched: profileForAnalysis.aadharNameMatched,
           panNameMatched: profileForAnalysis.panNameMatched,
+          dlNameMatched: profileForAnalysis.dlNameMatched,
           aadharExtractedNumber: profileForAnalysis.aadharExtractedNumber,
           panExtractedNumber: profileForAnalysis.panExtractedNumber,
+          dlExtractedNumber: profileForAnalysis.dlExtractedNumber,
           aadharNumber: profileForAnalysis.aadharExtractedNumber || profileForAnalysis.aadharNumber || '',
           panNumber: profileForAnalysis.panExtractedNumber || profileForAnalysis.panNumber || '',
+          dlNumber: profileForAnalysis.dlExtractedNumber || profileForAnalysis.dlNumber || '',
           aadharDocConfidence: profileForAnalysis.aadharDocConfidence || 0,
           panDocConfidence: profileForAnalysis.panDocConfidence || 0,
+          dlDocConfidence: profileForAnalysis.dlDocConfidence || 0,
           updatedAt: new Date().toISOString()
         }, { merge: true });
       }
@@ -1558,21 +1686,31 @@ const TenantPortal = () => {
       lastName: '',
       phoneNumber: '',
       occupation: '',
+      aadharFrontImage: '',
+      aadharBackImage: '',
       aadharNumber: '',
+      secondaryIdType: 'PAN',
+      secondaryIdNumber: '',
       panNumber: '',
-      aadharImage: '',
       panImage: '',
+      dlImage: '',
+      dlNumber: '',
       selfieImage: '',
       aadharDocStatus: 'not_uploaded',
       panDocStatus: 'not_uploaded',
+      dlDocStatus: 'not_uploaded',
       aadharDocReason: '',
       panDocReason: '',
+      dlDocReason: '',
       aadharNameMatched: false,
       panNameMatched: false,
+      dlNameMatched: false,
       aadharExtractedNumber: '',
       panExtractedNumber: '',
+      dlExtractedNumber: '',
       aadharDocConfidence: 0,
       panDocConfidence: 0,
+      dlDocConfidence: 0,
       agreementAccepted: false,
       agreementSignature: '',
       agreementSignedAt: null
@@ -2833,241 +2971,286 @@ const TenantPortal = () => {
                       <div className="space-y-4">
                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-4 mb-4">
                           <h3 className="text-lg font-bold text-green-900 mb-2">📄 Step 2: Upload Documents</h3>
-                          <p className="text-sm text-green-700 mb-2">Upload at least one ID proof (Aadhaar/Driving License/PAN) and your selfie. OCR will extract details automatically.</p>
-                          <p className="text-xs text-green-600">💡 Tip: You can upload Driving License instead of Aadhaar. PAN is optional.</p>
+                          <p className="text-sm text-green-700 mb-1">Aadhaar front + Aadhaar back mandatory hai.</p>
+                          <p className="text-sm text-green-700">Uske baad PAN ya Driving License me se ek select karke upload karein aur number manually fill karein.</p>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                          {/* ID Document Upload Card (Aadhaar/Driving License) */}
-                          <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className="text-2xl">🪪</span>
-                          <label className="block text-sm font-bold text-gray-800">ID Card</label>
-                          <span className="text-[10px] text-gray-500">(Aadhaar/DL)</span>
-                        </div>
-                        
-                        <div className="space-y-2 mb-3">
-                          {/* File Upload Button */}
-                          <input
-                            ref={aadharFileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleProfileFileChange('aadharImage', e.target.files?.[0])}
-                            className="hidden"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => aadharFileInputRef.current?.click()}
-                            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
-                          >
-                            <span>📁</span>
-                            <span>Choose File</span>
-                          </button>
-                          
-                          {/* Camera Capture Button */}
-                          <input
-                            ref={aadharCameraInputRef}
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={(e) => handleProfileFileChange('aadharImage', e.target.files?.[0])}
-                            className="hidden"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => aadharCameraInputRef.current?.click()}
-                            className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
-                          >
-                            <span>📸</span>
-                            <span>Take Photo</span>
-                          </button>
-                        </div>
-                        
-                        {tenantProfile.aadharImage && (
-                          <div className="mb-3">
-                            <img src={tenantProfile.aadharImage} alt="Aadhaar" className="w-full h-28 object-cover rounded-lg border-2 border-gray-300" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                          <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-2xl">🪪</span>
+                              <label className="block text-sm font-bold text-gray-800">Aadhaar Front (Required)</label>
+                            </div>
+                            <div className="space-y-2 mb-3">
+                              <input
+                                ref={aadharFrontFileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleProfileFileChange('aadharFrontImage', e.target.files?.[0])}
+                                className="hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => aadharFrontFileInputRef.current?.click()}
+                                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
+                              >
+                                📁 Choose Front Image
+                              </button>
+
+                              <input
+                                ref={aadharFrontCameraInputRef}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={(e) => handleProfileFileChange('aadharFrontImage', e.target.files?.[0])}
+                                className="hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => aadharFrontCameraInputRef.current?.click()}
+                                className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
+                              >
+                                📸 Take Front Photo
+                              </button>
+                            </div>
+
+                            {tenantProfile.aadharFrontImage && (
+                              <img src={tenantProfile.aadharFrontImage} alt="Aadhaar Front" className="w-full h-28 object-cover rounded-lg border-2 border-gray-300 mb-3" />
+                            )}
+
+                            <p className="text-xs font-bold text-gray-700">
+                              {tenantProfile.aadharFrontImage ? '✅ Front Uploaded' : '⏺️ Front Not Uploaded'}
+                            </p>
                           </div>
-                        )}
-                        
-                        <div className={`rounded-lg p-2 text-center ${
-                          tenantProfile.aadharDocStatus === 'verified' ? 'bg-green-50 border border-green-200' : 
-                          tenantProfile.aadharDocStatus === 'checking' ? 'bg-blue-50 border border-blue-200' : 
-                          'bg-gray-50 border border-gray-200'
-                        }`}>
-                          <p className={`text-xs font-bold ${
-                            tenantProfile.aadharDocStatus === 'verified' ? 'text-green-700' : 
-                            tenantProfile.aadharDocStatus === 'checking' ? 'text-blue-700' : 
-                            'text-gray-600'
-                          }`}>
-                            {tenantProfile.aadharDocStatus === 'verified' ? '✅ Verified' : 
-                             tenantProfile.aadharDocStatus === 'checking' ? '⏳ Checking...' : 
-                             tenantProfile.aadharDocStatus === 'recheck_needed' ? '⚠️ Recheck' : 
-                             '⏺️ Not Uploaded'}
+
+                          <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-2xl">🪪</span>
+                              <label className="block text-sm font-bold text-gray-800">Aadhaar Back (Required)</label>
+                            </div>
+                            <div className="space-y-2 mb-3">
+                              <input
+                                ref={aadharBackFileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleProfileFileChange('aadharBackImage', e.target.files?.[0])}
+                                className="hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => aadharBackFileInputRef.current?.click()}
+                                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
+                              >
+                                📁 Choose Back Image
+                              </button>
+
+                              <input
+                                ref={aadharBackCameraInputRef}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={(e) => handleProfileFileChange('aadharBackImage', e.target.files?.[0])}
+                                className="hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => aadharBackCameraInputRef.current?.click()}
+                                className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
+                              >
+                                📸 Take Back Photo
+                              </button>
+                            </div>
+
+                            {tenantProfile.aadharBackImage && (
+                              <img src={tenantProfile.aadharBackImage} alt="Aadhaar Back" className="w-full h-28 object-cover rounded-lg border-2 border-gray-300 mb-3" />
+                            )}
+
+                            <p className="text-xs font-bold text-gray-700">
+                              {tenantProfile.aadharBackImage ? '✅ Back Uploaded' : '⏺️ Back Not Uploaded'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm mb-4">
+                          <h4 className="text-sm font-bold text-gray-800 mb-3">🧾 Secondary ID (Choose One)</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 mb-1">Select ID Type</label>
+                              <select
+                                value={tenantProfile.secondaryIdType}
+                                onChange={(e) => handleProfileChange('secondaryIdType', e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              >
+                                <option value="PAN">PAN Card</option>
+                                <option value="DL">Driving License</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                {tenantProfile.secondaryIdType === 'PAN' ? 'PAN Number' : 'Driving License Number'}
+                              </label>
+                              <input
+                                type="text"
+                                value={tenantProfile.secondaryIdNumber}
+                                onChange={(e) => handleProfileChange('secondaryIdNumber', e.target.value.toUpperCase())}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm uppercase"
+                                placeholder={tenantProfile.secondaryIdType === 'PAN' ? 'Enter PAN number' : 'Enter DL number'}
+                              />
+                              <p className="text-[11px] text-gray-500 mt-1">Manual number OCR se match kiya jayega.</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 mb-3">
+                            {tenantProfile.secondaryIdType === 'PAN' ? (
+                              <>
+                                <input
+                                  ref={panFileInputRef}
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => handleProfileFileChange('panImage', e.target.files?.[0])}
+                                  className="hidden"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => panFileInputRef.current?.click()}
+                                  className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
+                                >
+                                  📁 Upload PAN
+                                </button>
+                                <input
+                                  ref={panCameraInputRef}
+                                  type="file"
+                                  accept="image/*"
+                                  capture="environment"
+                                  onChange={(e) => handleProfileFileChange('panImage', e.target.files?.[0])}
+                                  className="hidden"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => panCameraInputRef.current?.click()}
+                                  className="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
+                                >
+                                  📸 Capture PAN
+                                </button>
+                                {tenantProfile.panImage && (
+                                  <img src={tenantProfile.panImage} alt="PAN" className="w-full sm:w-64 h-28 object-cover rounded-lg border-2 border-gray-300" />
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <input
+                                  ref={dlFileInputRef}
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => handleProfileFileChange('dlImage', e.target.files?.[0])}
+                                  className="hidden"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => dlFileInputRef.current?.click()}
+                                  className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
+                                >
+                                  📁 Upload DL
+                                </button>
+                                <input
+                                  ref={dlCameraInputRef}
+                                  type="file"
+                                  accept="image/*"
+                                  capture="environment"
+                                  onChange={(e) => handleProfileFileChange('dlImage', e.target.files?.[0])}
+                                  className="hidden"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => dlCameraInputRef.current?.click()}
+                                  className="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
+                                >
+                                  📸 Capture DL
+                                </button>
+                                {tenantProfile.dlImage && (
+                                  <img src={tenantProfile.dlImage} alt="Driving License" className="w-full sm:w-64 h-28 object-cover rounded-lg border-2 border-gray-300" />
+                                )}
+                              </>
+                            )}
+                          </div>
+
+                          <p className="text-xs font-bold text-gray-700">
+                            {tenantProfile.secondaryIdType === 'PAN'
+                              ? (tenantProfile.panImage ? '✅ PAN Uploaded' : '⏺️ PAN Not Uploaded')
+                              : (tenantProfile.dlImage ? '✅ DL Uploaded' : '⏺️ DL Not Uploaded')}
                           </p>
-                          {tenantProfile.aadharDocReason && (
-                            <p className="text-[10px] text-gray-600 mt-1">{tenantProfile.aadharDocReason}</p>
+                        </div>
+
+                        <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-2xl">📸</span>
+                            <label className="block text-sm font-bold text-gray-800">Your Selfie (Required)</label>
+                          </div>
+                          <div className="space-y-2 mb-3">
+                            <input
+                              ref={selfieFileInputRef}
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleProfileFileChange('selfieImage', e.target.files?.[0])}
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => selfieFileInputRef.current?.click()}
+                              className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
+                            >
+                              📁 Upload Selfie
+                            </button>
+                            <input
+                              ref={selfieCameraInputRef}
+                              type="file"
+                              accept="image/*"
+                              capture="user"
+                              onChange={(e) => handleProfileFileChange('selfieImage', e.target.files?.[0])}
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => selfieCameraInputRef.current?.click()}
+                              className="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
+                            >
+                              🤳 Take Selfie
+                            </button>
+                          </div>
+                          {tenantProfile.selfieImage && (
+                            <img src={tenantProfile.selfieImage} alt="Selfie" className="w-full sm:w-64 h-28 object-cover rounded-lg border-2 border-gray-300 mb-3" />
                           )}
-                        </div>
-                          </div>
-
-                          {/* PAN Upload Card (Optional) */}
-                          <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className="text-2xl">💳</span>
-                          <label className="block text-sm font-bold text-gray-800">PAN Card</label>
-                          <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">Optional</span>
-                        </div>
-                        
-                        <div className="space-y-2 mb-3">
-                          {/* File Upload Button */}
-                          <input
-                            ref={panFileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleProfileFileChange('panImage', e.target.files?.[0])}
-                            className="hidden"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => panFileInputRef.current?.click()}
-                            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
-                          >
-                            <span>📁</span>
-                            <span>Choose File</span>
-                          </button>
-                          
-                          {/* Camera Capture Button */}
-                          <input
-                            ref={panCameraInputRef}
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={(e) => handleProfileFileChange('panImage', e.target.files?.[0])}
-                            className="hidden"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => panCameraInputRef.current?.click()}
-                            className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
-                          >
-                            <span>📸</span>
-                            <span>Take Photo</span>
-                          </button>
-                        </div>
-                        
-                        {tenantProfile.panImage && (
-                          <div className="mb-3">
-                            <img src={tenantProfile.panImage} alt="PAN" className="w-full h-28 object-cover rounded-lg border-2 border-gray-300" />
-                          </div>
-                        )}
-                        
-                        <div className={`rounded-lg p-2 text-center ${
-                          tenantProfile.panDocStatus === 'verified' ? 'bg-green-50 border border-green-200' : 
-                          tenantProfile.panDocStatus === 'checking' ? 'bg-blue-50 border border-blue-200' : 
-                          'bg-gray-50 border border-gray-200'
-                        }`}>
-                          <p className={`text-xs font-bold ${
-                            tenantProfile.panDocStatus === 'verified' ? 'text-green-700' : 
-                            tenantProfile.panDocStatus === 'checking' ? 'text-blue-700' : 
-                            'text-gray-600'
-                          }`}>
-                            {tenantProfile.panDocStatus === 'verified' ? '✅ Verified' : 
-                             tenantProfile.panDocStatus === 'checking' ? '⏳ Checking...' : 
-                             tenantProfile.panDocStatus === 'recheck_needed' ? '⚠️ Recheck' : 
-                             '⏺️ Not Uploaded'}
-                          </p>
-                          {tenantProfile.panDocReason && (
-                            <p className="text-[10px] text-gray-600 mt-1">{tenantProfile.panDocReason}</p>
-                          )}
-                        </div>
-                          </div>
-
-                          {/* Selfie Upload Card */}
-                          <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className="text-2xl">📸</span>
-                          <label className="block text-sm font-bold text-gray-800">Your Selfie</label>
-                        </div>
-                        
-                        <div className="space-y-2 mb-3">
-                          {/* File Upload Button */}
-                          <input
-                            ref={selfieFileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleProfileFileChange('selfieImage', e.target.files?.[0])}
-                            className="hidden"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => selfieFileInputRef.current?.click()}
-                            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
-                          >
-                            <span>📁</span>
-                            <span>Choose File</span>
-                          </button>
-                          
-                          {/* Camera Capture Button (Front Camera) */}
-                          <input
-                            ref={selfieCameraInputRef}
-                            type="file"
-                            accept="image/*"
-                            capture="user"
-                            onChange={(e) => handleProfileFileChange('selfieImage', e.target.files?.[0])}
-                            className="hidden"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => selfieCameraInputRef.current?.click()}
-                            className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
-                          >
-                            <span>🤳</span>
-                            <span>Take Selfie</span>
-                          </button>
-                        </div>
-                        
-                        {tenantProfile.selfieImage && (
-                          <div className="mb-3">
-                            <img src={tenantProfile.selfieImage} alt="Selfie" className="w-full h-28 object-cover rounded-lg border-2 border-gray-300" />
-                          </div>
-                        )}
-                        
-                        <div className={`rounded-lg p-2 text-center ${
-                          tenantProfile.selfieImage ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'
-                        }`}>
-                          <p className={`text-xs font-bold ${
-                            tenantProfile.selfieImage ? 'text-green-700' : 'text-gray-600'
-                          }`}>
-                            {tenantProfile.selfieImage ? '✅ Uploaded' : '⏺️ Not Uploaded'}
+                          <p className="text-xs font-bold text-gray-700">
+                            {tenantProfile.selfieImage ? '✅ Selfie Uploaded' : '⏺️ Selfie Not Uploaded'}
                           </p>
                         </div>
-                          </div>
-                        </div>
 
-                        {/* Extracted Document Info Display */}
-                        {(tenantProfile.aadharExtractedNumber || tenantProfile.panExtractedNumber) && (
+                        {(tenantProfile.aadharExtractedNumber || tenantProfile.panExtractedNumber || tenantProfile.dlExtractedNumber) && (
                           <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-4">
-                            <h4 className="text-sm font-bold text-blue-900 mb-3">📄 Extracted Information (OCR)</h4>
+                            <h4 className="text-sm font-bold text-blue-900 mb-3">📄 OCR Extracted Numbers</h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               {tenantProfile.aadharExtractedNumber && (
                                 <div className="bg-white rounded-lg p-3 border border-blue-200">
-                                  <p className="text-xs font-semibold text-gray-600 mb-1">ID Number (Aadhaar/DL)</p>
+                                  <p className="text-xs font-semibold text-gray-600 mb-1">Aadhaar (Extracted)</p>
                                   <p className="text-sm font-bold text-gray-900">{tenantProfile.aadharExtractedNumber}</p>
-                                  <p className="text-[10px] text-green-600 mt-1">✓ Auto-extracted from ID document</p>
                                 </div>
                               )}
-                              {tenantProfile.panExtractedNumber && (
+                              {tenantProfile.secondaryIdType === 'PAN' && tenantProfile.panExtractedNumber && (
                                 <div className="bg-white rounded-lg p-3 border border-blue-200">
-                                  <p className="text-xs font-semibold text-gray-600 mb-1">PAN Number</p>
+                                  <p className="text-xs font-semibold text-gray-600 mb-1">PAN (Extracted)</p>
                                   <p className="text-sm font-bold text-gray-900 uppercase">{tenantProfile.panExtractedNumber}</p>
-                                  <p className="text-[10px] text-green-600 mt-1">✓ Auto-extracted from PAN card</p>
+                                </div>
+                              )}
+                              {tenantProfile.secondaryIdType === 'DL' && tenantProfile.dlExtractedNumber && (
+                                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                  <p className="text-xs font-semibold text-gray-600 mb-1">DL (Extracted)</p>
+                                  <p className="text-sm font-bold text-gray-900 uppercase">{tenantProfile.dlExtractedNumber}</p>
                                 </div>
                               )}
                             </div>
                           </div>
                         )}
 
-                        {/* Step 2 Navigation */}
                         <div className="flex justify-between">
                           <button
                             type="button"
@@ -3079,17 +3262,30 @@ const TenantPortal = () => {
                           <button
                             type="button"
                             onClick={() => {
-                              // Check if at least one ID document + selfie uploaded
-                              const hasIdDoc = tenantProfile.aadharImage || tenantProfile.panImage;
-                              const hasSelfie = tenantProfile.selfieImage;
-                              
-                              if (hasIdDoc && hasSelfie) {
-                                setCurrentKycStep(3);
-                              } else if (!hasIdDoc) {
-                                alert('Please upload at least one ID document (Aadhaar/DL or PAN) before proceeding.');
-                              } else if (!hasSelfie) {
-                                alert('Please upload your selfie before proceeding.');
+                              const aadhaarFrontOk = !!tenantProfile.aadharFrontImage;
+                              const aadhaarBackOk = !!tenantProfile.aadharBackImage;
+                              const secondaryNumberOk = !!tenantProfile.secondaryIdNumber;
+                              const secondaryImageOk = tenantProfile.secondaryIdType === 'PAN' ? !!tenantProfile.panImage : !!tenantProfile.dlImage;
+                              const selfieOk = !!tenantProfile.selfieImage;
+
+                              if (!aadhaarFrontOk || !aadhaarBackOk) {
+                                alert('Aadhaar front aur back dono upload karna mandatory hai.');
+                                return;
                               }
+                              if (!secondaryNumberOk) {
+                                alert(`Please enter ${tenantProfile.secondaryIdType === 'PAN' ? 'PAN' : 'Driving License'} number.`);
+                                return;
+                              }
+                              if (!secondaryImageOk) {
+                                alert(`Please upload ${tenantProfile.secondaryIdType === 'PAN' ? 'PAN' : 'Driving License'} image.`);
+                                return;
+                              }
+                              if (!selfieOk) {
+                                alert('Please upload your selfie before proceeding.');
+                                return;
+                              }
+
+                              setCurrentKycStep(3);
                             }}
                             className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-3 rounded-lg text-sm transition-colors"
                           >
