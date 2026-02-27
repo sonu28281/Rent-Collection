@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import SubmitPayment from './SubmitPayment';
 import googlePayLogo from '../assets/payment-icons/google-pay.svg';
 import phonePeLogo from '../assets/payment-icons/phonepe.svg';
+import Tesseract from 'tesseract.js';
 
 /**
  * Tenant Portal - Username/Password Login
@@ -75,6 +76,16 @@ const TenantPortal = () => {
     aadharImage: '',
     panImage: '',
     selfieImage: '',
+    aadharDocStatus: 'not_uploaded',
+    panDocStatus: 'not_uploaded',
+    aadharDocReason: '',
+    panDocReason: '',
+    aadharNameMatched: false,
+    panNameMatched: false,
+    aadharExtractedNumber: '',
+    panExtractedNumber: '',
+    aadharDocConfidence: 0,
+    panDocConfidence: 0,
     agreementAccepted: false,
     agreementSignature: '',
     agreementSignedAt: null
@@ -141,6 +152,128 @@ const TenantPortal = () => {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+
+  const normalizeDocText = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalizeAadhar = (value) => String(value || '').replace(/\D/g, '').slice(0, 12);
+  const normalizePan = (value) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const getExpectedNameTokens = () => {
+    const fromProfile = `${tenantProfile.firstName || ''} ${tenantProfile.lastName || ''}`.trim();
+    const sourceName = fromProfile || String(tenant?.name || '').trim();
+    return sourceName
+      .toLowerCase()
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2);
+  };
+
+  const extractAadharNumberFromText = (text) => {
+    const dense = String(text || '').replace(/\s+/g, ' ');
+    const grouped = dense.match(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/);
+    if (grouped?.[0]) return normalizeAadhar(grouped[0]);
+
+    const plain = dense.match(/\b\d{12}\b/);
+    if (plain?.[0]) return normalizeAadhar(plain[0]);
+    return '';
+  };
+
+  const extractPanFromText = (text) => {
+    const match = String(text || '').toUpperCase().match(/\b[A-Z]{5}[0-9]{4}[A-Z]\b/);
+    return match?.[0] ? normalizePan(match[0]) : '';
+  };
+
+  const applyDocVerificationToProfile = (profile, docType, verificationResult) => {
+    const next = { ...profile };
+    if (docType === 'aadhar') {
+      next.aadharDocStatus = verificationResult.status;
+      next.aadharDocReason = verificationResult.reason;
+      next.aadharNameMatched = !!verificationResult.nameMatched;
+      next.aadharExtractedNumber = verificationResult.extractedNumber || '';
+      next.aadharDocConfidence = verificationResult.confidence || 0;
+      if (verificationResult.extractedNumber) {
+        next.aadharNumber = verificationResult.extractedNumber;
+      }
+    }
+
+    if (docType === 'pan') {
+      next.panDocStatus = verificationResult.status;
+      next.panDocReason = verificationResult.reason;
+      next.panNameMatched = !!verificationResult.nameMatched;
+      next.panExtractedNumber = verificationResult.extractedNumber || '';
+      next.panDocConfidence = verificationResult.confidence || 0;
+      if (verificationResult.extractedNumber) {
+        next.panNumber = verificationResult.extractedNumber;
+      }
+    }
+
+    return next;
+  };
+
+  const verifyKycDocument = async (docType, imageDataUrl, options = { updateState: true }) => {
+    if (!imageDataUrl) {
+      return {
+        status: 'not_uploaded',
+        reason: 'Document image not uploaded.',
+        extractedNumber: '',
+        nameMatched: false,
+        confidence: 0
+      };
+    }
+
+    if (options.updateState) {
+      setTenantProfile((prev) => {
+        if (docType === 'aadhar') return { ...prev, aadharDocStatus: 'checking', aadharDocReason: 'Checking OCR...' };
+        return { ...prev, panDocStatus: 'checking', panDocReason: 'Checking OCR...' };
+      });
+    }
+
+    try {
+      const ocrResult = await Tesseract.recognize(imageDataUrl, 'eng');
+      const rawText = String(ocrResult?.data?.text || '');
+      const confidence = Number(ocrResult?.data?.confidence || 0);
+      const normalizedText = normalizeDocText(rawText);
+      const expectedTokens = getExpectedNameTokens();
+      const nameMatched = expectedTokens.length === 0 || expectedTokens.every((token) => normalizedText.includes(token));
+
+      const extractedNumber = docType === 'aadhar'
+        ? extractAadharNumberFromText(rawText)
+        : extractPanFromText(rawText);
+
+      let status = 'verified';
+      let reason = 'Document verified successfully.';
+
+      if (!extractedNumber) {
+        status = 'number_not_found';
+        reason = `${docType === 'aadhar' ? 'Aadhaar' : 'PAN'} number not detected in document.`;
+      } else if (!nameMatched) {
+        status = 'name_mismatch';
+        reason = 'Uploaded document name does not match tenant profile name.';
+      }
+
+      const result = { status, reason, extractedNumber, nameMatched, confidence };
+
+      if (options.updateState) {
+        setTenantProfile((prev) => applyDocVerificationToProfile(prev, docType, result));
+      }
+
+      return result;
+    } catch (error) {
+      console.error(`OCR verification failed for ${docType}:`, error);
+      const result = {
+        status: 'error',
+        reason: 'OCR failed. Please upload a clear image.',
+        extractedNumber: '',
+        nameMatched: false,
+        confidence: 0
+      };
+
+      if (options.updateState) {
+        setTenantProfile((prev) => applyDocVerificationToProfile(prev, docType, result));
+      }
+
+      return result;
+    }
+  };
 
   const getCanvasPoint = (event) => {
     const canvas = signatureCanvasRef.current;
@@ -216,15 +349,15 @@ const TenantPortal = () => {
   };
 
   const getProfileCompletion = () => {
+    const aadharVerified = tenantProfile.aadharDocStatus === 'verified' && !!tenantProfile.aadharExtractedNumber && !!tenantProfile.aadharImage;
+    const panVerified = tenantProfile.panDocStatus === 'verified' && !!tenantProfile.panExtractedNumber && !!tenantProfile.panImage;
     const checklist = [
       !!tenantProfile.firstName,
       !!tenantProfile.lastName,
       !!tenantProfile.phoneNumber,
       !!tenantProfile.occupation,
-      !!tenantProfile.aadharNumber,
-      !!tenantProfile.panNumber,
-      !!tenantProfile.aadharImage,
-      !!tenantProfile.panImage,
+      aadharVerified,
+      panVerified,
       !!tenantProfile.selfieImage,
       !!tenantProfile.agreementAccepted,
       !!tenantProfile.agreementSignature
@@ -239,7 +372,15 @@ const TenantPortal = () => {
   const handleProfileChange = (field, value) => {
     setTenantProfile((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
+      ...(field === 'firstName' || field === 'lastName'
+        ? {
+            aadharDocStatus: prev.aadharImage ? 'recheck_needed' : prev.aadharDocStatus,
+            panDocStatus: prev.panImage ? 'recheck_needed' : prev.panDocStatus,
+            aadharDocReason: prev.aadharImage ? 'Name changed. Please re-upload/recheck Aadhaar.' : prev.aadharDocReason,
+            panDocReason: prev.panImage ? 'Name changed. Please re-upload/recheck PAN.' : prev.panDocReason
+          }
+        : {})
     }));
   };
 
@@ -247,10 +388,40 @@ const TenantPortal = () => {
     if (!file) return;
     try {
       const dataUrl = await toDataUrl(file);
+      const nextProfile = {
+        ...tenantProfile,
+        [field]: dataUrl
+      };
+
       setTenantProfile((prev) => ({
         ...prev,
-        [field]: dataUrl
+        [field]: dataUrl,
+        ...(field === 'aadharImage'
+          ? {
+              aadharDocStatus: 'checking',
+              aadharDocReason: 'Checking OCR...',
+              aadharExtractedNumber: '',
+              aadharNameMatched: false,
+              aadharDocConfidence: 0
+            }
+          : {}),
+        ...(field === 'panImage'
+          ? {
+              panDocStatus: 'checking',
+              panDocReason: 'Checking OCR...',
+              panExtractedNumber: '',
+              panNameMatched: false,
+              panDocConfidence: 0
+            }
+          : {})
       }));
+
+      if (field === 'aadharImage') {
+        await verifyKycDocument('aadhar', nextProfile.aadharImage, { updateState: true });
+      }
+      if (field === 'panImage') {
+        await verifyKycDocument('pan', nextProfile.panImage, { updateState: true });
+      }
     } catch (fileError) {
       console.error('Profile file read error:', fileError);
       alert('Failed to read file. Please try again.');
@@ -276,6 +447,16 @@ const TenantPortal = () => {
         aadharImage: profileData.aadharImage || '',
         panImage: profileData.panImage || '',
         selfieImage: profileData.selfieImage || '',
+        aadharDocStatus: profileData.aadharDocStatus || (profileData.aadharImage ? 'recheck_needed' : 'not_uploaded'),
+        panDocStatus: profileData.panDocStatus || (profileData.panImage ? 'recheck_needed' : 'not_uploaded'),
+        aadharDocReason: profileData.aadharDocReason || '',
+        panDocReason: profileData.panDocReason || '',
+        aadharNameMatched: !!profileData.aadharNameMatched,
+        panNameMatched: !!profileData.panNameMatched,
+        aadharExtractedNumber: profileData.aadharExtractedNumber || profileData.aadharNumber || '',
+        panExtractedNumber: profileData.panExtractedNumber || profileData.panNumber || '',
+        aadharDocConfidence: Number(profileData.aadharDocConfidence || 0),
+        panDocConfidence: Number(profileData.panDocConfidence || 0),
         agreementAccepted: !!profileData.agreementAccepted,
         agreementSignature: profileData.agreementSignature || '',
         agreementSignedAt: profileData.agreementSignedAt || null
@@ -291,11 +472,27 @@ const TenantPortal = () => {
     if (!tenant?.id) return;
     setProfileSaving(true);
     try {
+      let profileForSave = { ...tenantProfile };
+
+      if (profileForSave.aadharImage && profileForSave.aadharDocStatus !== 'verified') {
+        const aadharResult = await verifyKycDocument('aadhar', profileForSave.aadharImage, { updateState: false });
+        profileForSave = applyDocVerificationToProfile(profileForSave, 'aadhar', aadharResult);
+      }
+
+      if (profileForSave.panImage && profileForSave.panDocStatus !== 'verified') {
+        const panResult = await verifyKycDocument('pan', profileForSave.panImage, { updateState: false });
+        profileForSave = applyDocVerificationToProfile(profileForSave, 'pan', panResult);
+      }
+
+      setTenantProfile(profileForSave);
+
       const profilePayload = {
-        ...tenantProfile,
+        ...profileForSave,
         tenantId: tenant.id,
         roomNumber: tenant.roomNumber || null,
-        fullName: `${tenantProfile.firstName} ${tenantProfile.lastName}`.trim(),
+        fullName: `${profileForSave.firstName} ${profileForSave.lastName}`.trim(),
+        aadharNumber: profileForSave.aadharExtractedNumber || profileForSave.aadharNumber || '',
+        panNumber: profileForSave.panExtractedNumber || profileForSave.panNumber || '',
         updatedAt: new Date().toISOString()
       };
 
@@ -857,6 +1054,16 @@ const TenantPortal = () => {
       aadharImage: '',
       panImage: '',
       selfieImage: '',
+      aadharDocStatus: 'not_uploaded',
+      panDocStatus: 'not_uploaded',
+      aadharDocReason: '',
+      panDocReason: '',
+      aadharNameMatched: false,
+      panNameMatched: false,
+      aadharExtractedNumber: '',
+      panExtractedNumber: '',
+      aadharDocConfidence: 0,
+      panDocConfidence: 0,
       agreementAccepted: false,
       agreementSignature: '',
       agreementSignedAt: null
@@ -1853,21 +2060,23 @@ const TenantPortal = () => {
                         <label className="block text-xs font-semibold text-gray-700 mb-1">Aadhar Number</label>
                         <input
                           type="text"
-                          value={tenantProfile.aadharNumber}
-                          onChange={(e) => handleProfileChange('aadharNumber', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          placeholder="XXXX XXXX XXXX"
+                          value={tenantProfile.aadharExtractedNumber || tenantProfile.aadharNumber}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50"
+                          placeholder="Auto-extracted from Aadhaar"
                         />
+                        <p className="text-[11px] text-gray-500 mt-1">Auto extracted from uploaded Aadhaar.</p>
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 mb-1">PAN Number</label>
                         <input
                           type="text"
-                          value={tenantProfile.panNumber}
-                          onChange={(e) => handleProfileChange('panNumber', e.target.value.toUpperCase())}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm uppercase"
-                          placeholder="ABCDE1234F"
+                          value={tenantProfile.panExtractedNumber || tenantProfile.panNumber}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm uppercase bg-gray-50"
+                          placeholder="Auto-extracted from PAN"
                         />
+                        <p className="text-[11px] text-gray-500 mt-1">Auto extracted from uploaded PAN.</p>
                       </div>
                     </div>
 
@@ -1883,6 +2092,12 @@ const TenantPortal = () => {
                         {tenantProfile.aadharImage && (
                           <img src={tenantProfile.aadharImage} alt="Aadhar" className="mt-2 h-20 w-full object-cover rounded border" />
                         )}
+                        <div className="mt-2">
+                          <p className={`text-[11px] font-semibold ${tenantProfile.aadharDocStatus === 'verified' ? 'text-green-700' : tenantProfile.aadharDocStatus === 'checking' ? 'text-blue-700' : 'text-red-700'}`}>
+                            Aadhaar Check: {tenantProfile.aadharDocStatus === 'verified' ? 'Verified ✅' : tenantProfile.aadharDocStatus === 'checking' ? 'Checking...' : tenantProfile.aadharDocStatus === 'recheck_needed' ? 'Recheck Needed' : 'Not Verified'}
+                          </p>
+                          {tenantProfile.aadharDocReason && <p className="text-[11px] text-gray-600">{tenantProfile.aadharDocReason}</p>}
+                        </div>
                       </div>
 
                       <div className="border border-gray-200 rounded-lg p-3">
@@ -1896,6 +2111,12 @@ const TenantPortal = () => {
                         {tenantProfile.panImage && (
                           <img src={tenantProfile.panImage} alt="PAN" className="mt-2 h-20 w-full object-cover rounded border" />
                         )}
+                        <div className="mt-2">
+                          <p className={`text-[11px] font-semibold ${tenantProfile.panDocStatus === 'verified' ? 'text-green-700' : tenantProfile.panDocStatus === 'checking' ? 'text-blue-700' : 'text-red-700'}`}>
+                            PAN Check: {tenantProfile.panDocStatus === 'verified' ? 'Verified ✅' : tenantProfile.panDocStatus === 'checking' ? 'Checking...' : tenantProfile.panDocStatus === 'recheck_needed' ? 'Recheck Needed' : 'Not Verified'}
+                          </p>
+                          {tenantProfile.panDocReason && <p className="text-[11px] text-gray-600">{tenantProfile.panDocReason}</p>}
+                        </div>
                       </div>
 
                       <div className="border border-gray-200 rounded-lg p-3">

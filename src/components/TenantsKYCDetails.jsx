@@ -2,6 +2,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 
+const getStatusBadge = (status) => {
+  const normalized = String(status || 'not_uploaded').toLowerCase();
+  const map = {
+    verified: { label: 'Verified ✅', className: 'bg-green-100 text-green-800' },
+    name_mismatch: { label: 'Name Mismatch ⚠️', className: 'bg-red-100 text-red-800' },
+    number_not_found: { label: 'Number Missing ⚠️', className: 'bg-orange-100 text-orange-800' },
+    recheck_needed: { label: 'Recheck Needed', className: 'bg-amber-100 text-amber-800' },
+    checking: { label: 'Checking...', className: 'bg-blue-100 text-blue-800' },
+    error: { label: 'OCR Error', className: 'bg-red-100 text-red-800' },
+    not_uploaded: { label: 'Not Uploaded', className: 'bg-gray-100 text-gray-700' }
+  };
+
+  return map[normalized] || { label: status || 'Unknown', className: 'bg-gray-100 text-gray-700' };
+};
+
 const getAssignedRooms = (tenantRecord) => {
   if (Array.isArray(tenantRecord?.assignedRooms) && tenantRecord.assignedRooms.length > 0) {
     return tenantRecord.assignedRooms.map((room) => String(room));
@@ -116,6 +131,12 @@ const TenantsKYCDetails = () => {
           panDocStatus: profile.panDocStatus || 'not_uploaded',
           aadharDocReason: profile.aadharDocReason || '',
           panDocReason: profile.panDocReason || '',
+          aadharExtractedNumber: profile.aadharExtractedNumber || '',
+          panExtractedNumber: profile.panExtractedNumber || '',
+          aadharDocConfidence: Number(profile.aadharDocConfidence || 0),
+          panDocConfidence: Number(profile.panDocConfidence || 0),
+          aadharNameMatched: !!profile.aadharNameMatched,
+          panNameMatched: !!profile.panNameMatched,
           agreementAccepted: !!profile.agreementAccepted,
           agreementSignature: profile.agreementSignature || '',
           agreementSignedAt: profile.agreementSignedAt || '',
@@ -131,6 +152,15 @@ const TenantsKYCDetails = () => {
   }, [profilesByTenantId, tenants]);
 
   const filteredRows = useMemo(() => rows.filter((row) => isRoomOnFloor(row.rooms, floorFilter)), [rows, floorFilter]);
+
+  const verificationSummary = useMemo(() => {
+    const aadharVerified = filteredRows.filter((row) => row.aadharDocStatus === 'verified').length;
+    const panVerified = filteredRows.filter((row) => row.panDocStatus === 'verified').length;
+    const aadharMismatched = filteredRows.filter((row) => ['name_mismatch', 'number_not_found', 'error', 'recheck_needed'].includes(row.aadharDocStatus)).length;
+    const panMismatched = filteredRows.filter((row) => ['name_mismatch', 'number_not_found', 'error', 'recheck_needed'].includes(row.panDocStatus)).length;
+
+    return { aadharVerified, panVerified, aadharMismatched, panMismatched };
+  }, [filteredRows]);
 
   if (loading) {
     return (
@@ -191,6 +221,25 @@ const TenantsKYCDetails = () => {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+        <div className="card bg-green-50 border border-green-200">
+          <p className="text-xs text-green-700">Aadhaar Verified</p>
+          <p className="text-2xl font-bold text-green-900">{verificationSummary.aadharVerified}</p>
+        </div>
+        <div className="card bg-red-50 border border-red-200">
+          <p className="text-xs text-red-700">Aadhaar Mismatch</p>
+          <p className="text-2xl font-bold text-red-900">{verificationSummary.aadharMismatched}</p>
+        </div>
+        <div className="card bg-green-50 border border-green-200">
+          <p className="text-xs text-green-700">PAN Verified</p>
+          <p className="text-2xl font-bold text-green-900">{verificationSummary.panVerified}</p>
+        </div>
+        <div className="card bg-red-50 border border-red-200">
+          <p className="text-xs text-red-700">PAN Mismatch</p>
+          <p className="text-2xl font-bold text-red-900">{verificationSummary.panMismatched}</p>
+        </div>
+      </div>
+
       {!isMobileViewport ? (
       <div className="card overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
@@ -201,9 +250,9 @@ const TenantsKYCDetails = () => {
                 <th className="px-3 py-2 text-left">Tenant</th>
                 <th className="px-3 py-2 text-left">Phone</th>
                 <th className="px-3 py-2 text-left">Occupation</th>
-                <th className="px-3 py-2 text-left">Aadhaar</th>
-                <th className="px-3 py-2 text-left">PAN</th>
-                <th className="px-3 py-2 text-center">Doc Check</th>
+                <th className="px-3 py-2 text-left">Aadhaar (Captured)</th>
+                <th className="px-3 py-2 text-left">PAN (Captured)</th>
+                <th className="px-3 py-2 text-center">Verification</th>
                 <th className="px-3 py-2 text-center">Aadhaar Img</th>
                 <th className="px-3 py-2 text-center">PAN Img</th>
                 <th className="px-3 py-2 text-center">Selfie</th>
@@ -213,7 +262,14 @@ const TenantsKYCDetails = () => {
             </thead>
             <tbody>
               {filteredRows.map((row) => (
-                <tr key={row.id} className="border-b hover:bg-gray-50 align-top">
+                <tr
+                  key={row.id}
+                  className={`border-b hover:bg-gray-50 align-top ${
+                    (row.aadharDocStatus !== 'verified' && row.aadharImage) || (row.panDocStatus !== 'verified' && row.panImage)
+                      ? 'bg-red-50/40'
+                      : ''
+                  }`}
+                >
                   <td className="px-3 py-2 font-semibold">{row.rooms.length ? row.rooms.join(', ') : '-'}</td>
                   <td className="px-3 py-2">
                     <button
@@ -234,15 +290,32 @@ const TenantsKYCDetails = () => {
                   </td>
                   <td className="px-3 py-2">{row.phoneNumber || '-'}</td>
                   <td className="px-3 py-2">{row.occupation || '-'}</td>
-                  <td className="px-3 py-2 font-mono">{row.aadharNumber || '-'}</td>
-                  <td className="px-3 py-2 font-mono uppercase">{row.panNumber || '-'}</td>
+                  <td className="px-3 py-2">
+                    <div className="font-mono text-xs">{row.aadharNumber || '-'}</div>
+                    {row.aadharExtractedNumber && (
+                      <p className="text-[11px] text-gray-500 mt-1">OCR: {row.aadharExtractedNumber}</p>
+                    )}
+                    <p className="text-[11px] text-gray-500">Conf: {Math.round(row.aadharDocConfidence || 0)}%</p>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="font-mono text-xs uppercase">{row.panNumber || '-'}</div>
+                    {row.panExtractedNumber && (
+                      <p className="text-[11px] text-gray-500 mt-1 uppercase">OCR: {row.panExtractedNumber}</p>
+                    )}
+                    <p className="text-[11px] text-gray-500">Conf: {Math.round(row.panDocConfidence || 0)}%</p>
+                  </td>
                   <td className="px-3 py-2 text-center">
-                    <div className={`text-xs font-semibold ${row.aadharDocStatus === 'verified' ? 'text-green-700' : 'text-red-700'}`}>
-                      Aadhaar: {row.aadharDocStatus}
+                    <div className={`inline-flex px-2 py-1 rounded text-xs font-semibold ${getStatusBadge(row.aadharDocStatus).className}`}>
+                      A: {getStatusBadge(row.aadharDocStatus).label}
                     </div>
-                    <div className={`text-xs font-semibold mt-1 ${row.panDocStatus === 'verified' ? 'text-green-700' : 'text-red-700'}`}>
-                      PAN: {row.panDocStatus}
+                    <div className={`inline-flex px-2 py-1 rounded text-xs font-semibold mt-1 ${getStatusBadge(row.panDocStatus).className}`}>
+                      P: {getStatusBadge(row.panDocStatus).label}
                     </div>
+                    {(row.aadharDocReason || row.panDocReason) && (
+                      <p className="text-[11px] text-red-700 mt-1 max-w-[180px] mx-auto">
+                        {row.aadharDocReason || row.panDocReason}
+                      </p>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-center">
                     {row.aadharImage ? (
@@ -302,13 +375,21 @@ const TenantsKYCDetails = () => {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <p><span className="text-gray-500">Phone:</span> {row.phoneNumber || '-'}</p>
                 <p><span className="text-gray-500">Occupation:</span> {row.occupation || '-'}</p>
-                <p><span className="text-gray-500">Aadhaar:</span> {row.aadharNumber || '-'}</p>
-                <p><span className="text-gray-500">PAN:</span> {row.panNumber || '-'}</p>
-                <p><span className="text-gray-500">Aadhaar Check:</span> {row.aadharDocStatus}</p>
-                <p><span className="text-gray-500">PAN Check:</span> {row.panDocStatus}</p>
+                <p><span className="text-gray-500">Aadhaar (OCR):</span> {row.aadharExtractedNumber || row.aadharNumber || '-'}</p>
+                <p><span className="text-gray-500">PAN (OCR):</span> {row.panExtractedNumber || row.panNumber || '-'}</p>
+                <p><span className="text-gray-500">Aadhaar Check:</span> {getStatusBadge(row.aadharDocStatus).label}</p>
+                <p><span className="text-gray-500">PAN Check:</span> {getStatusBadge(row.panDocStatus).label}</p>
                 <p><span className="text-gray-500">Agreement:</span> {row.agreementAccepted ? 'Accepted' : 'Pending'}</p>
                 <p><span className="text-gray-500">Completion:</span> {row.completion.percentage}%</p>
               </div>
+
+              {(row.aadharDocReason || row.panDocReason) && (
+                <div className="mt-2 rounded border border-red-200 bg-red-50 p-2">
+                  <p className="text-[11px] text-red-700">
+                    {row.aadharDocReason || row.panDocReason}
+                  </p>
+                </div>
+              )}
 
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <div className="border rounded p-1 bg-gray-50">
@@ -390,8 +471,10 @@ const TenantsKYCDetails = () => {
               <p><span className="font-semibold text-gray-700">Occupation:</span> {selectedTenant.occupation || '-'}</p>
               <p><span className="font-semibold text-gray-700">Aadhaar Number:</span> {selectedTenant.aadharNumber || '-'}</p>
               <p><span className="font-semibold text-gray-700">PAN Number:</span> {selectedTenant.panNumber || '-'}</p>
-              <p><span className="font-semibold text-gray-700">Aadhaar Verification:</span> {selectedTenant.aadharDocStatus || '-'}</p>
-              <p><span className="font-semibold text-gray-700">PAN Verification:</span> {selectedTenant.panDocStatus || '-'}</p>
+              <p><span className="font-semibold text-gray-700">Aadhaar OCR:</span> {selectedTenant.aadharExtractedNumber || '-'}</p>
+              <p><span className="font-semibold text-gray-700">PAN OCR:</span> {selectedTenant.panExtractedNumber || '-'}</p>
+              <p><span className="font-semibold text-gray-700">Aadhaar Verification:</span> {getStatusBadge(selectedTenant.aadharDocStatus).label}</p>
+              <p><span className="font-semibold text-gray-700">PAN Verification:</span> {getStatusBadge(selectedTenant.panDocStatus).label}</p>
               <p><span className="font-semibold text-gray-700">Agreement:</span> {selectedTenant.agreementAccepted ? 'Accepted' : 'Pending'}</p>
               <p><span className="font-semibold text-gray-700">Signed At:</span> {selectedTenant.agreementSignedAt ? new Date(selectedTenant.agreementSignedAt).toLocaleString('en-IN') : '-'}</p>
             </div>
