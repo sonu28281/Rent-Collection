@@ -984,6 +984,30 @@ const Payments = () => {
         )}
       </div>
 
+      <div className="md:hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-40 bg-white/95 backdrop-blur border border-gray-200 rounded-full shadow-lg px-2 py-1 flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => setFloorFilter('all')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-full ${floorFilter === 'all' ? 'bg-primary text-white' : 'text-gray-700'}`}
+        >
+          All
+        </button>
+        <button
+          type="button"
+          onClick={() => setFloorFilter('1')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-full ${floorFilter === '1' ? 'bg-primary text-white' : 'text-gray-700'}`}
+        >
+          Floor 1
+        </button>
+        <button
+          type="button"
+          onClick={() => setFloorFilter('2')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-full ${floorFilter === '2' ? 'bg-primary text-white' : 'text-gray-700'}`}
+        >
+          Floor 2
+        </button>
+      </div>
+
       {showForm && selectedTenant && (
         <PaymentForm
           tenant={selectedTenant}

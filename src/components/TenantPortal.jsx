@@ -92,6 +92,7 @@ const TenantPortal = () => {
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [ocrAnalyzing, setOcrAnalyzing] = useState(false);
   const signatureCanvasRef = useRef(null);
   const [isSigning, setIsSigning] = useState(false);
 
@@ -503,6 +504,55 @@ const TenantPortal = () => {
       alert('Failed to save profile. Please try again.');
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  const runKycOcrAnalysis = async () => {
+    if (!tenantProfile.aadharImage && !tenantProfile.panImage) {
+      alert('Please upload Aadhaar or PAN image first.');
+      return;
+    }
+
+    setOcrAnalyzing(true);
+    try {
+      let profileForAnalysis = { ...tenantProfile };
+
+      if (profileForAnalysis.aadharImage) {
+        const aadharResult = await verifyKycDocument('aadhar', profileForAnalysis.aadharImage, { updateState: false });
+        profileForAnalysis = applyDocVerificationToProfile(profileForAnalysis, 'aadhar', aadharResult);
+      }
+
+      if (profileForAnalysis.panImage) {
+        const panResult = await verifyKycDocument('pan', profileForAnalysis.panImage, { updateState: false });
+        profileForAnalysis = applyDocVerificationToProfile(profileForAnalysis, 'pan', panResult);
+      }
+
+      setTenantProfile(profileForAnalysis);
+
+      if (tenant?.id) {
+        await setDoc(doc(db, 'tenantProfiles', tenant.id), {
+          aadharDocStatus: profileForAnalysis.aadharDocStatus,
+          panDocStatus: profileForAnalysis.panDocStatus,
+          aadharDocReason: profileForAnalysis.aadharDocReason,
+          panDocReason: profileForAnalysis.panDocReason,
+          aadharNameMatched: profileForAnalysis.aadharNameMatched,
+          panNameMatched: profileForAnalysis.panNameMatched,
+          aadharExtractedNumber: profileForAnalysis.aadharExtractedNumber,
+          panExtractedNumber: profileForAnalysis.panExtractedNumber,
+          aadharNumber: profileForAnalysis.aadharExtractedNumber || profileForAnalysis.aadharNumber || '',
+          panNumber: profileForAnalysis.panExtractedNumber || profileForAnalysis.panNumber || '',
+          aadharDocConfidence: profileForAnalysis.aadharDocConfidence || 0,
+          panDocConfidence: profileForAnalysis.panDocConfidence || 0,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
+
+      alert('OCR analysis completed. Verification statuses updated.');
+    } catch (analysisError) {
+      console.error('Error running KYC OCR analysis:', analysisError);
+      alert('OCR analysis failed. Please try again.');
+    } finally {
+      setOcrAnalyzing(false);
     }
   };
 
@@ -1885,6 +1935,10 @@ const TenantPortal = () => {
               const dueInfo = getNextDueDate();
               const electricityHealth = getElectricityBillingHealth();
               const isElectricityPending = electricityHealth.status !== 'healthy';
+              const bannerStatus = dueInfo.status === 'paid' && isElectricityPending ? 'overdue' : dueInfo.status;
+              const bannerStatusText = dueInfo.status === 'paid' && isElectricityPending
+                ? 'Electricity Payment Pending ⚠️'
+                : dueInfo.statusText;
               const statusColors = {
                 paid: 'from-green-500 to-emerald-600',
                 pending: 'from-amber-500 to-orange-600',
@@ -1899,14 +1953,18 @@ const TenantPortal = () => {
               };
               
               return (
-                <div className={`bg-gradient-to-r ${statusColors[dueInfo.status]} text-white rounded-lg shadow-lg p-4 sm:p-6`}>
+                <div className={`bg-gradient-to-r ${statusColors[bannerStatus]} text-white rounded-lg shadow-lg p-4 sm:p-6`}>
                   <div className="flex flex-col sm:flex-row items-center gap-4">
                     <div className="flex items-center gap-3 sm:gap-4 flex-1 w-full">
-                      <div className="text-3xl sm:text-5xl">{statusIcons[dueInfo.status]}</div>
+                      <div className="text-3xl sm:text-5xl">{statusIcons[bannerStatus]}</div>
                       <div className="flex-1">
-                        <h3 className="text-lg sm:text-xl font-bold mb-1">{dueInfo.statusText}</h3>
+                        <h3 className="text-lg sm:text-xl font-bold mb-1">{bannerStatusText}</h3>
                         <p className="text-white/90 text-xs sm:text-sm">
-                          {dueInfo.status === 'paid' ? 'Next payment due on' : 'Monthly rent payment'}
+                          {dueInfo.status === 'paid' && isElectricityPending
+                            ? 'Rent paid, but electricity bill is still pending'
+                            : dueInfo.status === 'paid'
+                              ? 'Next payment due on'
+                              : 'Monthly rent payment'}
                         </p>
                       </div>
                     </div>
@@ -1990,6 +2048,14 @@ const TenantPortal = () => {
                       <div>
                         <h2 className="text-xl sm:text-2xl font-bold text-gray-800">🪪 Tenant KYC Profile</h2>
                         <p className="text-sm text-gray-600 mt-1">Fill your details, upload documents, and sign rent agreement.</p>
+                        <button
+                          type="button"
+                          onClick={runKycOcrAnalysis}
+                          disabled={ocrAnalyzing || profileSaving || profileLoading}
+                          className="mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-1.5 rounded-lg text-xs sm:text-sm disabled:opacity-60"
+                        >
+                          {ocrAnalyzing ? 'Analyzing OCR...' : '🔍 Run OCR Analysis'}
+                        </button>
                       </div>
                       <div className="relative w-[110px] h-[110px] flex-shrink-0">
                         <svg width="110" height="110" viewBox="0 0 110 110" className="-rotate-90">
