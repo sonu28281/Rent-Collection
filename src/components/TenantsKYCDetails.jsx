@@ -41,6 +41,9 @@ const TenantsKYCDetails = () => {
   const [profilesByTenantId, setProfilesByTenantId] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [floorFilter, setFloorFilter] = useState('all');
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -70,6 +73,24 @@ const TenantsKYCDetails = () => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+    const updateViewport = () => setIsMobileViewport(mediaQuery.matches);
+
+    updateViewport();
+    mediaQuery.addEventListener('change', updateViewport);
+    return () => mediaQuery.removeEventListener('change', updateViewport);
+  }, []);
+
+  const isRoomOnFloor = (rooms, floor) => {
+    const roomNumbers = (rooms || []).map((room) => Number.parseInt(room, 10));
+    if (floor === 'floor1') return roomNumbers.some((room) => Number.isFinite(room) && room >= 101 && room < 200);
+    if (floor === 'floor2') return roomNumbers.some((room) => Number.isFinite(room) && room >= 200 && room < 300);
+    return true;
+  };
+
   const rows = useMemo(() => {
     return tenants
       .map((tenant) => {
@@ -92,6 +113,7 @@ const TenantsKYCDetails = () => {
           panImage: profile.panImage || '',
           selfieImage: profile.selfieImage || '',
           agreementAccepted: !!profile.agreementAccepted,
+          agreementSignature: profile.agreementSignature || '',
           agreementSignedAt: profile.agreementSignedAt || '',
           completion
         };
@@ -103,6 +125,8 @@ const TenantsKYCDetails = () => {
         return a.name.localeCompare(b.name);
       });
   }, [profilesByTenantId, tenants]);
+
+  const filteredRows = useMemo(() => rows.filter((row) => isRoomOnFloor(row.rooms, floorFilter)), [rows, floorFilter]);
 
   if (loading) {
     return (
@@ -135,12 +159,36 @@ const TenantsKYCDetails = () => {
       </div>
 
       <div className="card mb-4">
-        <p className="text-sm text-gray-700">
-          Total tenants: <span className="font-semibold">{rows.length}</span>
-        </p>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <p className="text-sm text-gray-700">
+            Total tenants: <span className="font-semibold">{filteredRows.length}</span>
+            {floorFilter !== 'all' && <span className="text-gray-500"> (filtered)</span>}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFloorFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${floorFilter === 'all' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+            >
+              All Floors
+            </button>
+            <button
+              onClick={() => setFloorFilter('floor1')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${floorFilter === 'floor1' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+            >
+              Floor 1
+            </button>
+            <button
+              onClick={() => setFloorFilter('floor2')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${floorFilter === 'floor2' ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+            >
+              Floor 2
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="card overflow-hidden">
+      {!isMobileViewport ? (
+      <div className="card overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-100">
@@ -159,11 +207,17 @@ const TenantsKYCDetails = () => {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {filteredRows.map((row) => (
                 <tr key={row.id} className="border-b hover:bg-gray-50 align-top">
                   <td className="px-3 py-2 font-semibold">{row.rooms.length ? row.rooms.join(', ') : '-'}</td>
                   <td className="px-3 py-2">
-                    <div className="font-semibold text-gray-900">{row.name}</div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTenant(row)}
+                      className="font-semibold text-gray-900 hover:text-blue-700 underline-offset-2 hover:underline text-left"
+                    >
+                      {row.name}
+                    </button>
                     <div className="text-xs text-gray-500">
                       {row.firstName || row.lastName ? `${row.firstName} ${row.lastName}`.trim() : 'KYC name missing'}
                     </div>
@@ -212,6 +266,88 @@ const TenantsKYCDetails = () => {
           </table>
         </div>
       </div>
+      ) : (
+        <div className="space-y-3 md:hidden">
+          {filteredRows.map((row) => (
+            <div key={row.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTenant(row)}
+                    className="text-base font-bold text-gray-900 hover:text-blue-700 underline-offset-2 hover:underline text-left"
+                  >
+                    {row.name}
+                  </button>
+                  <p className="text-xs text-gray-500">Rooms: {row.rooms.length ? row.rooms.join(', ') : '-'}</p>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>
+                  {row.isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <p><span className="text-gray-500">Phone:</span> {row.phoneNumber || '-'}</p>
+                <p><span className="text-gray-500">Occupation:</span> {row.occupation || '-'}</p>
+                <p><span className="text-gray-500">Aadhaar:</span> {row.aadharNumber || '-'}</p>
+                <p><span className="text-gray-500">PAN:</span> {row.panNumber || '-'}</p>
+                <p><span className="text-gray-500">Agreement:</span> {row.agreementAccepted ? 'Accepted' : 'Pending'}</p>
+                <p><span className="text-gray-500">Completion:</span> {row.completion.percentage}%</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {selectedTenant && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">{selectedTenant.name} - KYC Details</h3>
+                <p className="text-sm text-gray-600">Rooms: {selectedTenant.rooms.length ? selectedTenant.rooms.join(', ') : '-'}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedTenant(null)}
+                className="text-gray-500 hover:text-gray-800 text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-sm">
+              <p><span className="font-semibold text-gray-700">First Name:</span> {selectedTenant.firstName || '-'}</p>
+              <p><span className="font-semibold text-gray-700">Last Name:</span> {selectedTenant.lastName || '-'}</p>
+              <p><span className="font-semibold text-gray-700">Phone:</span> {selectedTenant.phoneNumber || '-'}</p>
+              <p><span className="font-semibold text-gray-700">Occupation:</span> {selectedTenant.occupation || '-'}</p>
+              <p><span className="font-semibold text-gray-700">Aadhaar Number:</span> {selectedTenant.aadharNumber || '-'}</p>
+              <p><span className="font-semibold text-gray-700">PAN Number:</span> {selectedTenant.panNumber || '-'}</p>
+              <p><span className="font-semibold text-gray-700">Agreement:</span> {selectedTenant.agreementAccepted ? 'Accepted' : 'Pending'}</p>
+              <p><span className="font-semibold text-gray-700">Signed At:</span> {selectedTenant.agreementSignedAt ? new Date(selectedTenant.agreementSignedAt).toLocaleString('en-IN') : '-'}</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="border rounded-lg p-2">
+                <p className="text-xs font-semibold text-gray-700 mb-2">Aadhaar Upload</p>
+                {selectedTenant.aadharImage ? <img src={selectedTenant.aadharImage} alt="Aadhaar" className="w-full h-40 object-cover rounded" /> : <p className="text-xs text-gray-500">Not uploaded</p>}
+              </div>
+              <div className="border rounded-lg p-2">
+                <p className="text-xs font-semibold text-gray-700 mb-2">PAN Upload</p>
+                {selectedTenant.panImage ? <img src={selectedTenant.panImage} alt="PAN" className="w-full h-40 object-cover rounded" /> : <p className="text-xs text-gray-500">Not uploaded</p>}
+              </div>
+              <div className="border rounded-lg p-2">
+                <p className="text-xs font-semibold text-gray-700 mb-2">Selfie</p>
+                {selectedTenant.selfieImage ? <img src={selectedTenant.selfieImage} alt="Selfie" className="w-full h-40 object-cover rounded" /> : <p className="text-xs text-gray-500">Not uploaded</p>}
+              </div>
+              <div className="border rounded-lg p-2">
+                <p className="text-xs font-semibold text-gray-700 mb-2">Digital Signature</p>
+                {selectedTenant.agreementSignature ? <img src={selectedTenant.agreementSignature} alt="Signature" className="w-full h-40 object-contain rounded bg-gray-50" /> : <p className="text-xs text-gray-500">Not uploaded</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -545,7 +545,6 @@ const Dashboard = () => {
                                           <td className="px-3 py-2">
                                             <div className="flex items-center gap-2">
                                               <span>{tenant.paidDate || '-'}</span>
-                                              <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
                                               {tenant.isDelayed && (
                                                 <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
                                               )}
@@ -711,7 +710,6 @@ const Dashboard = () => {
                                           <td className="px-3 py-2">
                                             <div className="flex items-center gap-2">
                                               <span>{tenant.paidDate || '-'}</span>
-                                              <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
                                               {tenant.isDelayed && (
                                                 <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
                                               )}

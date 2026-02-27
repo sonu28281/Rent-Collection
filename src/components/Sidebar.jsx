@@ -11,9 +11,8 @@ const Sidebar = () => {
   const location = useLocation();
   const { logout } = useAuth();
 
-  // Main menu items
+  // Main menu items (excluding Dashboard which is rendered first)
   const menuItems = [
-    { icon: '📊', label: 'Dashboard', path: '/dashboard' },
     { icon: '🏠', label: 'Rooms', path: '/rooms' },
     { icon: '⚡', label: 'Electricity', path: '/electricity' },
     { icon: '📈', label: 'Rent Increase', path: '/rent-increase' },
@@ -125,25 +124,22 @@ const Sidebar = () => {
 
         {/* Navigation Menu - Scrollable */}
         <nav className="flex-1 overflow-y-auto py-2">
-          {/* Main Menu Items */}
-          {menuItems.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => handleNavigation(item.path)}
-              className={`
-                w-full flex items-center px-6 py-1.5 text-left transition
-                ${isActive(item.path)
-                  ? 'bg-primary text-white font-semibold'
-                  : 'text-gray-700 hover:bg-gray-100'
-                }
-              `}
-            >
-              <span className="text-xl mr-3">{item.icon}</span>
-              <span className="text-sm">{item.label}</span>
-            </button>
-          ))}
+          {/* Dashboard (fixed first) */}
+          <button
+            onClick={() => handleNavigation('/dashboard')}
+            className={`
+              w-full flex items-center px-6 py-1.5 text-left transition
+              ${isActive('/dashboard')
+                ? 'bg-primary text-white font-semibold'
+                : 'text-gray-700 hover:bg-gray-100'
+              }
+            `}
+          >
+            <span className="text-xl mr-3">📊</span>
+            <span className="text-sm">Dashboard</span>
+          </button>
 
-          {/* Tenants Dropdown */}
+          {/* Tenants Dropdown (right below Dashboard) */}
           <div>
             <button
               onClick={() => setIsTenantsOpen(!isTenantsOpen)}
@@ -190,6 +186,24 @@ const Sidebar = () => {
               </div>
             )}
           </div>
+
+          {/* Main Menu Items */}
+          {menuItems.map((item) => (
+            <button
+              key={item.path}
+              onClick={() => handleNavigation(item.path)}
+              className={`
+                w-full flex items-center px-6 py-1.5 text-left transition
+                ${isActive(item.path)
+                  ? 'bg-primary text-white font-semibold'
+                  : 'text-gray-700 hover:bg-gray-100'
+                }
+              `}
+            >
+              <span className="text-xl mr-3">{item.icon}</span>
+              <span className="text-sm">{item.label}</span>
+            </button>
+          ))}
 
           {/* Settings Dropdown */}
           <div>
