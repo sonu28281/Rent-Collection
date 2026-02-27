@@ -24,7 +24,7 @@ const TenantPortal = () => {
   const REMEMBER_ME_KEY = 'tenant_portal_saved_login_v1';
   const TENANT_PORTAL_LANG_KEY = 'tenant_portal_language_v1';
   const KYC_PENDING_KEY = 'digilocker_kyc_pending_v1';
-  const DEFAULT_KYC_FUNCTION_BASE_URL = 'https://us-central1-rent-collection-5e1d2.cloudfunctions.net';
+  const DEFAULT_KYC_FUNCTION_BASE_URL = `${window.location.origin}/.netlify/functions`;
 
   // Login state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
