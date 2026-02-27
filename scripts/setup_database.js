@@ -29,7 +29,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-console.log('\n🔧 Autoxweb Rent - Database Setup Script\n');
+console.log('\n🔧 Callvia Rent - Database Setup Script\n');
 console.log('=' .repeat(60));
 
 // Required collections with their schemas

@@ -1,5 +1,5 @@
 # Rent-Collection
-**Autoxweb Rent Management System v1.0** 🏠  
+**Callvia Rent Management System v1.0** 🏠  
 Production-ready rental management for 12-room lodge
 
 ---
@@ -281,8 +281,8 @@ More issues: See [USAGE.md - Troubleshooting](USAGE.md#troubleshooting)
 ---
 
 ## 📝 License
-This project is for personal use by Autoxweb lodge management.  
-© 2026 Autoxweb. All rights reserved.
+This project is for personal use by Callvia lodge management.  
+© 2026 Callvia. All rights reserved.
 
 ---
 
@@ -316,7 +316,7 @@ This project is for personal use by Autoxweb lodge management.
 # ORIGINAL SPECS BELOW (For Reference)
 ---
 
-TITLE: Build & Deploy Autoxweb Rent (Netlify + Firebase + Zero-Cost Storage) – Full Production Build
+TITLE: Build & Deploy Callvia Rent (Netlify + Firebase + Zero-Cost Storage) – Full Production Build
 
 OBJECTIVE
 ---------
@@ -547,7 +547,7 @@ PHASE 2 — SEED ROOMS, SIDEBAR & CORE SCHEMA (DEV: 1–2 hours)
      - Mobile: collapsed into a top-left hamburger which toggles a slide-over menu.
      - Active route highlighting.
      - Each menu item supports an optional badge (e.g., pending payments count).
-     - Persist collapsed/expanded state in localStorage (key: autoxweb_sidebar_collapsed).
+   - Persist collapsed/expanded state in localStorage (key: callvia_sidebar_collapsed).
      - Accessible (aria attributes) and keyboard navigable.
 4. Integrate Sidebar into App layout:
    - Create Layout component that renders <Sidebar/> + outlet for routes.
@@ -614,7 +614,7 @@ COMMIT: "Phase 9 complete – UPI switching"
 
 PHASE 10: Historical CSV Import
 Use provided CSV:
-autoxweb_rent_upload_ready_2017_2025.csv
+callvia_rent_upload_ready_2017_2025.csv
 
 - Upload via Admin UI
 - Validate columns

@@ -82,7 +82,7 @@ const Sidebar = () => {
             )}
           </svg>
         </button>
-        <h1 className="ml-4 text-lg font-bold text-gray-800">Autoxweb Rent</h1>
+        <h1 className="ml-4 text-lg font-bold text-gray-800">Callvia Rent</h1>
       </div>
 
       {/* Mobile Overlay */}
@@ -106,7 +106,7 @@ const Sidebar = () => {
         {/* Logo/Header */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200 flex-shrink-0">
           <div>
-            <h1 className="text-xl font-bold text-gray-800">Autoxweb</h1>
+            <h1 className="text-xl font-bold text-gray-800">Callvia</h1>
             <p className="text-xs text-gray-500">Rent Management</p>
           </div>
           <button
@@ -270,7 +270,7 @@ const Sidebar = () => {
           </div>
           <div className="text-xs text-gray-500 text-center">
             <p>v1.0.0</p>
-            <p>© 2026 Autoxweb</p>
+            <p>© 2026 Callvia</p>
           </div>
         </div>
       </aside>

@@ -26,6 +26,22 @@ import VacancyReport from './components/VacancyReport';
 import DialogProvider from './components/ui/DialogProvider';
 
 function App() {
+  const hostname = window.location.hostname.toLowerCase();
+  const isTenantPortalDomain = hostname === 'tenants.callvia.in';
+  const isAdminPortalDomain = hostname === 'admin.callvia.in';
+  const defaultRedirectPath = isTenantPortalDomain ? '/tenant-portal' : (isAdminPortalDomain ? '/login' : '/dashboard');
+
+  const tenantPortalRedirect = <Navigate to="/tenant-portal" replace />;
+  const adminRouteElement = (component) => (
+    isTenantPortalDomain
+      ? tenantPortalRedirect
+      : (
+        <ProtectedRoute>
+          <Layout>{component}</Layout>
+        </ProtectedRoute>
+      )
+  );
+
   return (
     <AuthProvider>
       <DialogProvider>
@@ -36,161 +52,85 @@ function App() {
           <Route path="/tenant-portal" element={<TenantPortal />} />
           <Route path="/t/:token" element={<TenantPortal />} />
           
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={isTenantPortalDomain ? tenantPortalRedirect : <Login />} />
           <Route 
             path="/dashboard" 
-            element={
-              <ProtectedRoute>
-                <Layout><Dashboard /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<Dashboard />)} 
           />
           <Route 
             path="/rooms" 
-            element={
-              <ProtectedRoute>
-                <Layout><Rooms /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<Rooms />)} 
           />
           <Route 
             path="/tenants" 
-            element={
-              <ProtectedRoute>
-                <Layout><Tenants /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<Tenants />)} 
           />
           <Route 
             path="/tenants-kyc" 
-            element={
-              <ProtectedRoute>
-                <Layout><TenantsKYCDetails /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<TenantsKYCDetails />)} 
           />
           <Route 
             path="/electricity" 
-            element={
-              <ProtectedRoute>
-                <Layout><Electricity /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<Electricity />)} 
           />
           <Route 
             path="/rent-increase" 
-            element={
-              <ProtectedRoute>
-                <Layout><RentIncrease /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<RentIncrease />)} 
           />
           <Route 
             path="/payments" 
-            element={
-              <ProtectedRoute>
-                <Layout><Payments /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<Payments />)} 
           />
           <Route 
             path="/verify-payments" 
-            element={
-              <ProtectedRoute>
-                <Layout><VerifyPayments /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<VerifyPayments />)} 
           />
           <Route 
             path="/maintenance" 
-            element={
-              <ProtectedRoute>
-                <Layout><Maintenance /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<Maintenance />)} 
           />
           <Route 
             path="/import" 
-            element={
-              <ProtectedRoute>
-                <Layout><ImportCSV /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<ImportCSV />)} 
           />
           <Route 
             path="/bank-accounts" 
-            element={
-              <ProtectedRoute>
-                <Layout><BankAccounts /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<BankAccounts />)} 
           />
           <Route 
             path="/backup" 
-            element={
-              <ProtectedRoute>
-                <Layout><BackupExport /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<BackupExport />)} 
           />
           <Route 
             path="/history" 
-            element={
-              <ProtectedRoute>
-                <Layout><HistoryManager /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<HistoryManager />)} 
           />
           <Route 
             path="/vacancy-report" 
-            element={
-              <ProtectedRoute>
-                <Layout><VacancyReport /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<VacancyReport />)} 
           />
           <Route 
             path="/tenant-history" 
-            element={
-              <ProtectedRoute>
-                <Layout><TenantHistory /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<TenantHistory />)} 
           />
           <Route 
             path="/import-logs" 
-            element={
-              <ProtectedRoute>
-                <Layout><ImportLogsPage /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<ImportLogsPage />)} 
           />
           <Route 
             path="/payments-reset" 
-            element={
-              <ProtectedRoute>
-                <Layout><PaymentsReset /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<PaymentsReset />)} 
           />
           <Route 
             path="/database-cleanup" 
-            element={
-              <ProtectedRoute>
-                <Layout><DatabaseCleanup /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<DatabaseCleanup />)} 
           />
           <Route 
             path="/settings" 
-            element={
-              <ProtectedRoute>
-                <Layout><Settings /></Layout>
-              </ProtectedRoute>
-            } 
+            element={adminRouteElement(<Settings />)} 
           />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Navigate to={defaultRedirectPath} replace />} />
+          <Route path="*" element={<Navigate to={defaultRedirectPath} replace />} />
           </Routes>
         </Router>
       </DialogProvider>

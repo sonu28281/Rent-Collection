@@ -131,6 +131,6 @@ async function seedRooms() {
 }
 
 // Run the seeding
-console.log('🚀 Autoxweb Rent - Room Seeding Script');
+console.log('🚀 Callvia Rent - Room Seeding Script');
 console.log('=' .repeat(50));
 seedRooms();

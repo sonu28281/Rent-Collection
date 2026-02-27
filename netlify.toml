@@ -3,6 +3,160 @@
   publish = "dist"
 
 [[redirects]]
+  from = "/"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/"
+  to = "/login"
+  status = 301
+  force = true
+  conditions = {Host = ["admin.callvia.in"]}
+
+[[redirects]]
+  from = "/login"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/rooms"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/tenants"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/tenants-kyc"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/electricity"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/rent-increase"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/payments"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/verify-payments"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/maintenance"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/import"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/bank-accounts"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/backup"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/history"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/vacancy-report"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/tenant-history"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/import-logs"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/payments-reset"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/database-cleanup"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
+  from = "/settings"
+  to = "/tenant-portal"
+  status = 301
+  force = true
+  conditions = {Host = ["tenants.callvia.in"]}
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

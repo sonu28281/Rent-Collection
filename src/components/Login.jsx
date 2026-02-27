@@ -23,7 +23,7 @@ const Login = () => {
 
     const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
     if (appleTitleMeta) {
-      appleTitleMeta.setAttribute('content', 'Autoxweb Rent');
+      appleTitleMeta.setAttribute('content', 'Callvia Rent');
     }
 
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -143,7 +143,7 @@ const Login = () => {
         <div className="card">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-800 mb-2">
-              Autoxweb Rent
+              Callvia Rent
             </h1>
             <p className="text-gray-600">
               {showResetPassword ? 'Reset Your Password' : 'Admin Login Portal'}
