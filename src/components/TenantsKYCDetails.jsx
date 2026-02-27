@@ -13,15 +13,15 @@ const getAssignedRooms = (tenantRecord) => {
 };
 
 const completionFromProfile = (profile = {}) => {
+  const aadharVerified = profile.aadharDocStatus === 'verified' && !!(profile.aadharExtractedNumber || profile.aadharNumber);
+  const panVerified = profile.panDocStatus === 'verified' && !!(profile.panExtractedNumber || profile.panNumber);
   const checks = [
     !!profile.firstName,
     !!profile.lastName,
     !!profile.phoneNumber,
     !!profile.occupation,
-    !!profile.aadharNumber,
-    !!profile.panNumber,
-    !!profile.aadharImage,
-    !!profile.panImage,
+    aadharVerified,
+    panVerified,
     !!profile.selfieImage,
     !!profile.agreementAccepted,
     !!profile.agreementSignature
@@ -107,11 +107,15 @@ const TenantsKYCDetails = () => {
           lastName: profile.lastName || '',
           phoneNumber: profile.phoneNumber || tenant.phone || '',
           occupation: profile.occupation || '',
-          aadharNumber: profile.aadharNumber || '',
-          panNumber: profile.panNumber || '',
+          aadharNumber: profile.aadharExtractedNumber || profile.aadharNumber || '',
+          panNumber: profile.panExtractedNumber || profile.panNumber || '',
           aadharImage: profile.aadharImage || '',
           panImage: profile.panImage || '',
           selfieImage: profile.selfieImage || '',
+          aadharDocStatus: profile.aadharDocStatus || 'not_uploaded',
+          panDocStatus: profile.panDocStatus || 'not_uploaded',
+          aadharDocReason: profile.aadharDocReason || '',
+          panDocReason: profile.panDocReason || '',
           agreementAccepted: !!profile.agreementAccepted,
           agreementSignature: profile.agreementSignature || '',
           agreementSignedAt: profile.agreementSignedAt || '',
@@ -164,7 +168,7 @@ const TenantsKYCDetails = () => {
             Total tenants: <span className="font-semibold">{filteredRows.length}</span>
             {floorFilter !== 'all' && <span className="text-gray-500"> (filtered)</span>}
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="hidden md:flex flex-wrap gap-2">
             <button
               onClick={() => setFloorFilter('all')}
               className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${floorFilter === 'all' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700'}`}
@@ -199,6 +203,7 @@ const TenantsKYCDetails = () => {
                 <th className="px-3 py-2 text-left">Occupation</th>
                 <th className="px-3 py-2 text-left">Aadhaar</th>
                 <th className="px-3 py-2 text-left">PAN</th>
+                <th className="px-3 py-2 text-center">Doc Check</th>
                 <th className="px-3 py-2 text-center">Aadhaar Img</th>
                 <th className="px-3 py-2 text-center">PAN Img</th>
                 <th className="px-3 py-2 text-center">Selfie</th>
@@ -231,6 +236,14 @@ const TenantsKYCDetails = () => {
                   <td className="px-3 py-2">{row.occupation || '-'}</td>
                   <td className="px-3 py-2 font-mono">{row.aadharNumber || '-'}</td>
                   <td className="px-3 py-2 font-mono uppercase">{row.panNumber || '-'}</td>
+                  <td className="px-3 py-2 text-center">
+                    <div className={`text-xs font-semibold ${row.aadharDocStatus === 'verified' ? 'text-green-700' : 'text-red-700'}`}>
+                      Aadhaar: {row.aadharDocStatus}
+                    </div>
+                    <div className={`text-xs font-semibold mt-1 ${row.panDocStatus === 'verified' ? 'text-green-700' : 'text-red-700'}`}>
+                      PAN: {row.panDocStatus}
+                    </div>
+                  </td>
                   <td className="px-3 py-2 text-center">
                     {row.aadharImage ? (
                       <img src={row.aadharImage} alt="Aadhaar" className="h-14 w-20 object-cover rounded border mx-auto" />
@@ -267,7 +280,7 @@ const TenantsKYCDetails = () => {
         </div>
       </div>
       ) : (
-        <div className="space-y-3 md:hidden">
+        <div className="space-y-3 md:hidden pb-20">
           {filteredRows.map((row) => (
             <div key={row.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
               <div className="flex items-start justify-between gap-3 mb-2">
@@ -291,11 +304,65 @@ const TenantsKYCDetails = () => {
                 <p><span className="text-gray-500">Occupation:</span> {row.occupation || '-'}</p>
                 <p><span className="text-gray-500">Aadhaar:</span> {row.aadharNumber || '-'}</p>
                 <p><span className="text-gray-500">PAN:</span> {row.panNumber || '-'}</p>
+                <p><span className="text-gray-500">Aadhaar Check:</span> {row.aadharDocStatus}</p>
+                <p><span className="text-gray-500">PAN Check:</span> {row.panDocStatus}</p>
                 <p><span className="text-gray-500">Agreement:</span> {row.agreementAccepted ? 'Accepted' : 'Pending'}</p>
                 <p><span className="text-gray-500">Completion:</span> {row.completion.percentage}%</p>
               </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="border rounded p-1 bg-gray-50">
+                  <p className="text-[10px] text-gray-600 text-center mb-1">Aadhaar</p>
+                  {row.aadharImage ? (
+                    <img src={row.aadharImage} alt="Aadhaar" className="h-14 w-full object-cover rounded" />
+                  ) : (
+                    <p className="text-[10px] text-gray-400 text-center py-4">Not uploaded</p>
+                  )}
+                </div>
+                <div className="border rounded p-1 bg-gray-50">
+                  <p className="text-[10px] text-gray-600 text-center mb-1">PAN</p>
+                  {row.panImage ? (
+                    <img src={row.panImage} alt="PAN" className="h-14 w-full object-cover rounded" />
+                  ) : (
+                    <p className="text-[10px] text-gray-400 text-center py-4">Not uploaded</p>
+                  )}
+                </div>
+                <div className="border rounded p-1 bg-gray-50">
+                  <p className="text-[10px] text-gray-600 text-center mb-1">Selfie</p>
+                  {row.selfieImage ? (
+                    <img src={row.selfieImage} alt="Selfie" className="h-14 w-full object-cover rounded" />
+                  ) : (
+                    <p className="text-[10px] text-gray-400 text-center py-4">Not uploaded</p>
+                  )}
+                </div>
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {isMobileViewport && (
+        <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-white/95 backdrop-blur border border-gray-200 shadow-lg rounded-full px-2 py-2">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setFloorFilter('all')}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold ${floorFilter === 'all' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setFloorFilter('floor1')}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold ${floorFilter === 'floor1' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+            >
+              Floor 1
+            </button>
+            <button
+              onClick={() => setFloorFilter('floor2')}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold ${floorFilter === 'floor2' ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+            >
+              Floor 2
+            </button>
+          </div>
         </div>
       )}
 
@@ -323,9 +390,18 @@ const TenantsKYCDetails = () => {
               <p><span className="font-semibold text-gray-700">Occupation:</span> {selectedTenant.occupation || '-'}</p>
               <p><span className="font-semibold text-gray-700">Aadhaar Number:</span> {selectedTenant.aadharNumber || '-'}</p>
               <p><span className="font-semibold text-gray-700">PAN Number:</span> {selectedTenant.panNumber || '-'}</p>
+              <p><span className="font-semibold text-gray-700">Aadhaar Verification:</span> {selectedTenant.aadharDocStatus || '-'}</p>
+              <p><span className="font-semibold text-gray-700">PAN Verification:</span> {selectedTenant.panDocStatus || '-'}</p>
               <p><span className="font-semibold text-gray-700">Agreement:</span> {selectedTenant.agreementAccepted ? 'Accepted' : 'Pending'}</p>
               <p><span className="font-semibold text-gray-700">Signed At:</span> {selectedTenant.agreementSignedAt ? new Date(selectedTenant.agreementSignedAt).toLocaleString('en-IN') : '-'}</p>
             </div>
+
+            {(selectedTenant.aadharDocReason || selectedTenant.panDocReason) && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
+                {selectedTenant.aadharDocReason && <p><span className="font-semibold">Aadhaar reason:</span> {selectedTenant.aadharDocReason}</p>}
+                {selectedTenant.panDocReason && <p className="mt-1"><span className="font-semibold">PAN reason:</span> {selectedTenant.panDocReason}</p>}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="border rounded-lg p-2">
