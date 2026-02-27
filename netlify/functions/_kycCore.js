@@ -1,5 +1,11 @@
 import admin from 'firebase-admin';
 import crypto from 'crypto';
+import { 
+  listIssuedDocuments, 
+  findAadhaarDocument, 
+  fetchDocument, 
+  parseAadhaarXML 
+} from './_kycDocuments.js';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.KYC_API_TIMEOUT_MS || 12000);
 const DEFAULT_STATE_TTL_SECONDS = Number(process.env.KYC_STATE_TTL_SECONDS || 600);
@@ -143,7 +149,7 @@ const extractProfileValue = (profile, keys = []) => {
   return '';
 };
 
-const writeKycToFirestore = async ({ tenantId, profile, tokenPayload }) => {
+const writeKycToFirestore = async ({ tenantId, profile, tokenPayload, documentData }) => {
   const app = getAdminApp();
   const db = admin.firestore(app);
 
@@ -153,16 +159,24 @@ const writeKycToFirestore = async ({ tenantId, profile, tokenPayload }) => {
   const address = extractProfileValue(normalizedProfile, ['address', 'permanentAddress']);
   const digilockerTxnId = tokenPayload?.transaction_id || tokenPayload?.txn_id || '';
 
+  const kycData = {
+    verified: true,
+    verifiedBy: 'DigiLocker',
+    verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+    name,
+    dob,
+    address,
+    digilockerTxnId
+  };
+  
+  // Add Aadhaar document data if available
+  if (documentData) {
+    kycData.aadhaar = documentData;
+    kycData.hasDocuments = true;
+  }
+
   await db.collection('tenants').doc(tenantId).set({
-    kyc: {
-      verified: true,
-      verifiedBy: 'DigiLocker',
-      verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-      name,
-      dob,
-      address,
-      digilockerTxnId
-    }
+    kyc: kycData
   }, { merge: true });
 
   return {
@@ -172,7 +186,8 @@ const writeKycToFirestore = async ({ tenantId, profile, tokenPayload }) => {
     name,
     dob,
     address,
-    digilockerTxnId
+    digilockerTxnId,
+    ...(documentData ? { aadhaar: documentData, hasDocuments: true } : {})
   };
 };
 
@@ -450,6 +465,81 @@ const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreat
     const tokenPayload = await exchangeCodeInternal(code, cfg, { simulateFailure, codeVerifier });
     const profile = await fetchProfileInternal(tokenPayload.access_token, cfg, { simulateFailure, tenantId });
 
+    // Fetch Aadhaar document if scope includes issued_documents
+    let documentData = null;
+    if (cfg.scopes.includes('issued_documents') || cfg.scopes.includes('issued:aadhaar')) {
+      try {
+        console.log('📄 Attempting to fetch Aadhaar documents from DigiLocker...');
+        
+        const documents = await listIssuedDocuments(tokenPayload.access_token);
+        console.log(`📥 Found ${documents?.length || 0} documents`);
+        
+        if (documents && documents.length > 0) {
+          const aadhaarDoc = findAadhaarDocument(documents);
+          
+          if (aadhaarDoc) {
+            console.log('✅ Aadhaar document found:', aadhaarDoc.name);
+            
+            const docContent = await fetchDocument(tokenPayload.access_token, aadhaarDoc.uri);
+            
+            if (docContent.type === 'xml') {
+              const aadhaarDetails = parseAadhaarXML(docContent.content);
+              
+              // Store in Firebase Storage
+              const bucket = admin.storage().bucket();
+              const fileName = `kyc-documents/${tenantId}/aadhaar_${Date.now()}.xml`;
+              const file = bucket.file(fileName);
+              
+              await file.save(docContent.content, {
+                contentType: 'application/xml',
+                metadata: {
+                  tenantId,
+                  documentType: 'aadhaar',
+                  verifiedAt: new Date().toISOString()
+                }
+              });
+              
+              console.log('✅ Aadhaar document stored in Firebase Storage:', fileName);
+              
+              // Generate signed URL (valid for 10 years)
+              const [downloadUrl] = await file.getSignedUrl({
+                action: 'read',
+                expires: '03-01-2535'
+              });
+              
+              documentData = {
+                aadhaarNumber: aadhaarDetails.aadhaarNumber,
+                name: aadhaarDetails.name,
+                dob: aadhaarDetails.dob,
+                gender: aadhaarDetails.gender,
+                address: aadhaarDetails.address,
+                pincode: aadhaarDetails.pincode,
+                documentUri: aadhaarDoc.uri,
+                storagePath: fileName,
+                downloadUrl: downloadUrl,
+                fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+                verified: true
+              };
+              
+              console.log('✅ Aadhaar data prepared for storage');
+            } else {
+              console.warn('⚠️ Aadhaar document is not XML format:', docContent.type);
+            }
+          } else {
+            console.warn('⚠️ No Aadhaar document found in DigiLocker');
+          }
+        } else {
+          console.warn('⚠️ No documents returned from DigiLocker');
+        }
+      } catch (docError) {
+        console.error('❌ Error fetching documents:', docError.message);
+        console.error('❌ Document error stack:', docError.stack);
+        // Don't fail the entire KYC process, just log the error
+      }
+    } else {
+      console.log('ℹ️ Document fetching skipped - scope does not include issued_documents');
+    }
+
     if (simulateFailure === 'write') {
       return {
         httpStatus: 500,
@@ -459,7 +549,7 @@ const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreat
 
     let storedKyc = null;
     if (!isKycTestMode()) {
-      storedKyc = await writeKycToFirestore({ tenantId, profile, tokenPayload });
+      storedKyc = await writeKycToFirestore({ tenantId, profile, tokenPayload, documentData });
     }
 
     return {
