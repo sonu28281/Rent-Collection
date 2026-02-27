@@ -208,6 +208,255 @@ npm run dev
 # Login → Add Tenant → Record Electricity → Record Payment
 ```
 
+### KYC API Test Mode
+
+Internal backend readiness validation for DigiLocker KYC is available via Firebase Function `testKycFlow`.
+
+- **Purpose**: Validate token/profile pipeline and error handling without tenant UI dependency.
+- **Endpoint**: `POST /testKycFlow` (Cloud Functions URL)
+- **Required body**: `tenantId`
+
+Example request body:
+
+```json
+{
+   "tenantId": "tenant_123",
+   "state": "test_state",
+   "expectedState": "test_state",
+   "stateCreatedAt": 1740650000000,
+   "code": "MOCK_AUTH_CODE"
+}
+```
+
+#### Enable Test Mode
+
+Set environment variable in Functions runtime:
+
+```env
+KYC_TEST_MODE=true
+```
+
+When enabled:
+
+- Real DigiLocker API calls are skipped.
+- Mock token + profile are returned.
+- No Firestore write is performed in test flow.
+- Predictable response payload is returned for API validation.
+
+#### Simulate Failures
+
+Use `simulateFailure` in request body:
+
+- `"token"` → token exchange failure
+- `"profile"` → profile fetch failure
+- `"write"` → write-stage failure simulation
+
+Additional failure checks:
+
+- Expired state (`stateCreatedAt` older than `KYC_STATE_TTL_SECONDS`)
+- Invalid/missing code
+- Timeout (`KYC_API_TIMEOUT_MS`)
+
+#### Standardized Response
+
+All KYC APIs return:
+
+```json
+{
+   "success": true,
+   "stage": "token | profile | write",
+   "message": "...",
+   "data": {}
+}
+```
+
+#### Structured Debug Logs
+
+Events logged as structured records:
+
+- `INITIATED`
+- `TOKEN_EXCHANGE_SUCCESS`
+- `PROFILE_FETCH_SUCCESS`
+- `FIRESTORE_WRITE_SUCCESS`
+- `FAILURE_REASON`
+
+Use Firebase Functions logs filtering by `component=digilocker-kyc` and `event`.
+
+#### Production vs Test
+
+- **Test mode (`KYC_TEST_MODE=true`)**: Mocked token/profile, no real external dependency.
+- **Production mode (`KYC_TEST_MODE=false`)**: Real DigiLocker token/profile calls with timeout/error protections.
+
+### KYC API Test Examples
+
+Set your endpoint once:
+
+```bash
+export KYC_TEST_ENDPOINT="https://<region>-<project-id>.cloudfunctions.net/testKycFlow"
+```
+
+> If your deployment enforces API key, include `-H "x-api-key: <your-api-key>"` in the commands below.
+
+#### 1) Successful Flow
+
+Endpoint: `POST $KYC_TEST_ENDPOINT`
+
+```bash
+curl -X POST "$KYC_TEST_ENDPOINT" \
+   -H "Content-Type: application/json" \
+   -d '{
+      "tenantId": "tenant_123",
+      "state": "test_state",
+      "expectedState": "test_state",
+      "stateCreatedAt": 1740650000000,
+      "code": "MOCK_AUTH_CODE"
+   }'
+```
+
+Expected response example:
+
+```json
+{
+   "success": true,
+   "stage": "write",
+   "message": "KYC flow test completed",
+   "data": {
+      "tenantId": "tenant_123",
+      "testMode": true,
+      "tokenMeta": {
+         "tokenType": "Bearer",
+         "expiresIn": 3600,
+         "scope": "openid profile issued_documents"
+      },
+      "profile": {
+         "full_name": "Test Tenant",
+         "dob": "1994-01-15",
+         "address": "Mock Address, Test City, India",
+         "txn_id": "mock_txn_kyc_001"
+      }
+   }
+}
+```
+
+#### 2) Token Failure Simulation
+
+Endpoint: `POST $KYC_TEST_ENDPOINT`
+
+```bash
+curl -X POST "$KYC_TEST_ENDPOINT" \
+   -H "Content-Type: application/json" \
+   -d '{
+      "tenantId": "tenant_123",
+      "state": "test_state",
+      "expectedState": "test_state",
+      "stateCreatedAt": 1740650000000,
+      "code": "MOCK_AUTH_CODE",
+      "simulateFailure": "token"
+   }'
+```
+
+Expected response example:
+
+```json
+{
+   "success": false,
+   "stage": "token",
+   "message": "Simulated token failure",
+   "data": {
+      "tenantId": "tenant_123"
+   }
+}
+```
+
+#### 3) Profile Failure Simulation
+
+Endpoint: `POST $KYC_TEST_ENDPOINT`
+
+```bash
+curl -X POST "$KYC_TEST_ENDPOINT" \
+   -H "Content-Type: application/json" \
+   -d '{
+      "tenantId": "tenant_123",
+      "state": "test_state",
+      "expectedState": "test_state",
+      "stateCreatedAt": 1740650000000,
+      "code": "MOCK_AUTH_CODE",
+      "simulateFailure": "profile"
+   }'
+```
+
+Expected response example:
+
+```json
+{
+   "success": false,
+   "stage": "profile",
+   "message": "Simulated profile failure",
+   "data": {
+      "tenantId": "tenant_123"
+   }
+}
+```
+
+#### 4) Write-Stage Failure Simulation
+
+Endpoint: `POST $KYC_TEST_ENDPOINT`
+
+```bash
+curl -X POST "$KYC_TEST_ENDPOINT" \
+   -H "Content-Type: application/json" \
+   -d '{
+      "tenantId": "tenant_123",
+      "state": "test_state",
+      "expectedState": "test_state",
+      "stateCreatedAt": 1740650000000,
+      "code": "MOCK_AUTH_CODE",
+      "simulateFailure": "write"
+   }'
+```
+
+Expected response example:
+
+```json
+{
+   "success": false,
+   "stage": "write",
+   "message": "Simulated write failure",
+   "data": {
+      "tenantId": "tenant_123"
+   }
+}
+```
+
+#### 5) Expired State Simulation
+
+Endpoint: `POST $KYC_TEST_ENDPOINT`
+
+```bash
+curl -X POST "$KYC_TEST_ENDPOINT" \
+   -H "Content-Type: application/json" \
+   -d '{
+      "tenantId": "tenant_123",
+      "state": "test_state",
+      "expectedState": "test_state",
+      "stateCreatedAt": 1700000000000,
+      "code": "MOCK_AUTH_CODE"
+   }'
+```
+
+Expected response example:
+
+```json
+{
+   "success": false,
+   "stage": "token",
+   "message": "State expired",
+   "data": {
+      "tenantId": "tenant_123"
+   }
+}
+```
+
 ---
 
 ## 🔒 Security

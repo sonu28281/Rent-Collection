@@ -25,6 +25,12 @@ service cloud.firestore {
       allow read: if true;  // ✅ Tenant portal validates token in application code
       allow write: if isAdmin();
     }
+
+    // Explicit deny for any client-side write to nested kyc object (backend Admin SDK bypasses rules)
+    match /tenants/{tenantId}/kyc/{docId} {
+      allow read: if isAuthenticated() && (request.auth.uid == tenantId || isAdmin());
+      allow write: if false;
+    }
     
     // Monthly records - Allow public read (for tenant portal), admin write
     match /monthlyRecords/{recordId} {
@@ -70,8 +76,8 @@ service cloud.firestore {
 
     // Tenant KYC profiles - tenant portal reads/writes, token validation is done in app logic
     match /tenantProfiles/{tenantId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if isAuthenticated() && (request.auth.uid == tenantId || isAdmin());
+      allow write: if isAdmin();
     }
 
     // Import logs - Admin only

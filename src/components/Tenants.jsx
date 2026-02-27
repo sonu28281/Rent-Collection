@@ -14,6 +14,7 @@ const Tenants = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingTenant, setEditingTenant] = useState(null);
   const [filter, setFilter] = useState('all'); // all, active, inactive
+  const [kycFilter, setKycFilter] = useState('all'); // all, verified, not_verified
   const [floorFilter, setFloorFilter] = useState('all'); // all, floor1, floor2
   const { viewMode, setViewMode } = useResponsiveViewMode('tenants-view-mode', 'table');
   const [isMobileViewport, setIsMobileViewport] = useState(false);
@@ -359,6 +360,12 @@ const Tenants = () => {
     let matchesActiveFilter = true;
     if (filter === 'active') matchesActiveFilter = tenant.isActive;
     if (filter === 'inactive') matchesActiveFilter = !tenant.isActive;
+
+    // KYC filter
+    const isKycVerified = tenant?.kyc?.verified === true && tenant?.kyc?.verifiedBy === 'DigiLocker';
+    let matchesKycFilter = true;
+    if (kycFilter === 'verified') matchesKycFilter = isKycVerified;
+    if (kycFilter === 'not_verified') matchesKycFilter = !isKycVerified;
     
     // Floor filter
     let matchesFloorFilter = true;
@@ -371,7 +378,7 @@ const Tenants = () => {
       matchesFloorFilter = assignedRoomNumbers.some((roomNum) => roomNum >= 201 && roomNum <= 206);
     }
     
-    return matchesActiveFilter && matchesFloorFilter;
+    return matchesActiveFilter && matchesKycFilter && matchesFloorFilter;
   });
 
   const getRoomNumberValue = (roomNumber) => {
@@ -391,6 +398,8 @@ const Tenants = () => {
     total: tenants.length,
     active: tenants.filter(t => t.isActive).length,
     inactive: tenants.filter(t => !t.isActive).length,
+    kycVerified: tenants.filter((t) => t?.kyc?.verified === true && t?.kyc?.verifiedBy === 'DigiLocker').length,
+    kycNotVerified: tenants.filter((t) => !(t?.kyc?.verified === true && t?.kyc?.verifiedBy === 'DigiLocker')).length,
     floor1: tenants.filter(t => {
       const assignedRoomNumbers = getAssignedRooms(t).map((room) => Number.parseInt(room, 10));
       return assignedRoomNumbers.some((roomNum) => roomNum >= 101 && roomNum <= 106);
@@ -549,6 +558,43 @@ const Tenants = () => {
           </div>
         </div>
 
+        {/* KYC Filters */}
+        <div>
+          <label className="text-sm font-semibold text-gray-700 mb-2 block">KYC Filter</label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setKycFilter('all')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                kycFilter === 'all'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              All ({stats.total})
+            </button>
+            <button
+              onClick={() => setKycFilter('verified')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                kycFilter === 'verified'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Verified ({stats.kycVerified})
+            </button>
+            <button
+              onClick={() => setKycFilter('not_verified')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                kycFilter === 'not_verified'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Not Verified ({stats.kycNotVerified})
+            </button>
+          </div>
+        </div>
+
         {/* View Mode Toggle */}
         <div className="hidden md:block">
           <label className="text-sm font-semibold text-gray-700 mb-2 block">View Mode</label>
@@ -673,11 +719,13 @@ const Tenants = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Password</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">KYC</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {sortedTenants.map(tenant => {
+                const isKycVerified = tenant?.kyc?.verified === true && tenant?.kyc?.verifiedBy === 'DigiLocker';
                 // Calculate duration
                 const calculateDuration = () => {
                   if (!tenant.checkInDate) return '-';
@@ -738,6 +786,13 @@ const Tenants = () => {
                         tenant.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                       }`}>
                         {tenant.isActive ? '✅ Active' : '📋 Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        isKycVerified ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {isKycVerified ? '✅ Verified' : '⚠️ Not Verified'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -955,6 +1010,7 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
     ? tenant.assignedRooms.map((room) => String(room))
     : (tenant?.roomNumber ? [String(tenant.roomNumber)] : []);
   const primaryRoom = assignedRooms[0] || tenant.roomNumber;
+  const isKycVerified = tenant?.kyc?.verified === true && tenant?.kyc?.verifiedBy === 'DigiLocker';
   
   // Calculate living duration
   const calculateDuration = () => {
@@ -1038,6 +1094,11 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory }) => {
                 🕐 {duration}
               </span>
             )}
+            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+              isKycVerified ? 'bg-green-600 text-white' : 'bg-amber-500 text-white'
+            }`}>
+              {isKycVerified ? '🛡️ KYC Verified' : '🛡️ KYC Pending'}
+            </span>
           </div>
         </div>
       </div>

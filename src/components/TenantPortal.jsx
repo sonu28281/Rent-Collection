@@ -65,6 +65,8 @@ const TenantPortal = () => {
   const [notificationPermission, setNotificationPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
   );
+  const [startingDigiLockerKyc, setStartingDigiLockerKyc] = useState(false);
+  const [digiLockerError, setDigiLockerError] = useState('');
   const [hiddenRejectedSubmissionIds, setHiddenRejectedSubmissionIds] = useState(new Set());
   const [tenantProfile, setTenantProfile] = useState({
     firstName: '',
@@ -725,6 +727,45 @@ const TenantPortal = () => {
 
   const clearRememberedLogin = () => {
     localStorage.removeItem(REMEMBER_ME_KEY);
+  };
+
+  const getKycInitiateUrl = () => {
+    const direct = import.meta.env.VITE_KYC_INITIATE_URL;
+    if (direct) return String(direct);
+
+    const base = import.meta.env.VITE_KYC_FUNCTION_BASE_URL;
+    if (base) return `${String(base).replace(/\/$/, '')}/initiateKyc`;
+
+    return '';
+  };
+
+  const startDigiLockerVerification = async () => {
+    if (!tenant?.id) return;
+
+    const initiateUrl = getKycInitiateUrl();
+    if (!initiateUrl) {
+      setDigiLockerError('KYC initiate URL missing. Set VITE_KYC_INITIATE_URL or VITE_KYC_FUNCTION_BASE_URL.');
+      return;
+    }
+
+    setStartingDigiLockerKyc(true);
+    setDigiLockerError('');
+    try {
+      const response = await fetch(initiateUrl, { method: 'GET' });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload?.authorizationUrl || !payload?.state) {
+        throw new Error(payload?.error || 'Unable to initiate DigiLocker verification');
+      }
+
+      localStorage.setItem(`kyc_oauth_state_${tenant.id}`, String(payload.state));
+      window.location.href = String(payload.authorizationUrl);
+    } catch (error) {
+      console.error('DigiLocker initiate failed:', error);
+      setDigiLockerError(error?.message || 'Unable to start DigiLocker verification. Please try again.');
+    } finally {
+      setStartingDigiLockerKyc(false);
+    }
   };
 
   const getAssignedRoomNumbers = (tenantData) => {
@@ -1930,6 +1971,52 @@ const TenantPortal = () => {
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">
+            {(() => {
+              const kycInfo = tenant?.kyc || {};
+              const isVerified = kycInfo.verified === true && kycInfo.verifiedBy === 'DigiLocker';
+              const verifiedDateValue = kycInfo.verifiedAt?.seconds
+                ? new Date(kycInfo.verifiedAt.seconds * 1000)
+                : (kycInfo.verifiedAt ? new Date(kycInfo.verifiedAt) : null);
+              const verifiedDate = verifiedDateValue && !Number.isNaN(verifiedDateValue.getTime())
+                ? verifiedDateValue.toLocaleDateString('en-IN')
+                : null;
+
+              return (
+                <div className={`rounded-lg shadow-md p-4 sm:p-5 border ${isVerified ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                      <h3 className="text-lg sm:text-xl font-bold text-gray-800">🛡️ DigiLocker KYC</h3>
+                      {isVerified ? (
+                        <div className="mt-1">
+                          <p className="text-sm font-semibold text-green-700">✅ Verified by DigiLocker</p>
+                          <p className="text-xs text-green-700">
+                            {verifiedDate ? `Verification Date: ${verifiedDate}` : 'Verification completed'}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-600 mt-1">Complete KYC to verify your identity securely.</p>
+                      )}
+                    </div>
+
+                    {!isVerified && (
+                      <button
+                        type="button"
+                        onClick={startDigiLockerVerification}
+                        disabled={startingDigiLockerKyc}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm disabled:opacity-60"
+                      >
+                        {startingDigiLockerKyc ? 'Starting...' : 'Verify with DigiLocker'}
+                      </button>
+                    )}
+                  </div>
+
+                  {digiLockerError && (
+                    <p className="text-xs text-red-700 mt-2">{digiLockerError}</p>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Due Date Alert - Mobile Optimized with Smart Logic */}
             {(() => {
               const dueInfo = getNextDueDate();
