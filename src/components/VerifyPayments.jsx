@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { useDialog } from './ui/DialogProvider';
+import Tesseract from 'tesseract.js';
 
 const VerifyPayments = () => {
   const { currentUser } = useAuth();
@@ -12,9 +13,128 @@ const VerifyPayments = () => {
   const [filter, setFilter] = useState('pending'); // pending, verified, rejected, all
   const [editingSubmission, setEditingSubmission] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [ocrChecks, setOcrChecks] = useState({});
+  const [ocrRunningBulk, setOcrRunningBulk] = useState(false);
 
   const normalizeUtr = (value) => String(value || '').replace(/\s+/g, '').toUpperCase();
   const isValidUtr = (value) => /^[A-Z0-9]{10,30}$/.test(value);
+  const getSubmissionUtr = (submission) => submission?.utr || submission?.transactionId || submission?.upiRefNo || submission?.upiRef || '';
+  const getSubmissionScreenshot = (submission) => submission?.screenshot || submission?.paymentScreenshot || submission?.proofScreenshot || submission?.proofImageUrl || '';
+
+  const extractUtrFromOcrText = (text) => {
+    const safeText = String(text || '').toUpperCase();
+    if (!safeText) return '';
+
+    const contextualPatterns = [
+      /(?:UTR|UPI\s*REF(?:ERENCE)?|TRANSACTION\s*ID|TXN\s*ID|REF(?:ERENCE)?\s*NO)[\s:#-]*([A-Z0-9]{10,30})/g,
+      /(?:RRN|REF\.?\s*NO\.?)[\s:#-]*([A-Z0-9]{10,30})/g
+    ];
+
+    for (const pattern of contextualPatterns) {
+      const match = pattern.exec(safeText);
+      if (match?.[1]) {
+        const candidate = normalizeUtr(match[1]);
+        if (isValidUtr(candidate)) return candidate;
+      }
+    }
+
+    const genericMatches = safeText.match(/[A-Z0-9]{10,30}/g) || [];
+    const candidate = genericMatches.find((value) => {
+      const cleaned = normalizeUtr(value);
+      if (!isValidUtr(cleaned)) return false;
+      if (/^(SUCCESS|PAYMENT|UPI|CREDIT|DEBIT|APPROVED|COMPLETED)$/.test(cleaned)) return false;
+      return true;
+    });
+
+    return candidate ? normalizeUtr(candidate) : '';
+  };
+
+  const runOcrUtrCheck = async (submission) => {
+    const screenshotProof = getSubmissionScreenshot(submission);
+    const enteredUtr = normalizeUtr(getSubmissionUtr(submission));
+
+    if (!screenshotProof) {
+      setOcrChecks((prev) => ({
+        ...prev,
+        [submission.id]: { status: 'no_screenshot', extractedUtr: '', enteredUtr }
+      }));
+      return;
+    }
+
+    setOcrChecks((prev) => ({
+      ...prev,
+      [submission.id]: { status: 'checking', extractedUtr: '', enteredUtr }
+    }));
+
+    try {
+      const ocrResult = await Tesseract.recognize(screenshotProof, 'eng');
+      const text = ocrResult?.data?.text || '';
+      const confidence = Number(ocrResult?.data?.confidence || 0);
+      const extractedUtr = extractUtrFromOcrText(text);
+
+      if (!extractedUtr) {
+        setOcrChecks((prev) => ({
+          ...prev,
+          [submission.id]: { status: 'not_found', extractedUtr: '', enteredUtr, confidence }
+        }));
+        return;
+      }
+
+      const isMatch = !!enteredUtr && normalizeUtr(extractedUtr) === normalizeUtr(enteredUtr);
+      setOcrChecks((prev) => ({
+        ...prev,
+        [submission.id]: {
+          status: isMatch ? 'matched' : 'mismatch',
+          extractedUtr,
+          enteredUtr,
+          confidence
+        }
+      }));
+    } catch (ocrError) {
+      console.error('OCR check error:', ocrError);
+      setOcrChecks((prev) => ({
+        ...prev,
+        [submission.id]: { status: 'error', extractedUtr: '', enteredUtr }
+      }));
+    }
+  };
+
+  const runBulkOcrCheck = async () => {
+    const pendingWithScreenshots = submissions.filter((submission) => {
+      if (submission.status !== 'pending') return false;
+      return !!getSubmissionScreenshot(submission);
+    });
+
+    if (pendingWithScreenshots.length === 0) {
+      await showAlert('No pending submissions with screenshot found for OCR check.', { title: 'OCR Check', intent: 'warning' });
+      return;
+    }
+
+    try {
+      setOcrRunningBulk(true);
+      for (const submission of pendingWithScreenshots) {
+        await runOcrUtrCheck(submission);
+      }
+    } finally {
+      setOcrRunningBulk(false);
+    }
+  };
+
+  const getOcrBadge = (submissionId) => {
+    const check = ocrChecks[submissionId];
+    if (!check) return { text: 'Not Checked', className: 'bg-gray-100 text-gray-700' };
+
+    const map = {
+      checking: { text: 'Checking...', className: 'bg-blue-100 text-blue-800' },
+      matched: { text: 'UTR Matched ✅', className: 'bg-green-100 text-green-800' },
+      mismatch: { text: 'UTR Mismatch ⚠️', className: 'bg-amber-100 text-amber-800' },
+      not_found: { text: 'UTR Not Found', className: 'bg-orange-100 text-orange-800' },
+      no_screenshot: { text: 'No Screenshot', className: 'bg-red-100 text-red-700' },
+      error: { text: 'OCR Error', className: 'bg-red-100 text-red-700' }
+    };
+
+    return map[check.status] || { text: 'Not Checked', className: 'bg-gray-100 text-gray-700' };
+  };
 
   const fetchSubmissions = useCallback(async () => {
     try {
@@ -23,19 +143,21 @@ const VerifyPayments = () => {
       
       let submissionsQuery;
       if (filter === 'all') {
-        submissionsQuery = query(submissionsRef, orderBy('submittedAt', 'desc'));
+        submissionsQuery = query(submissionsRef);
       } else {
-        submissionsQuery = query(
-          submissionsRef,
-          where('status', '==', filter),
-          orderBy('submittedAt', 'desc')
-        );
+        submissionsQuery = query(submissionsRef, where('status', '==', filter));
       }
       
       const snapshot = await getDocs(submissionsQuery);
       const data = [];
       snapshot.forEach((doc) => {
         data.push({ id: doc.id, ...doc.data() });
+      });
+
+      data.sort((a, b) => {
+        const aTime = a?.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+        const bTime = b?.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+        return bTime - aTime;
       });
       
       setSubmissions(data);
@@ -60,13 +182,14 @@ const VerifyPayments = () => {
       return;
     }
 
-    const normalizedUtr = normalizeUtr(submission.utr);
+    const normalizedUtr = normalizeUtr(getSubmissionUtr(submission));
+    const screenshotProof = getSubmissionScreenshot(submission);
     if (!isValidUtr(normalizedUtr)) {
       await showAlert('Cannot approve: valid UTR is required (10-30 letters/numbers).', { title: 'Approval Blocked', intent: 'error' });
       return;
     }
 
-    if (!submission.screenshot) {
+    if (!screenshotProof) {
       await showAlert('Cannot approve: payment screenshot proof is missing.', { title: 'Approval Blocked', intent: 'error' });
       return;
     }
@@ -114,7 +237,7 @@ const VerifyPayments = () => {
             paidDate: submission.paidDate,
             paymentMethod: 'UPI',
             utr: normalizedUtr,
-            screenshot: submission.screenshot,
+            screenshot: screenshotProof,
             notes: submission.notes,
             status: 'paid',
             isMultiRoomPayment: true,
@@ -157,7 +280,7 @@ const VerifyPayments = () => {
           paidDate: submission.paidDate,
           paymentMethod: 'UPI',
           utr: normalizedUtr,
-          screenshot: submission.screenshot,
+          screenshot: screenshotProof,
           notes: submission.notes,
           status: 'paid',
           sourceSubmissionId: submission.id,
@@ -185,6 +308,7 @@ const VerifyPayments = () => {
       await updateDoc(doc(db, 'paymentSubmissions', submission.id), {
         status: 'verified',
         utr: normalizedUtr,
+        screenshot: screenshotProof,
         verifiedBy: currentUser?.email || 'admin',
         verifiedAt: new Date().toISOString()
       });
@@ -345,6 +469,17 @@ const VerifyPayments = () => {
         ))}
       </div>
 
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={runBulkOcrCheck}
+          disabled={ocrRunningBulk}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {ocrRunningBulk ? 'Running OCR Check...' : 'Run OCR UTR Check (Pending)'}
+        </button>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -379,6 +514,15 @@ const VerifyPayments = () => {
       ) : (
         <div className="space-y-4">
           {submissions.map((submission) => (
+            (() => {
+              const safeUtr = getSubmissionUtr(submission);
+              const screenshotProof = getSubmissionScreenshot(submission);
+              const totalPayable = Number(submission.rentAmount || 0) + Number(submission.electricityAmount || 0);
+              const paidAmount = Number(submission.paidAmount || 0);
+              const balanceAmount = Math.max(totalPayable - paidAmount, 0);
+              const isPartial = paidAmount > 0 && paidAmount < totalPayable;
+
+              return (
             <div key={submission.id} className="bg-white rounded-lg shadow-md border-2 border-gray-200 overflow-hidden">
               {/* Header */}
               <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 flex items-center justify-between">
@@ -398,6 +542,27 @@ const VerifyPayments = () => {
 
               {/* Body */}
               <div className="p-6">
+                <div className="mb-3 flex items-center gap-2">
+                  {(() => {
+                    const badge = getOcrBadge(submission.id);
+                    return (
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${badge.className}`}>
+                        OCR: {badge.text}
+                      </span>
+                    );
+                  })()}
+                  {submission.status === 'pending' && (
+                    <button
+                      type="button"
+                      onClick={() => runOcrUtrCheck(submission)}
+                      disabled={ocrChecks[submission.id]?.status === 'checking'}
+                      className="text-xs font-semibold px-3 py-1 rounded-md bg-indigo-100 text-indigo-800 hover:bg-indigo-200 disabled:opacity-60"
+                    >
+                      {ocrChecks[submission.id]?.status === 'checking' ? 'Checking...' : 'Check Screenshot UTR'}
+                    </button>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                   <div>
                     <label className="text-xs text-gray-500 font-semibold">Payment Date</label>
@@ -409,7 +574,7 @@ const VerifyPayments = () => {
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 font-semibold">UTR Number</label>
-                    <p className="text-sm font-mono font-bold">{submission.utr}</p>
+                    <p className="text-sm font-mono font-bold">{safeUtr || '-'}</p>
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 font-semibold">Rent Amount</label>
@@ -421,13 +586,41 @@ const VerifyPayments = () => {
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 font-semibold">Total Paid</label>
-                    <p className="text-lg font-bold text-green-600">₹{submission.paidAmount?.toLocaleString('en-IN')}</p>
+                    <p className="text-lg font-bold text-green-600">₹{paidAmount.toLocaleString('en-IN')}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 font-semibold">Total Payable</label>
+                    <p className="text-sm font-bold">₹{totalPayable.toLocaleString('en-IN')}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 font-semibold">Balance</label>
+                    <p className={`text-sm font-bold ${balanceAmount > 0 ? 'text-amber-700' : 'text-green-700'}`}>
+                      ₹{balanceAmount.toLocaleString('en-IN')}
+                    </p>
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 font-semibold">Meter Reading</label>
                     <p className="text-sm font-bold">{submission.previousReading} → {submission.meterReading} ({submission.unitsConsumed} units)</p>
                   </div>
                 </div>
+
+                {isPartial && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm font-semibold text-amber-900">⚠️ Partial Payment</p>
+                    <p className="text-sm text-amber-800">Paid ₹{paidAmount.toLocaleString('en-IN')} out of ₹{totalPayable.toLocaleString('en-IN')} • Balance ₹{balanceAmount.toLocaleString('en-IN')}</p>
+                  </div>
+                )}
+
+                {ocrChecks[submission.id]?.status && ocrChecks[submission.id]?.status !== 'checking' && (
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4">
+                    <p className="text-xs font-semibold text-indigo-800 mb-1">OCR UTR Check</p>
+                    <p className="text-xs text-indigo-800">Entered UTR: {normalizeUtr(getSubmissionUtr(submission)) || '-'}</p>
+                    <p className="text-xs text-indigo-800">Extracted UTR: {ocrChecks[submission.id]?.extractedUtr || '-'}</p>
+                    {typeof ocrChecks[submission.id]?.confidence === 'number' && (
+                      <p className="text-xs text-indigo-700 mt-1">OCR Confidence: {ocrChecks[submission.id].confidence.toFixed(1)}%</p>
+                    )}
+                  </div>
+                )}
 
                 {Array.isArray(submission.roomBreakdown) && submission.roomBreakdown.length > 0 && (
                   <div className="mb-4">
@@ -470,25 +663,25 @@ const VerifyPayments = () => {
                   </div>
                 )}
 
-                {submission.screenshot && (
+                {screenshotProof && (
                   <div className="mb-4">
                     <label className="text-xs text-gray-500 font-semibold block mb-2">Screenshot</label>
-                    {submission.screenshot.startsWith('data:image') ? (
+                    {String(screenshotProof).startsWith('data:image') ? (
                       <a
-                        href={submission.screenshot}
+                        href={screenshotProof}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-block"
                       >
                         <img
-                          src={submission.screenshot}
+                          src={screenshotProof}
                           alt="Payment screenshot"
                           className="max-h-56 w-auto rounded-lg border border-gray-300"
                         />
                       </a>
                     ) : (
                       <a 
-                        href={submission.screenshot} 
+                        href={screenshotProof} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline text-sm"
@@ -496,6 +689,12 @@ const VerifyPayments = () => {
                         📸 View Screenshot
                       </a>
                     )}
+                  </div>
+                )}
+
+                {!screenshotProof && (
+                  <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm text-red-800">Screenshot proof not found in this submission.</p>
                   </div>
                 )}
 
@@ -548,6 +747,8 @@ const VerifyPayments = () => {
                 )}
               </div>
             </div>
+              );
+            })()
           ))}
         </div>
       )}

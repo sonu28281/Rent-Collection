@@ -20,6 +20,7 @@ import phonePeLogo from '../assets/payment-icons/phonepe.svg';
  */
 const TenantPortal = () => {
   const REMEMBER_ME_KEY = 'tenant_portal_saved_login_v1';
+  const TENANT_PORTAL_LANG_KEY = 'tenant_portal_language_v1';
 
   // Login state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -41,6 +42,8 @@ const TenantPortal = () => {
   const [activeUPI, setActiveUPI] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pendingSubmissions, setPendingSubmissions] = useState([]);
+  const [latestSubmission, setLatestSubmission] = useState(null);
+  const [tenantDirectPayEnabled, setTenantDirectPayEnabled] = useState(false);
   const [globalElectricityRate, setGlobalElectricityRate] = useState(DEFAULT_ELECTRICITY_RATE);
   
   // UI state for collapsible cards
@@ -57,6 +60,13 @@ const TenantPortal = () => {
   
   // Submit payment modal state
   const [showSubmitPayment, setShowSubmitPayment] = useState(false);
+  const [portalLanguage, setPortalLanguage] = useState(() => localStorage.getItem(TENANT_PORTAL_LANG_KEY) || 'en');
+
+  const t = (en, hi) => (portalLanguage === 'hi' ? hi : en);
+
+  const togglePortalLanguage = () => {
+    setPortalLanguage((prev) => (prev === 'en' ? 'hi' : 'en'));
+  };
 
   useEffect(() => {
     const manifestLink = document.querySelector('link[rel="manifest"]');
@@ -98,6 +108,10 @@ const TenantPortal = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(TENANT_PORTAL_LANG_KEY, portalLanguage);
+  }, [portalLanguage]);
 
   useEffect(() => {
     const roomTabs = (roomsData || []).map((entry) => String(entry.roomNumber));
@@ -253,11 +267,16 @@ const TenantPortal = () => {
       const settingsRef = collection(db, 'settings');
       const settingsSnapshot = await getDocs(settingsRef);
       if (!settingsSnapshot.empty) {
-        const settingsData = settingsSnapshot.docs[0].data();
+        const globalSettingsDoc = settingsSnapshot.docs.find((docItem) => docItem.id === 'global');
+        const settingsData = (globalSettingsDoc || settingsSnapshot.docs[0]).data();
         const configuredRate = Number(settingsData?.electricityRate);
+        const directPayFlag = settingsData?.tenantDirectPayEnabled;
+        const fallbackFromMode = String(settingsData?.paymentMode || '').toLowerCase() === 'automatic';
         setGlobalElectricityRate(Number.isFinite(configuredRate) && configuredRate > 0 ? configuredRate : DEFAULT_ELECTRICITY_RATE);
+        setTenantDirectPayEnabled(typeof directPayFlag === 'boolean' ? directPayFlag : fallbackFromMode);
       } else {
         setGlobalElectricityRate(DEFAULT_ELECTRICITY_RATE);
+        setTenantDirectPayEnabled(false);
       }
       
       // Fetch all assigned room details (number/string tolerant)
@@ -435,21 +454,35 @@ const TenantPortal = () => {
 
       setMeterHistoryRecords(meterHistory);
 
-      // Fetch pending submissions for current tenant and month
+      // Fetch all submissions for tenant and derive latest + current month pending
       const submissionsRef = collection(db, 'paymentSubmissions');
-      const currentDate = new Date();
-      const submissionsQuery = query(
-        submissionsRef,
-        where('tenantId', '==', tenantData.id),
-        where('year', '==', currentDate.getFullYear()),
-        where('month', '==', currentDate.getMonth() + 1)
-      );
+      const submissionsQuery = query(submissionsRef, where('tenantId', '==', tenantData.id));
       const submissionsSnapshot = await getDocs(submissionsQuery);
       const submissions = [];
       submissionsSnapshot.forEach((doc) => {
         submissions.push({ id: doc.id, ...doc.data() });
       });
-      setPendingSubmissions(submissions.filter(s => s.status === 'pending'));
+
+      const sortedSubmissions = submissions.sort((a, b) => {
+        const aTime = a?.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+        const bTime = b?.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+        return bTime - aTime;
+      });
+
+      setLatestSubmission(sortedSubmissions[0] || null);
+
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1;
+
+      setPendingSubmissions(
+        sortedSubmissions.filter(
+          (submission) =>
+            submission.status === 'pending' &&
+            Number(submission.year) === currentYear &&
+            Number(submission.month) === currentMonth
+        )
+      );
 
       // Fetch active UPI
       const upiRef = collection(db, 'bankAccounts');
@@ -475,6 +508,7 @@ const TenantPortal = () => {
     setPaymentRecords([]);
     setMeterHistoryRecords([]);
     setPendingSubmissions([]);
+    setLatestSubmission(null);
     setActiveUPI(null);
     setUsername('');
     setPassword('');
@@ -1111,9 +1145,18 @@ const TenantPortal = () => {
           <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-6 sm:p-8">
             {/* Logo/Header */}
             <div className="text-center mb-6 sm:mb-8">
+                <div className="flex justify-end mb-2">
+                  <button
+                    type="button"
+                    onClick={togglePortalLanguage}
+                    className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-semibold text-gray-700"
+                  >
+                    {portalLanguage === 'en' ? '🇮🇳 हिंदी' : '🇬🇧 English'}
+                  </button>
+                </div>
               <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">🏠</div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">Tenant Portal</h1>
-              <p className="text-sm sm:text-base text-gray-600">Login to view your records</p>
+                <p className="text-sm sm:text-base text-gray-600">{t('Login to view your records', 'अपने रिकॉर्ड देखने के लिए लॉगिन करें')}</p>
             </div>
 
             {/* Login Form */}
@@ -1134,7 +1177,7 @@ const TenantPortal = () => {
               {/* Username */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Room Number
+                  {t('Room Number', 'रूम नंबर')}
                 </label>
                 <input
                   type="text"
@@ -1161,13 +1204,13 @@ const TenantPortal = () => {
                   }}
                   className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                Remember me on this phone
+                {t('Remember me on this phone', 'इस फोन पर लॉगिन याद रखें')}
               </label>
 
               {/* Password */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Password
+                  {t('Password', 'पासवर्ड')}
                 </label>
                 <input
                   type="password"
@@ -1192,14 +1235,17 @@ const TenantPortal = () => {
                 disabled={loggingIn}
                 className="w-full bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white font-bold py-3 sm:py-3.5 px-6 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-base touch-manipulation"
               >
-                {loggingIn ? '⏳ Logging in...' : '🔐 Login'}
+                {loggingIn ? t('⏳ Logging in...', '⏳ लॉगिन हो रहा है...') : t('🔐 Login', '🔐 लॉगिन')}
               </button>
             </form>
 
             {/* Help Text */}
             <div className="mt-6 pt-6 border-t border-gray-200">
               <p className="text-xs text-gray-500 text-center">
-                Your room number is your username. Contact property manager if you forgot your password.
+                {t(
+                  'Your room number is your username. Contact property manager if you forgot your password.',
+                  'आपका रूम नंबर ही आपका यूज़रनेम है। पासवर्ड भूलने पर प्रॉपर्टी मैनेजर से संपर्क करें।'
+                )}
               </p>
             </div>
           </div>
@@ -1207,7 +1253,7 @@ const TenantPortal = () => {
           {/* Additional Info */}
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-600">
-              First time logging in? Default password is: <strong>password</strong>
+              {t('First time logging in? Default password is:', 'पहली बार लॉगिन कर रहे हैं? डिफ़ॉल्ट पासवर्ड है:')} <strong>password</strong>
             </p>
           </div>
         </div>
@@ -1243,12 +1289,21 @@ const TenantPortal = () => {
                 <p className="text-xs sm:text-sm text-gray-600 truncate">Room {tenant?.roomNumber} - {tenant?.name}</p>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="bg-red-500 hover:bg-red-600 active:bg-red-700 text-white font-semibold py-2 px-3 sm:px-4 rounded-lg transition-colors text-xs sm:text-sm whitespace-nowrap flex-shrink-0 touch-manipulation"
-            >
-              🚪 Logout
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={togglePortalLanguage}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-3 rounded-lg text-xs sm:text-sm whitespace-nowrap"
+              >
+                {portalLanguage === 'en' ? 'हिंदी' : 'English'}
+              </button>
+              <button
+                onClick={handleLogout}
+                className="bg-red-500 hover:bg-red-600 active:bg-red-700 text-white font-semibold py-2 px-3 sm:px-4 rounded-lg transition-colors text-xs sm:text-sm whitespace-nowrap flex-shrink-0 touch-manipulation"
+              >
+                {t('🚪 Logout', '🚪 लॉगआउट')}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1265,6 +1320,8 @@ const TenantPortal = () => {
             {/* Due Date Alert - Mobile Optimized with Smart Logic */}
             {(() => {
               const dueInfo = getNextDueDate();
+              const electricityHealth = getElectricityBillingHealth();
+              const isElectricityPending = electricityHealth.status !== 'healthy';
               const statusColors = {
                 paid: 'from-green-500 to-emerald-600',
                 pending: 'from-amber-500 to-orange-600',
@@ -1290,81 +1347,63 @@ const TenantPortal = () => {
                         </p>
                       </div>
                     </div>
-                    <div className="text-center bg-white/20 backdrop-blur-sm rounded-lg px-4 sm:px-6 py-3 sm:py-4 w-full sm:w-auto">
-                      <p className="text-white/80 text-xs sm:text-sm mb-1">
-                        {dueInfo.status === 'paid' ? 'Next Due' : 'Due Date'}
-                      </p>
-                      <p className="text-xl sm:text-2xl font-bold">{dueInfo.dueDateStr}</p>
-                      {dueInfo.status === 'overdue' && (
-                        <>
-                          <p className="text-white/95 text-xs mt-1 font-semibold">
-                            Overdue by {dueInfo.overdueDays} day{dueInfo.overdueDays > 1 ? 's' : ''}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full sm:w-auto">
+                      <div className="text-center bg-white/20 backdrop-blur-sm rounded-lg px-4 sm:px-6 py-3 sm:py-4">
+                        <p className="text-white/80 text-xs sm:text-sm mb-1">
+                          {dueInfo.status === 'paid' ? 'Next Due' : 'Due Date'}
+                        </p>
+                        <p className="text-xl sm:text-2xl font-bold">{dueInfo.dueDateStr}</p>
+                        {dueInfo.status === 'overdue' && (
+                          <>
+                            <p className="text-white/95 text-xs mt-1 font-semibold">
+                              Overdue by {dueInfo.overdueDays} day{dueInfo.overdueDays > 1 ? 's' : ''}
+                            </p>
+                            <p className="text-white/90 text-xs mt-1 font-semibold">Please pay soon!</p>
+                          </>
+                        )}
+                        {dueInfo.status === 'paid' && (
+                          <p className="text-white/90 text-xs mt-1 font-semibold">Thank you! 🎉</p>
+                        )}
+                      </div>
+
+                      <div className="text-center bg-white/20 backdrop-blur-sm rounded-lg px-4 sm:px-6 py-3 sm:py-4">
+                        <p className="text-white/80 text-xs sm:text-sm mb-1">Electricity</p>
+                        <p className="text-base sm:text-lg font-bold">
+                          {isElectricityPending ? 'Pending ⚠️' : 'On Track ✅'}
+                        </p>
+                        {isElectricityPending && typeof electricityHealth.monthsPending === 'number' ? (
+                          <p className="text-white/90 text-xs mt-1 font-semibold">
+                            {electricityHealth.monthsPending} month{electricityHealth.monthsPending > 1 ? 's' : ''} due
                           </p>
-                          <p className="text-white/90 text-xs mt-1 font-semibold">Please pay soon!</p>
-                        </>
-                      )}
-                      {dueInfo.status === 'paid' && (
-                        <p className="text-white/90 text-xs mt-1 font-semibold">Thank you! 🎉</p>
-                      )}
+                        ) : (
+                          <p className="text-white/90 text-xs mt-1 font-semibold">All clear</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
               );
             })()}
 
-            {/* Electricity Billing Health */}
-            {(() => {
-              const electricityHealth = getElectricityBillingHealth();
-              const isHealthy = electricityHealth.status === 'healthy';
-              const lastRecord = electricityHealth.lastRecord;
-              const snapshot = electricityHealth.snapshot;
+            <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+              <p className="text-sm font-bold text-red-800">
+                ⚠️ ध्यान दें: आपने payment कर दी हो तब भी, जब तक आप &quot;Submit Payment for Verification&quot; नहीं करेंगे,
+                आपकी payment सिस्टम में रिकॉर्ड नहीं होगी।
+              </p>
+            </div>
 
-              return (
-                <div className={`rounded-lg border-2 p-4 ${
-                  isHealthy
-                    ? 'bg-green-50 border-green-300'
-                    : 'bg-red-50 border-red-300'
-                }`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className={`font-bold text-sm sm:text-base ${isHealthy ? 'text-green-900' : 'text-red-900'}`}>
-                        {isHealthy ? '✅ Electricity Billing On Track' : '⚠️ Electricity Billing Pending'}
-                      </p>
-                      <p className={`text-xs sm:text-sm mt-1 ${isHealthy ? 'text-green-800' : 'text-red-800'}`}>
-                        {electricityHealth.message}
-                      </p>
-                    </div>
-                    {!isHealthy && typeof electricityHealth.monthsPending === 'number' && (
-                      <div className="px-3 py-1.5 rounded-full bg-red-100 border border-red-300 text-red-800 text-xs font-bold whitespace-nowrap">
-                        {electricityHealth.monthsPending} month{electricityHealth.monthsPending > 1 ? 's' : ''}
-                      </div>
-                    )}
-                  </div>
-
-                  {lastRecord && snapshot && (
-                    <div className={`mt-3 rounded-lg p-3 border ${isHealthy ? 'bg-green-100 border-green-200' : 'bg-white border-red-200'}`}>
-                      <p className={`text-xs font-semibold mb-2 ${isHealthy ? 'text-green-900' : 'text-red-900'}`}>
-                        Last Proper Electricity Bill: {getYearMonthLabel(lastRecord.year, lastRecord.month)}
-                      </p>
-                      <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm">
-                        <div>
-                          <p className={isHealthy ? 'text-green-700' : 'text-red-700'}>Old</p>
-                          <p className="font-mono font-bold">{snapshot.oldReading ?? '-'}</p>
-                        </div>
-                        <div>
-                          <p className={isHealthy ? 'text-green-700' : 'text-red-700'}>Current</p>
-                          <p className="font-mono font-bold">{snapshot.currentReading ?? '-'}</p>
-                        </div>
-                        <div>
-                          <p className={isHealthy ? 'text-green-700' : 'text-red-700'}>Units</p>
-                          <p className="font-mono font-bold">{snapshot.units}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+            {latestSubmission?.status === 'rejected' && (
+              <div className="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300 rounded-lg p-4">
+                <p className="text-sm font-bold text-red-900">❌ आपकी पिछली payment reject (decline) हो गई है</p>
+                <p className="text-xs text-red-800 mt-1">
+                  Month: {getMonthName(Number(latestSubmission.month))} {latestSubmission.year}
+                </p>
+                {latestSubmission.rejectionReason && (
+                  <p className="text-xs text-red-800 mt-1">Reason: {latestSubmission.rejectionReason}</p>
+                )}
+                <p className="text-xs text-red-700 mt-2">कृपया सही screenshot और UTR के साथ दोबारा submit करें।</p>
+              </div>
+            )}
 
             {/* Quick Payment Action - NEW */}
             {!showPaymentForm && (() => {
@@ -1372,8 +1411,10 @@ const TenantPortal = () => {
               const isCurrentMonthPaid = dueInfo.status === 'paid';
               const isVerificationPending = dueInfo.status === 'pending';
               const currentMonthPayable = getCurrentMonthPayableFromRecords();
-              const paymentFlowTemporarilyDisabled = true;
-              const shouldDisablePayment = paymentFlowTemporarilyDisabled || isCurrentMonthPaid || isVerificationPending;
+              const canShowDirectPayButton = tenantDirectPayEnabled && !isCurrentMonthPaid && !isVerificationPending;
+              const effectiveRooms = roomsData.length > 0
+                ? roomsData
+                : (room ? [room] : []);
               
               return (
                 <>
@@ -1391,18 +1432,32 @@ const TenantPortal = () => {
                     </div>
                   )}
 
-                  {/* Make Payment Button - Temporarily disabled */}
-                  <button
-                    type="button"
-                    disabled={shouldDisablePayment}
-                    className="w-full bg-gray-300 text-gray-700 font-bold py-4 px-6 rounded-lg shadow-sm cursor-not-allowed mb-3"
-                  >
-                    💳 Make Payment (Temporarily Disabled)
-                  </button>
+                  {canShowDirectPayButton && (
+                    <button
+                      onClick={() => {
+                        if (!activeUPI) {
+                          alert('⚠️ Payment setup not available. Please contact property manager.');
+                          return;
+                        }
 
-                  <p className="text-xs text-gray-600 text-center mb-3">
-                    अभी ऐप से direct payment खोलना बंद है। कृपया अपनी payment app से manually payment करें।
-                  </p>
+                        const initialPrevious = {};
+                        const initialCurrent = {};
+                        effectiveRooms.forEach((roomEntry) => {
+                          const roomKey = String(roomEntry.roomNumber);
+                          const oldReading = getLastMonthClosingReading(roomEntry.roomNumber);
+                          initialPrevious[roomKey] = String(oldReading);
+                          initialCurrent[roomKey] = '';
+                        });
+
+                        setPreviousMeterReadings(initialPrevious);
+                        setCurrentMeterReadings(initialCurrent);
+                        setShowPaymentForm(true);
+                      }}
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 touch-manipulation mb-3"
+                    >
+                      💳 Make Payment Now
+                    </button>
+                  )}
                   
                   {/* Pending Verification Message */}
                   {isVerificationPending && (
@@ -2035,6 +2090,10 @@ const TenantPortal = () => {
                 <p className="text-xs text-yellow-100">
                   <strong>⚠️ Important:</strong> Always provide your meter reading along with payment proof for accurate billing.
                 </p>
+                <p className="text-xs text-yellow-100 mt-2">
+                  <strong>⚠️ जरूरी सूचना:</strong> केवल payment करने से entry record नहीं होगी। Payment record कराने के लिए
+                  &quot;Submit Payment for Verification&quot; में screenshot और UTR submit करना अनिवार्य है।
+                </p>
               </div>
             </div>
           </div>
@@ -2047,6 +2106,7 @@ const TenantPortal = () => {
             room={room}
             rooms={roomsData}
             electricityRate={globalElectricityRate}
+            language={portalLanguage}
             onClose={() => setShowSubmitPayment(false)}
             onSuccess={() => {
               // Reload tenant data after successful submission

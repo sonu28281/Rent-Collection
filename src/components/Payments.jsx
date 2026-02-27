@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, addDoc, query, where, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, where, updateDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import ViewModeToggle from './ui/ViewModeToggle';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
@@ -13,6 +13,8 @@ const Payments = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [tenantDirectPayEnabled, setTenantDirectPayEnabled] = useState(false);
+  const [savingDirectPaySetting, setSavingDirectPaySetting] = useState(false);
 
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
@@ -50,6 +52,17 @@ const Payments = () => {
       allPaymentsSnapshot.forEach((doc) => {
         allPaymentsData.push({ id: doc.id, ...doc.data() });
       });
+
+      const settingsDocRef = doc(db, 'settings', 'global');
+      const settingsDocSnap = await getDoc(settingsDocRef);
+      if (settingsDocSnap.exists()) {
+        const settingsData = settingsDocSnap.data();
+        const directPayFlag = settingsData?.tenantDirectPayEnabled;
+        const fallbackFromMode = String(settingsData?.paymentMode || '').toLowerCase() === 'automatic';
+        setTenantDirectPayEnabled(typeof directPayFlag === 'boolean' ? directPayFlag : fallbackFromMode);
+      } else {
+        setTenantDirectPayEnabled(false);
+      }
 
       setTenants(tenantsData);
       setPayments(paymentsData);
@@ -163,6 +176,23 @@ const Payments = () => {
     return tenantPayments[0] || null;
   };
 
+  const handleToggleTenantDirectPay = async () => {
+    const nextValue = !tenantDirectPayEnabled;
+    try {
+      setSavingDirectPaySetting(true);
+      await setDoc(doc(db, 'settings', 'global'), {
+        tenantDirectPayEnabled: nextValue,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      setTenantDirectPayEnabled(nextValue);
+    } catch (toggleError) {
+      console.error('Error updating tenant direct pay setting:', toggleError);
+      alert('Failed to update setting. Please try again.');
+    } finally {
+      setSavingDirectPaySetting(false);
+    }
+  };
+
   return (
     <div className="p-4 lg:p-8">
       {/* Header with Month Navigation */}
@@ -188,8 +218,23 @@ const Payments = () => {
           </div>
         </div>
         <p className="text-gray-600">Record rent payments for active tenants</p>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3">
           <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
+          <div className="inline-flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
+            <span className="text-sm font-semibold text-gray-700">Tenant Make Payment</span>
+            <button
+              type="button"
+              onClick={handleToggleTenantDirectPay}
+              disabled={savingDirectPaySetting}
+              className={`px-3 py-1 rounded-md text-xs font-bold transition ${
+                tenantDirectPayEnabled
+                  ? 'bg-green-600 text-white hover:bg-green-700'
+                  : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
+              } disabled:opacity-60 disabled:cursor-not-allowed`}
+            >
+              {savingDirectPaySetting ? 'Saving...' : tenantDirectPayEnabled ? 'Enabled' : 'Disabled'}
+            </button>
+          </div>
         </div>
       </div>
 
