@@ -854,13 +854,23 @@ const TenantPortal = () => {
       const checkPopupClosed = setInterval(() => {
         if (popup.closed) {
           clearInterval(checkPopupClosed);
-          console.log('✅ DigiLocker popup closed, checking verification status...');
+          console.log('✅ DigiLocker popup closed, refreshing tenant data...');
           setStartingDigiLockerKyc(false);
           
-          // Refresh tenant data to check if KYC was completed
-          setTimeout(() => {
+          // Refresh tenant document from Firestore to get updated KYC status
+          setTimeout(async () => {
             if (tenant?.id) {
-              fetchTenantData(tenant);
+              console.log('🔄 Refreshing tenant document after popup close...');
+              const refreshedTenant = await refreshTenantFromFirestore(tenant.id);
+              
+              // If tenant was refreshed successfully, also refresh room/payment data
+              if (refreshedTenant) {
+                console.log('🔄 Now fetching room and payment data...');
+                await fetchTenantData(refreshedTenant);
+              } else {
+                console.warn('⚠️ Tenant refresh failed, trying with existing tenant object');
+                await fetchTenantData(tenant);
+              }
             }
           }, 1000);
         }
@@ -1013,6 +1023,40 @@ const TenantPortal = () => {
       return [String(tenantData.roomNumber)];
     }
     return [];
+  };
+
+  // Refresh tenant document from Firestore (used after KYC verification)
+  const refreshTenantFromFirestore = async (currentTenantId) => {
+    if (!currentTenantId) {
+      console.warn('⚠️ Cannot refresh tenant: No tenant ID provided');
+      return null;
+    }
+
+    try {
+      console.log('🔄 Refreshing tenant data from Firestore for ID:', currentTenantId);
+      
+      const tenantDocRef = doc(db, 'tenants', currentTenantId);
+      const tenantDocSnap = await getDoc(tenantDocRef);
+      
+      if (!tenantDocSnap.exists()) {
+        console.error('❌ Tenant document not found:', currentTenantId);
+        return null;
+      }
+      
+      const refreshedTenantData = { id: tenantDocSnap.id, ...tenantDocSnap.data() };
+      console.log('✅ Tenant data refreshed:', {
+        id: refreshedTenantData.id,
+        name: refreshedTenantData.name,
+        kycVerified: refreshedTenantData.kyc?.verified || false,
+        kycVerifiedAt: refreshedTenantData.kyc?.verifiedAt || null
+      });
+      
+      setTenant(refreshedTenantData);
+      return refreshedTenantData;
+    } catch (error) {
+      console.error('❌ Error refreshing tenant data:', error);
+      return null;
+    }
   };
 
   const performLogin = async (inputUsername, inputPassword, options = {}) => {
