@@ -154,6 +154,91 @@ const extractProfileValue = (profile, keys = []) => {
   return '';
 };
 
+const normalizeString = (str) => {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')  // Normalize whitespace
+    .replace(/[^a-z0-9\s]/gi, '');  // Remove special characters
+};
+
+const normalizePhone = (phone) => {
+  if (!phone || typeof phone !== 'string') return '';
+  // Extract only digits
+  const digits = phone.replace(/\D/g, '');
+  // Return last 10 digits (Indian mobile number)
+  return digits.slice(-10);
+};
+
+const validateKycMatch = async ({ tenantId, profile, documentData }) => {
+  const app = getAdminApp();
+  const db = admin.firestore(app);
+
+  // Fetch tenant document
+  const tenantDoc = await db.collection('tenants').doc(tenantId).get();
+  if (!tenantDoc.exists) {
+    throw new Error('Tenant not found');
+  }
+
+  const tenant = tenantDoc.data();
+  const tenantName = tenant?.name || '';
+  const tenantPhone = tenant?.phone || tenant?.phoneNumber || '';
+
+  // Extract DigiLocker data
+  const normalizedProfile = profile?.profile || profile || {};
+  const digilockerName = extractProfileValue(normalizedProfile, ['fullName', 'name']);
+  const digilockerPhone = extractProfileValue(normalizedProfile, ['mobile', 'mobileNumber', 'phone', 'phoneNumber']);
+  
+  // Also check Aadhaar document for name/phone if available
+  const aadhaarName = documentData?.name || '';
+  const aadhaarPhone = '';
+
+  console.log('🔍 Validation check:', {
+    tenant: { name: tenantName, phone: tenantPhone },
+    digilocker: { name: digilockerName, phone: digilockerPhone },
+    aadhaar: { name: aadhaarName }
+  });
+
+  // Normalize names for comparison
+  const normalizedTenantName = normalizeString(tenantName);
+  const normalizedDigilockerName = normalizeString(digilockerName);
+  const normalizedAadhaarName = normalizeString(aadhaarName);
+
+  // Check if any DigiLocker name matches tenant name
+  const nameMatch = 
+    (normalizedDigilockerName && normalizedTenantName.includes(normalizedDigilockerName)) ||
+    (normalizedDigilockerName && normalizedDigilockerName.includes(normalizedTenantName)) ||
+    (normalizedAadhaarName && normalizedTenantName.includes(normalizedAadhaarName)) ||
+    (normalizedAadhaarName && normalizedAadhaarName.includes(normalizedTenantName));
+
+  if (!nameMatch) {
+    const errorMsg = `❌ Name mismatch! Tenant name: "${tenantName}" | DigiLocker name: "${digilockerName || aadhaarName}" | Names must match for security.`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+
+  console.log('✅ Name validation passed');
+
+  // Validate phone number if both are available
+  if (tenantPhone && digilockerPhone) {
+    const normalizedTenantPhone = normalizePhone(tenantPhone);
+    const normalizedDigilockerPhone = normalizePhone(digilockerPhone);
+
+    if (normalizedTenantPhone && normalizedDigilockerPhone && normalizedTenantPhone !== normalizedDigilockerPhone) {
+      const errorMsg = `❌ Mobile number mismatch! Tenant phone: "${tenantPhone}" | DigiLocker phone: "${digilockerPhone}" | Numbers must match for security.`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    console.log('✅ Phone validation passed');
+  } else {
+    console.log('ℹ️ Phone validation skipped (not enough data)');
+  }
+
+  return { nameMatch: true, phoneMatch: true };
+};
+
 const writeKycToFirestore = async ({ tenantId, profile, tokenPayload, documentData }) => {
   const app = getAdminApp();
   const db = admin.firestore(app);
@@ -546,6 +631,11 @@ const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreat
 
     let storedKyc = null;
     if (!isKycTestMode()) {
+      // Validate that DigiLocker data matches tenant data before writing
+      console.log('🔐 Validating KYC data matches tenant...');
+      await validateKycMatch({ tenantId, profile, documentData });
+      console.log('✅ Validation passed, writing to Firestore...');
+      
       storedKyc = await writeKycToFirestore({ tenantId, profile, tokenPayload, documentData });
     }
 
