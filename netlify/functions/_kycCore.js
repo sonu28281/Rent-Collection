@@ -62,6 +62,11 @@ const isUsableUrl = (value) => {
 };
 
 const isKycTestMode = () => {
+  const isProductionDeploy = String(process.env.CONTEXT || '').toLowerCase() === 'production';
+  if (isProductionDeploy) {
+    return false;
+  }
+
   const envFlag = String(process.env.KYC_TEST_MODE || '').toLowerCase() === 'true';
   const testByMissingConfig = String(process.env.KYC_TEST_IF_CONFIG_MISSING || 'false').toLowerCase() === 'true';
   return envFlag || testByMissingConfig;
