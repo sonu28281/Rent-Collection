@@ -35,11 +35,8 @@ const Sidebar = () => {
   const settingsItems = [
     { icon: '⚙️', label: 'General Settings', path: '/settings' },
     { icon: '🏦', label: 'Bank Accounts', path: '/bank-accounts' },
-    { icon: '💾', label: 'Backup & Export', path: '/backup' },
+    { icon: '💾', label: 'Backup & Restore', path: '/backup' },
     { icon: '📋', label: 'Import Logs', path: '/import-logs' },
-    { icon: '📅', label: 'Update Check-In Dates', path: '/update-checkin-dates' },
-    { icon: '🚨', label: 'Payments Reset', path: '/payments-reset' },
-    { icon: '🗑️', label: 'Database Cleanup', path: '/database-cleanup' },
   ];
 
   const handleNavigation = (path) => {
