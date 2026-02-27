@@ -24,7 +24,6 @@ const TenantPortal = () => {
   const REMEMBER_ME_KEY = 'tenant_portal_saved_login_v1';
   const TENANT_PORTAL_LANG_KEY = 'tenant_portal_language_v1';
   const KYC_PENDING_KEY = 'digilocker_kyc_pending_v1';
-  const KYC_LOCAL_STATUS_KEY_PREFIX = 'digilocker_kyc_status_v1_';
   const DEFAULT_KYC_FUNCTION_BASE_URL = `${window.location.origin}/.netlify/functions`;
 
   // Login state
@@ -737,19 +736,6 @@ const TenantPortal = () => {
     localStorage.removeItem(REMEMBER_ME_KEY);
   };
 
-  const getLocalKycStatus = (tenantId) => {
-    if (!tenantId) return null;
-    try {
-      const raw = localStorage.getItem(`${KYC_LOCAL_STATUS_KEY_PREFIX}${tenantId}`);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (!parsed || parsed.verified !== true) return null;
-      return parsed;
-    } catch {
-      return null;
-    }
-  };
-
   const getKycInitiateUrl = () => {
     const direct = import.meta.env.VITE_KYC_INITIATE_URL;
     if (direct) return String(direct);
@@ -876,20 +862,14 @@ const TenantPortal = () => {
         }
 
         localStorage.removeItem(KYC_PENDING_KEY);
-        const verifiedAt = new Date().toISOString();
-        const localKycStatus = {
-          verified: true,
-          verifiedBy: 'DigiLocker',
-          verifiedAt
-        };
-        localStorage.setItem(`${KYC_LOCAL_STATUS_KEY_PREFIX}${pending.tenantId}`, JSON.stringify(localKycStatus));
+        const payloadKyc = payload?.data?.kyc || null;
         setTenant((prev) => {
           if (!prev || prev.id !== pending.tenantId) return prev;
           return {
             ...prev,
             kyc: {
               ...(prev.kyc || {}),
-              ...localKycStatus
+              ...(payloadKyc || {})
             }
           };
         });
@@ -2145,11 +2125,7 @@ const TenantPortal = () => {
         ) : (
           <div className="space-y-4 sm:space-y-6">
             {(() => {
-              const localKycInfo = tenant?.id ? getLocalKycStatus(tenant.id) : null;
-              const kycInfo = {
-                ...(tenant?.kyc || {}),
-                ...(localKycInfo || {})
-              };
+              const kycInfo = tenant?.kyc || {};
               const isVerified = kycInfo.verified === true && kycInfo.verifiedBy === 'DigiLocker';
               const verifiedDateValue = kycInfo.verifiedAt?.seconds
                 ? new Date(kycInfo.verifiedAt.seconds * 1000)

@@ -1,3 +1,5 @@
+import admin from 'firebase-admin';
+
 const DEFAULT_TIMEOUT_MS = Number(process.env.KYC_API_TIMEOUT_MS || 12000);
 const DEFAULT_STATE_TTL_SECONDS = Number(process.env.KYC_STATE_TTL_SECONDS || 600);
 
@@ -52,10 +54,88 @@ const resolveConfig = () => {
   };
 };
 
+const isUsableUrl = (value) => {
+  if (!value || typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed || /^PASTE_/i.test(trimmed)) return false;
+  return /^https:\/\//i.test(trimmed);
+};
+
 const isKycTestMode = () => {
   const envFlag = String(process.env.KYC_TEST_MODE || '').toLowerCase() === 'true';
-  const testByMissingConfig = String(process.env.KYC_TEST_IF_CONFIG_MISSING || 'true').toLowerCase() === 'true';
+  const testByMissingConfig = String(process.env.KYC_TEST_IF_CONFIG_MISSING || 'false').toLowerCase() === 'true';
   return envFlag || testByMissingConfig;
+};
+
+const getAdminApp = () => {
+  if (admin.apps.length > 0) {
+    return admin.app();
+  }
+
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) {
+    throw new Error('Missing FIREBASE_SERVICE_ACCOUNT_JSON for Firestore write');
+  }
+
+  let serviceAccount;
+  try {
+    serviceAccount = JSON.parse(serviceAccountJson);
+  } catch {
+    throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT_JSON');
+  }
+
+  const projectId = process.env.FIREBASE_PROJECT_ID || serviceAccount.project_id;
+  if (!projectId) {
+    throw new Error('Missing FIREBASE_PROJECT_ID for Firestore write');
+  }
+
+  return admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    projectId
+  });
+};
+
+const extractProfileValue = (profile, keys = []) => {
+  for (const key of keys) {
+    const value = profile?.[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+};
+
+const writeKycToFirestore = async ({ tenantId, profile, tokenPayload }) => {
+  const app = getAdminApp();
+  const db = admin.firestore(app);
+
+  const normalizedProfile = profile?.profile || profile || {};
+  const name = extractProfileValue(normalizedProfile, ['fullName', 'name']);
+  const dob = extractProfileValue(normalizedProfile, ['dob', 'dateOfBirth']);
+  const address = extractProfileValue(normalizedProfile, ['address', 'permanentAddress']);
+  const digilockerTxnId = tokenPayload?.transaction_id || tokenPayload?.txn_id || '';
+
+  await db.collection('tenants').doc(tenantId).set({
+    kyc: {
+      verified: true,
+      verifiedBy: 'DigiLocker',
+      verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+      name,
+      dob,
+      address,
+      digilockerTxnId
+    }
+  }, { merge: true });
+
+  return {
+    verified: true,
+    verifiedBy: 'DigiLocker',
+    verifiedAt: new Date().toISOString(),
+    name,
+    dob,
+    address,
+    digilockerTxnId
+  };
 };
 
 const withTimeout = async (operation, timeoutMs, timeoutMessage) => {
@@ -222,7 +302,7 @@ const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreat
   }
 
   const cfg = resolveConfig();
-  const missingConfig = !cfg.clientId || !cfg.clientSecret || !cfg.redirectUri || !cfg.tokenEndpoint || !cfg.profileEndpoint;
+  const missingConfig = !cfg.clientId || !cfg.clientSecret || !isUsableUrl(cfg.redirectUri) || !isUsableUrl(cfg.tokenEndpoint) || !isUsableUrl(cfg.profileEndpoint);
   if (!isKycTestMode() && missingConfig) {
     return {
       httpStatus: 500,
@@ -241,9 +321,14 @@ const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreat
       };
     }
 
+    let storedKyc = null;
+    if (!isKycTestMode()) {
+      storedKyc = await writeKycToFirestore({ tenantId, profile, tokenPayload });
+    }
+
     return {
       httpStatus: 200,
-      payload: standardizedResponse(true, 'write', 'KYC flow test completed', {
+      payload: standardizedResponse(true, 'write', isKycTestMode() ? 'KYC flow test completed' : 'KYC verification completed', {
         tenantId,
         testMode: isKycTestMode(),
         tokenMeta: {
@@ -251,7 +336,8 @@ const runKycPipeline = async ({ tenantId, code, state, expectedState, stateCreat
           expiresIn: tokenPayload.expires_in || null,
           scope: tokenPayload.scope || null
         },
-        profile
+        profile,
+        ...(storedKyc ? { kyc: storedKyc } : {})
       })
     };
   } catch (error) {
@@ -284,7 +370,7 @@ const initiateKycHandler = async (event) => {
 
   const cfg = resolveConfig();
   const state = randomState();
-  const missingConfig = !cfg.clientId || !cfg.redirectUri || !cfg.authorizationEndpoint;
+  const missingConfig = !cfg.clientId || !isUsableUrl(cfg.redirectUri) || !isUsableUrl(cfg.authorizationEndpoint);
   if (missingConfig && !isKycTestMode()) {
     return json(500, standardizedResponse(false, 'token', 'OAuth config missing', {}), buildCorsHeaders(event));
   }
@@ -323,7 +409,7 @@ const exchangeAuthorizationCodeHandler = async (event) => {
 
   const body = parseJsonBody(event);
   const cfg = resolveConfig();
-  if (!isKycTestMode() && (!cfg.clientId || !cfg.clientSecret || !cfg.redirectUri || !cfg.tokenEndpoint)) {
+  if (!isKycTestMode() && (!cfg.clientId || !cfg.clientSecret || !isUsableUrl(cfg.redirectUri) || !isUsableUrl(cfg.tokenEndpoint))) {
     return json(500, standardizedResponse(false, 'token', 'OAuth token config missing', {}), buildCorsHeaders(event));
   }
 
@@ -354,7 +440,7 @@ const fetchUserProfileHandler = async (event) => {
 
   const body = parseJsonBody(event);
   const cfg = resolveConfig();
-  if (!isKycTestMode() && !cfg.profileEndpoint) {
+  if (!isKycTestMode() && !isUsableUrl(cfg.profileEndpoint)) {
     return json(500, standardizedResponse(false, 'profile', 'OAuth profile config missing', {}), buildCorsHeaders(event));
   }
 
