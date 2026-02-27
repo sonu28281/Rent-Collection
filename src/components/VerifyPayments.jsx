@@ -466,6 +466,22 @@ const VerifyPayments = () => {
       return;
     }
 
+    const ocrStatus = ocrChecks[submission.id]?.status;
+    if (ocrStatus === 'date_mismatch' || ocrStatus === 'old_screenshot') {
+      const warningText = ocrStatus === 'date_mismatch'
+        ? 'OCR check me screenshot date submitted payment date se match nahi ho rahi hai.'
+        : 'OCR check me screenshot date aaj ki date se match nahi ho rahi (old screenshot risk).';
+
+      const continueWithRisk = await showConfirm(
+        `${warningText}\n\nKya aap phir bhi approve karna chahte hain?`,
+        { title: 'OCR Date Risk Detected', confirmLabel: 'Approve Anyway', intent: 'warning' }
+      );
+
+      if (!continueWithRisk) {
+        return;
+      }
+    }
+
     const approved = await showConfirm(
       `Approve payment from ${submission.tenantName} (Room ${submission.roomNumber})?\n\nAmount: ₹${submission.paidAmount}`,
       { title: 'Approve Payment', confirmLabel: 'Approve', intent: 'warning' }
