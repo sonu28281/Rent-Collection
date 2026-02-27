@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, doc, getDocs, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, limit, query, where, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import Papa from 'papaparse';
 import jsPDF from 'jspdf';
+import JSZip from 'jszip';
 import 'jspdf-autotable';
 
 const BackupExport = () => {
@@ -14,6 +15,7 @@ const BackupExport = () => {
   const [backupHistory, setBackupHistory] = useState([]);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
+  const [collectionBackupStatus, setCollectionBackupStatus] = useState({});
 
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
@@ -25,10 +27,28 @@ const BackupExport = () => {
   const [toMonth, setToMonth] = useState(currentMonth);
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const fullBackupCollections = [
+    'payments',
+    'tenants',
+    'rooms',
+    'settings',
+    'bankAccounts',
+    'importLogs',
+    'roomStatusLogs',
+    'electricityReadings',
+    'maintenance',
+    'paymentSubmissions',
+    'tenantProfiles',
+    'monthlyBackups'
+  ];
 
   useEffect(() => {
     fetchPayments();
     fetchBackupHistory();
+  }, []);
+
+  useEffect(() => {
+    checkAndRunMonthlyAutoBackup();
   }, []);
 
   const fetchPayments = async () => {
@@ -69,6 +89,15 @@ const BackupExport = () => {
     }
     return Array.from(yearSet).sort((a, b) => b - a);
   }, [payments, currentYear]);
+
+  const latestFullBackup = useMemo(() => {
+    return backupHistory.find((item) => item.type === 'full-database-backup') || null;
+  }, [backupHistory]);
+
+  const backedCollectionSet = useMemo(() => {
+    const entries = latestFullBackup?.collections || [];
+    return new Set(entries.map((entry) => entry.collection));
+  }, [latestFullBackup]);
 
   const toMonthKey = (year, month) => Number(year) * 100 + Number(month);
 
@@ -135,6 +164,151 @@ const BackupExport = () => {
     };
   });
 
+  const formatDateLabel = (value) => {
+    return value.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  const buildFullCollectionsSnapshot = async () => {
+    const snapshotResult = {};
+
+    for (const collectionName of fullBackupCollections) {
+      const snapshot = await getDocs(collection(db, collectionName));
+      const rows = snapshot.docs.map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }));
+      snapshotResult[collectionName] = rows;
+      setCollectionBackupStatus((prev) => ({ ...prev, [collectionName]: true }));
+    }
+
+    return Object.entries(snapshotResult).reduce((acc, item) => {
+      acc[item[0]] = item[1];
+      return acc;
+    }, {});
+  };
+
+  const createFullDatabaseBackup = async (source = 'manual') => {
+    try {
+      setBackupBusy(true);
+      setError(null);
+      setSuccessMessage('');
+      setCollectionBackupStatus(
+        fullBackupCollections.reduce((acc, name) => {
+          acc[name] = false;
+          return acc;
+        }, {})
+      );
+
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
+      const day = now.getDate();
+      const dateLabel = formatDateLabel(now);
+
+      const collectionsSnapshot = await buildFullCollectionsSnapshot();
+      const collectionSummaries = Object.entries(collectionsSnapshot).map(([name, rows]) => ({
+        collection: name,
+        count: rows.length
+      }));
+      const totalRecords = collectionSummaries.reduce((sum, item) => sum + item.count, 0);
+
+      const zip = new JSZip();
+      zip.file('backup_manifest.json', JSON.stringify({
+        type: 'full-database-backup',
+        generatedAt: now.toISOString(),
+        backupDateLabel: dateLabel,
+        backupYear: year,
+        backupMonth: month,
+        backupDay: day,
+        source,
+        collections: collectionSummaries
+      }, null, 2));
+
+      Object.entries(collectionsSnapshot).forEach(([collectionName, rows]) => {
+        zip.file(`collections/${collectionName}.json`, JSON.stringify(rows, null, 2));
+      });
+
+      const fileBlob = await zip.generateAsync({ type: 'blob' });
+      const fileName = `${dateLabel}_full_database_backup.zip`;
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(fileBlob);
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+
+      await addDoc(collection(db, 'monthlyBackups'), {
+        type: 'full-database-backup',
+        periodType: 'full-db',
+        fileName,
+        backupDateLabel: dateLabel,
+        backupDateISO: now.toISOString(),
+        backupYear: year,
+        backupMonth: month,
+        backupDay: day,
+        source,
+        totalRecords,
+        collections: collectionSummaries,
+        recordCount: totalRecords,
+        createdAt: now.toISOString()
+      });
+
+      setSuccessMessage(`✅ Full database backup downloaded: ${fileName}`);
+      fetchBackupHistory();
+      setTimeout(() => setSuccessMessage(''), 6000);
+      return true;
+    } catch (err) {
+      console.error('Full backup error:', err);
+      setError('Failed to create full database backup. Please try again.');
+      return false;
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const checkAndRunMonthlyAutoBackup = async () => {
+    try {
+      const today = new Date();
+      if (today.getDate() !== 30) return;
+
+      const year = today.getFullYear();
+      const month = today.getMonth() + 1;
+      const localKey = `auto-full-backup-${year}-${month}`;
+      if (localStorage.getItem(localKey) === 'done') return;
+
+      const backupQuery = query(
+        collection(db, 'monthlyBackups'),
+        where('type', '==', 'full-database-backup'),
+        where('backupYear', '==', year),
+        where('backupMonth', '==', month),
+        limit(1)
+      );
+      const existing = await getDocs(backupQuery);
+
+      if (!existing.empty) {
+        localStorage.setItem(localKey, 'done');
+        return;
+      }
+
+      const success = await createFullDatabaseBackup('auto-30th');
+      if (success) {
+        localStorage.setItem(localKey, 'done');
+      }
+    } catch (err) {
+      console.error('Auto monthly backup check failed:', err);
+    }
+  };
+
+  const runMonthlyBackupNow = async () => {
+    const ok = window.confirm(
+      'Run monthly full backup now?\n\nThis will create and download complete database backup immediately.'
+    );
+    if (!ok) return;
+    await createFullDatabaseBackup('manual-monthly-run');
+  };
+
   const createBackupCSV = async (records, label, periodType) => {
     try {
       setBackupBusy(true);
@@ -174,8 +348,7 @@ const BackupExport = () => {
   };
 
   const createFullBackup = async () => {
-    const label = `full-backup_${new Date().toISOString().split('T')[0]}`;
-    await createBackupCSV(payments, label, 'full');
+    await createFullDatabaseBackup('manual');
   };
 
   const createCustomPeriodBackup = async () => {
@@ -200,6 +373,76 @@ const BackupExport = () => {
     setRestoreBusy(true);
     setError(null);
     setSuccessMessage('');
+
+    const restoreCollectionsPayload = async (collectionsPayload, sourceLabel) => {
+      const entries = Object.entries(collectionsPayload || {});
+      if (entries.length === 0) {
+        throw new Error('No collection data found in backup file.');
+      }
+
+      let totalRestored = 0;
+      for (const [collectionName, rows] of entries) {
+        if (!Array.isArray(rows) || rows.length === 0) continue;
+
+        const batchSize = 400;
+        for (let i = 0; i < rows.length; i += batchSize) {
+          const chunk = rows.slice(i, i + batchSize);
+          const batch = writeBatch(db);
+
+          chunk.forEach((row, index) => {
+            const id = String(row?.id || '').trim() || `restored_${collectionName}_${Date.now()}_${i + index + 1}`;
+            const payload = { ...row };
+            delete payload.id;
+            batch.set(doc(db, collectionName, id), payload, { merge: true });
+            totalRestored += 1;
+          });
+
+          await batch.commit();
+        }
+      }
+
+      return totalRestored;
+    };
+
+    const isZip = file.name.toLowerCase().endsWith('.zip');
+    const isJson = file.name.toLowerCase().endsWith('.json');
+
+    if (isZip || isJson) {
+      (async () => {
+        try {
+          let collectionsPayload = {};
+
+          if (isZip) {
+            const zipData = await JSZip.loadAsync(file);
+            const collectionFileNames = Object.keys(zipData.files).filter(
+              (name) => name.startsWith('collections/') && name.endsWith('.json')
+            );
+
+            for (const fileName of collectionFileNames) {
+              const content = await zipData.file(fileName).async('string');
+              const collectionName = fileName.replace('collections/', '').replace('.json', '');
+              collectionsPayload[collectionName] = JSON.parse(content);
+            }
+          } else {
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            collectionsPayload = parsed?.collections || parsed;
+          }
+
+          const restoredCount = await restoreCollectionsPayload(collectionsPayload, file.name);
+          setSuccessMessage(`✅ Full restore complete: ${restoredCount} record(s) restored from ${file.name}`);
+          fetchPayments();
+          setTimeout(() => setSuccessMessage(''), 7000);
+        } catch (err) {
+          console.error('Full restore error:', err);
+          setError('Failed to restore full backup file. Please use valid ZIP/JSON backup.');
+        } finally {
+          setRestoreBusy(false);
+          event.target.value = '';
+        }
+      })();
+      return;
+    }
 
     Papa.parse(file, {
       header: true,
@@ -442,15 +685,30 @@ const BackupExport = () => {
             disabled={backupBusy || restoreBusy || pdfBusy}
             className="btn-primary"
           >
-            {backupBusy ? '⏳ Creating...' : '📥 Full Data Backup (CSV)'}
+            {backupBusy ? '⏳ Creating...' : '📥 Full Database Backup (ZIP)'}
           </button>
           <button
             onClick={createCustomPeriodBackup}
             disabled={backupBusy || restoreBusy || pdfBusy}
             className="btn-secondary"
           >
-            📥 Selected Period Backup (CSV)
+            📥 Payments Selected Period (CSV)
           </button>
+        </div>
+
+        <button
+          onClick={runMonthlyBackupNow}
+          disabled={backupBusy || restoreBusy || pdfBusy}
+          className="btn-secondary mb-4"
+        >
+          🛠️ Run Monthly Backup Now
+        </button>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+          <p className="text-xs text-amber-800 leading-relaxed">
+            Auto backup rule: On every month&apos;s 30th date, app open hote hi full database backup auto-run hoga (one-time per month).
+            Agar app 30 ko open nahi hua to manual full backup button use karein.
+          </p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -490,20 +748,53 @@ const BackupExport = () => {
       </div>
 
       <div className="card mb-6">
+        <h3 className="text-xl font-bold text-gray-800 mb-3">✅ Full Backup Checklist</h3>
+        <p className="text-xs text-gray-600 mb-3">
+          {backupBusy
+            ? 'Backup running... green tick aate hi collection backup complete ho chuka hoga.'
+            : latestFullBackup
+            ? `Last full backup: ${latestFullBackup.fileName || latestFullBackup.backupDateLabel || '-'} (${latestFullBackup.backupDateISO ? new Date(latestFullBackup.backupDateISO).toLocaleString('en-IN') : '-'})`
+            : 'No full backup completed yet.'}
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+          {fullBackupCollections.map((collectionName) => {
+            const isDone = backupBusy
+              ? Boolean(collectionBackupStatus[collectionName])
+              : backedCollectionSet.has(collectionName);
+
+            return (
+              <div
+                key={collectionName}
+                className={`flex items-center justify-between rounded-lg border px-3 py-2 ${
+                  isDone ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+                }`}
+              >
+                <span className="text-sm text-gray-800">{collectionName}</span>
+                <span className={`text-sm font-semibold ${isDone ? 'text-green-700' : 'text-gray-400'}`}>
+                  {isDone ? '✅' : '⏳'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="card mb-6">
         <h3 className="text-xl font-bold text-gray-800 mb-4">♻️ Restore</h3>
-        <p className="text-sm text-gray-600 mb-3">Upload backup CSV and restore payment records.</p>
+        <p className="text-sm text-gray-600 mb-3">Upload full backup ZIP/JSON or payments CSV to restore data.</p>
         <label className="btn-primary inline-flex items-center cursor-pointer">
-          {restoreBusy ? '⏳ Restoring...' : '📤 Upload Backup CSV & Restore'}
+          {restoreBusy ? '⏳ Restoring...' : '📤 Upload Backup File & Restore'}
           <input
             type="file"
-            accept=".csv"
+            accept=".csv,.zip,.json"
             onChange={handleRestoreBackupFile}
             className="hidden"
             disabled={restoreBusy || backupBusy || pdfBusy}
           />
         </label>
         <p className="text-xs text-red-600 mt-2">
-          ⚠️ Restore can overwrite existing records when CSV has matching docId.
+          ⚠️ Restore existing records ko overwrite kar sakta hai (same document id case).
         </p>
       </div>
 
