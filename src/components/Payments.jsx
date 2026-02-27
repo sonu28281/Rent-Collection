@@ -575,7 +575,7 @@ const Payments = () => {
         </div>
       </div>
 
-      <div className="card mb-6 sticky top-2 z-20 bg-white/95 backdrop-blur">
+      <div className="card mb-6 md:sticky md:top-2 z-20 bg-white/95 backdrop-blur">
         <div className="flex flex-wrap gap-2 items-center">
           <button
             onClick={() => setFilter('all')}
@@ -608,38 +608,40 @@ const Payments = () => {
             Pending ({pendingCount})
           </button>
 
-          <div className="h-6 w-px bg-gray-300 mx-1"></div>
+          <div className="hidden md:block h-6 w-px bg-gray-300 mx-1"></div>
 
-          <button
-            onClick={() => setFloorFilter('all')}
-            className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
-              floorFilter === 'all'
-                ? 'bg-slate-700 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            All Floors
-          </button>
-          <button
-            onClick={() => setFloorFilter('1')}
-            className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
-              floorFilter === '1'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Floor 1
-          </button>
-          <button
-            onClick={() => setFloorFilter('2')}
-            className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
-              floorFilter === '2'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Floor 2
-          </button>
+          <div className="hidden md:flex items-center gap-2">
+            <button
+              onClick={() => setFloorFilter('all')}
+              className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+                floorFilter === 'all'
+                  ? 'bg-slate-700 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              All Floors
+            </button>
+            <button
+              onClick={() => setFloorFilter('1')}
+              className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+                floorFilter === '1'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Floor 1
+            </button>
+            <button
+              onClick={() => setFloorFilter('2')}
+              className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+                floorFilter === '2'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Floor 2
+            </button>
+          </div>
 
           <button
             onClick={() => handleSortChange('room')}

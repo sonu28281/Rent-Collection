@@ -279,7 +279,7 @@ const Dashboard = () => {
     <div className="p-4 lg:p-8">
       {/* Header with Profile */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-3xl font-bold text-gray-900">
+        <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 leading-tight">
           Welcome Back, Admin! 👋
         </h2>
         
