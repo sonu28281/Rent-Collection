@@ -37,15 +37,14 @@ const randomState = () => `${Date.now().toString(36)}-${Math.random().toString(3
 const normalizeScopes = (value) => {
   const raw = String(value || '').trim();
   const source = raw || 'openid profile';
+  const allowed = new Set(['openid', 'profile']);
 
   const mapped = source
     .split(/[\s,]+/)
     .map((token) => token.trim())
     .filter(Boolean)
-    .map((token) => {
-      if (token === 'issued_documents') return 'issued-documents';
-      return token;
-    });
+    .map((token) => token.toLowerCase())
+    .filter((token) => allowed.has(token));
 
   const finalScopes = mapped.length > 0 ? Array.from(new Set(mapped)) : ['openid', 'profile'];
   return finalScopes.join(' ');
