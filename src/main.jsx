@@ -12,9 +12,30 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((error) => {
-      console.error('Service worker registration failed:', error);
-    });
+    navigator.serviceWorker.register('/sw.js')
+      .then((registration) => {
+        console.log('[App] Service worker registered');
+        
+        // Check for updates every 10 seconds
+        setInterval(() => {
+          registration.update();
+        }, 10000);
+        
+        // Listen for updates from service worker
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data && event.data.type === 'SW_UPDATED') {
+            console.log('[App] Service worker updated to:', event.data.version);
+            console.log('[App] Reloading page to apply updates...');
+            // Small delay to let the service worker finish claiming
+            setTimeout(() => {
+              window.location.reload();
+            }, 500);
+          }
+        });
+      })
+      .catch((error) => {
+        console.error('Service worker registration failed:', error);
+      });
   });
 }
 
