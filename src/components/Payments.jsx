@@ -15,6 +15,9 @@ const Payments = () => {
   const [filter, setFilter] = useState('all');
   const [tenantDirectPayEnabled, setTenantDirectPayEnabled] = useState(false);
   const [savingDirectPaySetting, setSavingDirectPaySetting] = useState(false);
+  const [historyMonthFilter, setHistoryMonthFilter] = useState('all');
+  const [cleanupMonths, setCleanupMonths] = useState(6);
+  const [cleaningScreenshots, setCleaningScreenshots] = useState(false);
 
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
@@ -238,6 +241,138 @@ const Payments = () => {
     }
   };
 
+  const getPaymentScreenshot = (payment) => payment?.screenshot || payment?.paymentScreenshot || payment?.proofScreenshot || payment?.proofImageUrl || '';
+
+  const handleDownloadScreenshot = (payment) => {
+    const screenshotUrl = getPaymentScreenshot(payment);
+    if (!screenshotUrl) return;
+
+    const tenantLabel = String(payment?.tenantNameSnapshot || payment?.tenantName || payment?.tenantId || 'tenant').replace(/\s+/g, '_');
+    const monthLabel = `${String(payment?.month || '').padStart(2, '0')}-${payment?.year || 'unknown'}`;
+    const paidDateLabel = payment?.paidDate || 'date';
+    const fileName = `payment-proof_${tenantLabel}_${monthLabel}_${paidDateLabel}.png`;
+
+    const anchor = document.createElement('a');
+    anchor.href = screenshotUrl;
+    anchor.download = fileName;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  };
+
+  const handleDeleteScreenshot = async (payment) => {
+    const screenshotUrl = getPaymentScreenshot(payment);
+    if (!screenshotUrl) return;
+
+    const ok = window.confirm(
+      `Delete screenshot proof for Room ${payment.roomNumber || '-'} (${payment.tenantNameSnapshot || payment.tenantName || 'Tenant'})?\n\nThis will remove historical proof from this payment record.`
+    );
+    if (!ok) return;
+
+    try {
+      await updateDoc(doc(db, 'payments', payment.id), {
+        screenshot: '',
+        paymentScreenshot: '',
+        proofScreenshot: '',
+        proofImageUrl: '',
+        screenshotDeletedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      fetchData();
+    } catch (deleteError) {
+      console.error('Error deleting screenshot proof:', deleteError);
+      alert('Failed to delete screenshot. Please try again.');
+    }
+  };
+
+  const getPaymentSortTime = (payment) => {
+    if (payment?.paidDate) {
+      const fromPaidDate = new Date(payment.paidDate).getTime();
+      if (!Number.isNaN(fromPaidDate)) return fromPaidDate;
+    }
+
+    const year = Number(payment?.year || 0);
+    const month = Number(payment?.month || 1);
+    return new Date(year, Math.max(month - 1, 0), 1).getTime();
+  };
+
+  const getHistoryMonthLabel = (payment) => {
+    const month = Number(payment?.month || 0);
+    const year = Number(payment?.year || 0);
+    if (!month || !year) return 'Unknown';
+    return `${monthNames[month - 1]} ${year}`;
+  };
+
+  const allPaidWithScreenshots = allPayments
+    .filter((payment) => payment.status === 'paid' && !!getPaymentScreenshot(payment))
+    .sort((a, b) => getPaymentSortTime(b) - getPaymentSortTime(a));
+
+  const historyMonthOptions = Array.from(
+    new Set(
+      allPaidWithScreenshots.map((payment) => {
+        const month = Number(payment?.month || 0);
+        const year = Number(payment?.year || 0);
+        return month && year ? `${year}-${String(month).padStart(2, '0')}` : null;
+      }).filter(Boolean)
+    )
+  ).sort((a, b) => (a > b ? -1 : 1));
+
+  const filteredHistoryScreenshots = allPaidWithScreenshots.filter((payment) => {
+    if (historyMonthFilter === 'all') return true;
+    const paymentKey = `${payment.year}-${String(payment.month).padStart(2, '0')}`;
+    return paymentKey === historyMonthFilter;
+  });
+
+  const getCutoffDate = (months) => {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - Number(months || 0));
+    cutoff.setHours(0, 0, 0, 0);
+    return cutoff;
+  };
+
+  const isOlderThanMonths = (payment, months) => {
+    const paymentTime = getPaymentSortTime(payment);
+    const cutoffTime = getCutoffDate(months).getTime();
+    return paymentTime < cutoffTime;
+  };
+
+  const oldScreenshotCandidates = filteredHistoryScreenshots.filter((payment) => isOlderThanMonths(payment, cleanupMonths));
+
+  const handleBulkDeleteOldScreenshots = async () => {
+    if (oldScreenshotCandidates.length === 0) {
+      alert(`No screenshots older than ${cleanupMonths} month(s) in current history filter.`);
+      return;
+    }
+
+    const ok = window.confirm(
+      `Delete ${oldScreenshotCandidates.length} screenshot(s) older than ${cleanupMonths} month(s)?\n\nTip: Download important proofs before cleanup.`
+    );
+    if (!ok) return;
+
+    try {
+      setCleaningScreenshots(true);
+      for (const payment of oldScreenshotCandidates) {
+        await updateDoc(doc(db, 'payments', payment.id), {
+          screenshot: '',
+          paymentScreenshot: '',
+          proofScreenshot: '',
+          proofImageUrl: '',
+          screenshotDeletedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+      alert(`✅ Deleted ${oldScreenshotCandidates.length} old screenshot(s).`);
+      fetchData();
+    } catch (bulkError) {
+      console.error('Error deleting old screenshots:', bulkError);
+      alert('Failed to delete old screenshots. Please try again.');
+    } finally {
+      setCleaningScreenshots(false);
+    }
+  };
+
   return (
     <div className="p-4 lg:p-8">
       {/* Header with Month Navigation */}
@@ -387,9 +522,36 @@ const Payments = () => {
                       <p className="text-sm font-semibold text-gray-900 mt-1">{tenant.name}</p>
                       <p className="text-sm text-gray-600">{tenant.phone || '-'}</p>
                       {isPaid && (
-                        <p className="text-xs text-gray-700 mt-1">
-                          UTR: <span className="font-mono font-semibold">{paymentSummary.utrDisplay}</span>
-                        </p>
+                        <div className="mt-1 space-y-1">
+                          <p className="text-xs text-gray-700">
+                            UTR: <span className="font-mono font-semibold">{paymentSummary.utrDisplay}</span>
+                          </p>
+                          {(() => {
+                            const monthPayments = getTenantMonthPayments(tenant);
+                            const latestPayment = monthPayments.sort((a, b) => getPaymentSortTime(b) - getPaymentSortTime(a))[0];
+                            const screenshotUrl = getPaymentScreenshot(latestPayment);
+                            if (!screenshotUrl) return null;
+                            return (
+                              <div className="flex flex-wrap gap-2">
+                                <a
+                                  href={screenshotUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] font-semibold text-blue-700 hover:underline"
+                                >
+                                  📸 View Proof
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadScreenshot(latestPayment)}
+                                  className="text-[11px] font-semibold text-indigo-700 hover:underline"
+                                >
+                                  ⬇️ Download
+                                </button>
+                              </div>
+                            );
+                          })()}
+                        </div>
                       )}
                     </div>
                     <p className="text-lg font-bold text-gray-900">
@@ -439,6 +601,7 @@ const Payments = () => {
                   <th className="px-4 py-3 text-right font-semibold text-gray-700">Rent</th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">Payment Date</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">UTR</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Screenshot</th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">Action</th>
                 </tr>
@@ -447,6 +610,9 @@ const Payments = () => {
                 {filteredTenants.map((tenant) => {
                   const paymentSummary = getTenantPaymentSummary(tenant);
                   const isPaid = paymentSummary.isPaid;
+                  const monthPayments = getTenantMonthPayments(tenant);
+                  const latestPayment = monthPayments.sort((a, b) => getPaymentSortTime(b) - getPaymentSortTime(a))[0];
+                  const screenshotUrl = getPaymentScreenshot(latestPayment);
                   
                   return (
                     <tr key={tenant.id} className={`hover:bg-gray-50 ${isPaid ? 'bg-green-50' : ''}`}>
@@ -471,6 +637,29 @@ const Payments = () => {
                         {isPaid ? paymentSummary.utrDisplay : '-'}
                       </td>
                       <td className="px-4 py-3 text-center">
+                        {isPaid && screenshotUrl ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <a
+                              href={screenshotUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-semibold text-blue-700 hover:underline"
+                            >
+                              View
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadScreenshot(latestPayment)}
+                              className="text-xs font-semibold text-indigo-700 hover:underline"
+                            >
+                              Download
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
                         {isPaid ? (
                           <div className="flex flex-col items-center">
                             <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-200 text-green-900 mb-1">
@@ -492,6 +681,114 @@ const Payments = () => {
                             💰 Record
                           </button>
                         )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="card mt-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between mb-4">
+          <div>
+            <h3 className="text-xl font-bold text-gray-800">📸 Screenshot History</h3>
+            <p className="text-sm text-gray-600">Verified payment proofs from payment records (historical archive).</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full lg:w-auto">
+            <select
+              value={historyMonthFilter}
+              onChange={(e) => setHistoryMonthFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="all">All Months</option>
+              {historyMonthOptions.map((optionValue) => {
+                const [yearValue, monthValue] = optionValue.split('-');
+                return (
+                  <option key={optionValue} value={optionValue}>
+                    {monthNames[Number(monthValue) - 1]} {yearValue}
+                  </option>
+                );
+              })}
+            </select>
+
+            <select
+              value={cleanupMonths}
+              onChange={(e) => setCleanupMonths(Number(e.target.value))}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value={3}>Older than 3 months</option>
+              <option value={6}>Older than 6 months</option>
+              <option value={12}>Older than 12 months</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={handleBulkDeleteOldScreenshots}
+              disabled={cleaningScreenshots}
+              className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-60"
+            >
+              {cleaningScreenshots ? 'Cleaning...' : `Delete Old (${oldScreenshotCandidates.length})`}
+            </button>
+          </div>
+        </div>
+
+        {filteredHistoryScreenshots.length === 0 ? (
+          <div className="text-center py-10 text-gray-500">
+            <p>No screenshots found for selected filter.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
+                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
+                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Tenant</th>
+                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Paid Date</th>
+                  <th className="px-3 py-2 text-left font-semibold text-gray-700">UTR</th>
+                  <th className="px-3 py-2 text-center font-semibold text-gray-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredHistoryScreenshots.map((payment) => {
+                  const screenshotUrl = getPaymentScreenshot(payment);
+                  const isOld = isOlderThanMonths(payment, cleanupMonths);
+                  return (
+                    <tr key={payment.id} className={isOld ? 'bg-amber-50' : ''}>
+                      <td className="px-3 py-2 text-gray-700">{getHistoryMonthLabel(payment)}</td>
+                      <td className="px-3 py-2 font-semibold text-gray-900">{payment.roomNumber || '-'}</td>
+                      <td className="px-3 py-2 text-gray-900">{payment.tenantNameSnapshot || payment.tenantName || '-'}</td>
+                      <td className="px-3 py-2 text-gray-700">{payment.paidDate ? new Date(payment.paidDate).toLocaleDateString('en-IN') : '-'}</td>
+                      <td className="px-3 py-2 text-xs font-mono text-gray-700 max-w-[200px] truncate" title={payment.utr || '-'}>{payment.utr || '-'}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center justify-center gap-3">
+                          <a
+                            href={screenshotUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-semibold text-blue-700 hover:underline"
+                          >
+                            View
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadScreenshot(payment)}
+                            className="text-xs font-semibold text-indigo-700 hover:underline"
+                          >
+                            Download
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteScreenshot(payment)}
+                            className="text-xs font-semibold text-red-700 hover:underline"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
