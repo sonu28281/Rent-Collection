@@ -78,12 +78,27 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   const [ocrProcessing, setOcrProcessing] = useState('');
   const [crossVerification, setCrossVerification] = useState(null);
 
+  // Camera viewfinder state
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraField, setCameraField] = useState('');
+  const [cameraFacing, setCameraFacing] = useState('environment');
+  const cameraVideoRef = useRef(null);
+  const cameraStreamRef = useRef(null);
+
   // Step 4: Agreement
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [signature, setSignature] = useState('');
   const [signedAt, setSignedAt] = useState(null);
   const [isSigning, setIsSigning] = useState(false);
   const signatureCanvasRef = useRef(null);
+
+  // Step 4: DigiLocker KYC
+  const [digiLockerStatus, setDigiLockerStatus] = useState('not_started'); // not_started, loading, verified, error, skipped
+  const [digiLockerError, setDigiLockerError] = useState('');
+  const [digiLockerData, setDigiLockerData] = useState(null);
+  const KYC_PENDING_KEY = 'kycPendingState';
+
+  const DEFAULT_KYC_FUNCTION_BASE_URL = `${window.location.origin}/.netlify/functions`;
 
   // ─── HELPERS ────────────────────────────────────────────────────────────
 
@@ -151,7 +166,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   const isStep2Complete = qrScanned && qrData?.success;
   const isStep3Complete = documents.aadharFrontImage && documents.aadharBackImage && documents.selfieImage
     && (documents.secondaryIdType === 'PAN' ? documents.panImage : documents.dlImage);
-  const isStep4Complete = agreementAccepted && signature;
+  const isStep4Complete = agreementAccepted && signature && (digiLockerStatus === 'verified' || digiLockerStatus === 'skipped');
 
   // ─── QR SCANNER ─────────────────────────────────────────────────────────
 
@@ -266,23 +281,100 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
   // ─── DOCUMENT UPLOAD + OCR ──────────────────────────────────────────────
 
-  const openCameraForField = (field, facing = 'environment') => {
-    // Create a hidden file input with capture attribute to open camera directly
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    // 'capture' attribute tells mobile browsers to open camera:
-    // 'environment' = rear camera, 'user' = front camera (selfie)
-    input.setAttribute('capture', facing);
-    input.style.display = 'none';
-    input.onchange = (e) => {
-      const file = e.target.files?.[0];
-      if (file) handleDocumentUpload(field, file);
-      input.remove();
-    };
-    document.body.appendChild(input);
-    // Small delay ensures the input is in the DOM before clicking
-    setTimeout(() => input.click(), 50);
+  // ─── IN-APP CAMERA ────────────────────────────────────────────────────
+
+  const openCameraForField = async (field, facing = 'environment') => {
+    setCameraField(field);
+    setCameraFacing(facing);
+    setCameraOpen(true);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      cameraStreamRef.current = stream;
+      // The video element will be mounted by React; attach stream in useEffect
+    } catch (err) {
+      console.error('Camera access error:', err);
+      showToast(
+        err.name === 'NotAllowedError'
+          ? '❌ Camera permission denied. Please allow camera access.'
+          : `❌ Camera error: ${err.message}`,
+        'error',
+      );
+      setCameraOpen(false);
+    }
+  };
+
+  // Attach stream to <video> when camera opens
+  useEffect(() => {
+    if (cameraOpen && cameraVideoRef.current && cameraStreamRef.current) {
+      cameraVideoRef.current.srcObject = cameraStreamRef.current;
+      cameraVideoRef.current.play().catch(() => {});
+    }
+  }, [cameraOpen]);
+
+  const closeCamera = () => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+      cameraStreamRef.current = null;
+    }
+    setCameraOpen(false);
+    setCameraField('');
+  };
+
+  const capturePhoto = async () => {
+    const video = cameraVideoRef.current;
+    if (!video) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const rawDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    closeCamera();
+
+    // Process through document scanner (Adobe Scan-like enhancement)
+    try {
+      const isSelfie = cameraField === 'selfieImage';
+      const scannedUrl = await scanDocument(rawDataUrl, { isSelfie });
+      setDocuments((prev) => ({ ...prev, [cameraField]: scannedUrl }));
+
+      if (cameraField === 'aadharFrontImage') runOcrVerification('aadhar', scannedUrl);
+      else if (cameraField === 'panImage') runOcrVerification('pan', scannedUrl);
+      else if (cameraField === 'dlImage') runOcrVerification('dl', scannedUrl);
+    } catch {
+      showToast('❌ Failed to process captured photo', 'error');
+    }
+  };
+
+  // ─── REMOVE DOCUMENT ──────────────────────────────────────────────────
+
+  const removeDocument = (field) => {
+    setDocuments((prev) => {
+      const updated = { ...prev, [field]: '' };
+      // Clear related OCR status
+      if (field === 'aadharFrontImage') {
+        updated.aadharDocStatus = 'not_uploaded';
+        updated.aadharDocReason = '';
+        updated.aadharDocConfidence = 0;
+        updated.aadharExtractedNumber = '';
+        updated.aadharNameMatched = false;
+      } else if (field === 'panImage') {
+        updated.panDocStatus = 'not_uploaded';
+        updated.panDocReason = '';
+        updated.panDocConfidence = 0;
+        updated.panExtractedNumber = '';
+        updated.panNameMatched = false;
+      } else if (field === 'dlImage') {
+        updated.dlDocStatus = 'not_uploaded';
+        updated.dlDocReason = '';
+        updated.dlDocConfidence = 0;
+        updated.dlExtractedNumber = '';
+        updated.dlNameMatched = false;
+      }
+      return updated;
+    });
   };
 
   const handleDocumentUpload = async (field, file) => {
@@ -544,6 +636,13 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
         agreementSignature: signature,
         agreementSignedAt: signedAt,
 
+        // DigiLocker KYC
+        digiLocker: {
+          status: digiLockerStatus,
+          data: digiLockerData || null,
+          verifiedAt: digiLockerData?.verifiedAt || null,
+        },
+
         // Meta
         submittedAt: new Date().toISOString(),
         source: mode === 'tenant' ? 'tenant_portal' : 'onboarding_link',
@@ -597,7 +696,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
     { num: 1, label: 'Details', icon: '📝', complete: !!isStep1Complete },
     { num: 2, label: 'Aadhaar QR', icon: '📷', complete: !!isStep2Complete },
     { num: 3, label: 'Documents', icon: '📄', complete: !!isStep3Complete },
-    { num: 4, label: 'Agreement', icon: '✅', complete: !!isStep4Complete },
+    { num: 4, label: 'Verify', icon: '🏛️', complete: !!isStep4Complete },
   ];
 
   // ─── RENDER ─────────────────────────────────────────────────────────────
@@ -629,6 +728,69 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg text-sm font-semibold
           ${toast.type === 'success' ? 'bg-green-600 text-white' : toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}>
           {toast.msg}
+        </div>
+      )}
+
+      {/* ─── CAMERA VIEWFINDER OVERLAY ─── */}
+      {cameraOpen && (
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+          {/* Camera feed */}
+          <div className="flex-1 relative overflow-hidden">
+            <video
+              ref={cameraVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ transform: cameraFacing === 'user' ? 'scaleX(-1)' : 'none' }}
+            />
+            {/* Document frame guide (not shown for selfie) */}
+            {cameraField !== 'selfieImage' && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-[85%] aspect-[1.6/1] border-2 border-white/70 rounded-lg shadow-lg"
+                     style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.4)' }}>
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1 rounded-full whitespace-nowrap">
+                    📄 Align document inside the frame
+                  </div>
+                  {/* Corner markers */}
+                  <div className="absolute top-0 left-0 w-6 h-6 border-t-3 border-l-3 border-white rounded-tl-md" />
+                  <div className="absolute top-0 right-0 w-6 h-6 border-t-3 border-r-3 border-white rounded-tr-md" />
+                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-3 border-l-3 border-white rounded-bl-md" />
+                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-3 border-r-3 border-white rounded-br-md" />
+                </div>
+              </div>
+            )}
+            {/* Selfie face guide */}
+            {cameraField === 'selfieImage' && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-48 h-60 border-2 border-white/70 rounded-[50%]"
+                     style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.4)' }}>
+                </div>
+                <div className="absolute top-[15%] bg-black/60 text-white text-xs px-3 py-1 rounded-full">
+                  🤳 Position your face in the oval
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom controls */}
+          <div className="bg-black/80 px-4 py-5 flex items-center justify-between safe-area-bottom">
+            <button
+              onClick={closeCamera}
+              className="text-white text-sm font-semibold px-4 py-2"
+              type="button"
+            >
+              ✕ Cancel
+            </button>
+            <button
+              onClick={capturePhoto}
+              className="w-16 h-16 rounded-full border-4 border-white bg-white/20 hover:bg-white/40 transition-colors flex items-center justify-center"
+              type="button"
+            >
+              <div className="w-12 h-12 rounded-full bg-white" />
+            </button>
+            <div className="w-16" /> {/* Spacer for centering */}
+          </div>
         </div>
       )}
 
@@ -1105,6 +1267,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                 isProcessing={ocrProcessing === 'aadhar'}
                 onFileChange={(f) => handleDocumentUpload('aadharFrontImage', f)}
                 onCamera={() => openCameraForField('aadharFrontImage')}
+                onRemove={() => removeDocument('aadharFrontImage')}
               />
 
               {/* Aadhaar Back */}
@@ -1117,6 +1280,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                 isProcessing={false}
                 onFileChange={(f) => handleDocumentUpload('aadharBackImage', f)}
                 onCamera={() => openCameraForField('aadharBackImage')}
+                onRemove={() => removeDocument('aadharBackImage')}
               />
 
               {/* Secondary ID Type Selector */}
@@ -1172,6 +1336,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                   isProcessing={ocrProcessing === 'pan'}
                   onFileChange={(f) => handleDocumentUpload('panImage', f)}
                   onCamera={() => openCameraForField('panImage')}
+                  onRemove={() => removeDocument('panImage')}
                 />
               ) : (
                 <DocumentUploadCard
@@ -1184,6 +1349,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                   isProcessing={ocrProcessing === 'dl'}
                   onFileChange={(f) => handleDocumentUpload('dlImage', f)}
                   onCamera={() => openCameraForField('dlImage')}
+                  onRemove={() => removeDocument('dlImage')}
                 />
               )}
 
@@ -1197,6 +1363,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                 isProcessing={false}
                 onFileChange={(f) => handleDocumentUpload('selfieImage', f)}
                 onCamera={() => openCameraForField('selfieImage', 'user')}
+                onRemove={() => removeDocument('selfieImage')}
                 isSelfie
               />
 
@@ -1230,12 +1397,99 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
             </div>
           )}
 
-          {/* ── STEP 4: Agreement + Signature ── */}
+          {/* ── STEP 4: DigiLocker KYC + Agreement + Signature ── */}
           {currentStep === 4 && (
             <div className="space-y-4">
               <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 rounded-xl p-4">
-                <h2 className="text-lg font-bold text-purple-900 mb-1">✅ Step 4: Agreement & Signature</h2>
-                <p className="text-sm text-purple-700">Accept terms and sign digitally.</p>
+                <h2 className="text-lg font-bold text-purple-900 mb-1">✅ Step 4: DigiLocker Verification & Agreement</h2>
+                <p className="text-sm text-purple-700">DigiLocker se verify karein aur agreement sign karein.</p>
+              </div>
+
+              {/* DigiLocker KYC Section */}
+              <div className={`border-2 rounded-xl p-4 ${
+                digiLockerStatus === 'verified' ? 'bg-green-50 border-green-300' :
+                digiLockerStatus === 'error' ? 'bg-red-50 border-red-300' :
+                digiLockerStatus === 'skipped' ? 'bg-gray-50 border-gray-300' :
+                'bg-blue-50 border-blue-300'
+              }`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">🏛️</span>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-800">DigiLocker eKYC Verification</h3>
+                    <p className="text-[11px] text-gray-600">Govt. of India DigiLocker se identity verify karein</p>
+                  </div>
+                </div>
+
+                {digiLockerStatus === 'not_started' && (
+                  <div className="space-y-3">
+                    <div className="bg-white rounded-lg p-3 border text-xs text-gray-600 space-y-1">
+                      <p>🔒 DigiLocker aapka Aadhaar, PAN aur doosre documents ko digitally verify karta hai.</p>
+                      <p>📱 Aapko DigiLocker login karna hoga (mobile OTP se).</p>
+                      <p>✅ Verification ke baad aapka KYC auto-complete ho jaayega.</p>
+                    </div>
+                    <button
+                      onClick={startDigiLockerVerification}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+                    >
+                      <span>🇮🇳</span> DigiLocker se Verify Karein
+                    </button>
+                    {mode !== 'tenant' && (
+                      <button
+                        onClick={() => setDigiLockerStatus('skipped')}
+                        className="w-full text-xs text-gray-500 hover:text-gray-700 underline"
+                      >
+                        Skip DigiLocker (baad me bhi kar sakte hain)
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {digiLockerStatus === 'loading' && (
+                  <div className="flex items-center justify-center gap-2 py-4">
+                    <span className="animate-spin text-xl">⏳</span>
+                    <span className="text-sm text-blue-700 font-semibold">DigiLocker se connect ho raha hai...</span>
+                  </div>
+                )}
+
+                {digiLockerStatus === 'verified' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-green-700">
+                      <span className="text-xl">✅</span>
+                      <span className="font-bold text-sm">DigiLocker Verification Successful!</span>
+                    </div>
+                    {digiLockerData && (
+                      <div className="bg-white rounded-lg p-3 border border-green-200 text-xs space-y-1">
+                        {digiLockerData.name && <p>Name: <strong>{digiLockerData.name}</strong></p>}
+                        {digiLockerData.dob && <p>DOB: <strong>{digiLockerData.dob}</strong></p>}
+                        <p>Verified at: <strong>{new Date(digiLockerData.verifiedAt).toLocaleString('en-IN')}</strong></p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {digiLockerStatus === 'error' && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-red-700">❌ {digiLockerError || 'Verification fail ho gaya.'}</p>
+                    <button
+                      onClick={() => { setDigiLockerStatus('not_started'); setDigiLockerError(''); }}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Dobara try karein
+                    </button>
+                  </div>
+                )}
+
+                {digiLockerStatus === 'skipped' && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-500">⏭️ DigiLocker verification skip kiya gaya</p>
+                    <button
+                      onClick={() => setDigiLockerStatus('not_started')}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Verify karein
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Summary */}
@@ -1358,7 +1612,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
 // ─── DOCUMENT UPLOAD CARD (Sub-component) ────────────────────────────────────
 
-const DocumentUploadCard = ({ label, field, image, status, reason, confidence, isProcessing, onFileChange, onCamera, isSelfie = false }) => {
+const DocumentUploadCard = ({ label, field, image, status, reason, confidence, isProcessing, onFileChange, onCamera, onRemove, isSelfie = false }) => {
   const statusColors = {
     'verified': 'border-green-300 bg-green-50',
     'checking': 'border-yellow-300 bg-yellow-50',
@@ -1406,11 +1660,11 @@ const DocumentUploadCard = ({ label, field, image, status, reason, confidence, i
           )}
 
           <button
-            onClick={() => onFileChange(null)}
+            onClick={onRemove}
             className="text-xs text-red-500 hover:underline"
             type="button"
           >
-            Remove & Re-upload
+            🗑️ Remove & Re-capture
           </button>
         </div>
       ) : (
@@ -1420,11 +1674,11 @@ const DocumentUploadCard = ({ label, field, image, status, reason, confidence, i
             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg text-xs transition-colors"
             type="button"
           >
-            📷 {isSelfie ? 'Take Selfie' : 'Take Photo'}
+            📷 {isSelfie ? 'Take Selfie' : 'Scan Document'}
           </button>
           <label className="flex-1 cursor-pointer">
             <div className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-lg text-xs text-center transition-colors border border-gray-300">
-              📁 Gallery / PDF
+              📁 Gallery / File
             </div>
             <input
               type="file"

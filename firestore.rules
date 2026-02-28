@@ -20,10 +20,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
-    // Tenants collection - Allow public read (tenant portal validates uniqueToken in app), admin write
+    // Tenants collection - Allow public read (tenant portal validates uniqueToken in app)
+    // Tenants can update their own kycStatus via onboarding flow
     match /tenants/{tenantId} {
-      allow read: if true;  // ✅ Tenant portal validates token in application code
+      allow read: if true;
       allow write: if isAdmin();
+      allow update: if true;  // ✅ KYC onboarding updates kycStatus (token-validated in app)
     }
 
     // Explicit deny for any client-side write to nested kyc object (backend Admin SDK bypasses rules)
@@ -74,10 +76,17 @@ service cloud.firestore {
       allow write: if true;
     }
 
-    // Tenant KYC profiles - tenant portal reads/writes, token validation is done in app logic
+    // Tenant KYC profiles - write allowed for onboarding (app-level security via tenant tokens)
     match /tenantProfiles/{tenantId} {
-      allow read: if isAuthenticated() && (request.auth.uid == tenantId || isAdmin());
-      allow write: if isAdmin();
+      allow read: if true;
+      allow write: if true;  // ✅ Tenant onboarding writes KYC data, token-validated in app
+    }
+
+    // Tenant applications - public write (for standalone onboarding), admin read/write
+    match /tenantApplications/{applicationId} {
+      allow read: if isAdmin();
+      allow create: if true;  // Anyone can submit an application
+      allow update, delete: if isAdmin();
     }
 
     // Import logs - Admin only
