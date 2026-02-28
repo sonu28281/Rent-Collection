@@ -794,13 +794,15 @@ const exchangeAuthorizationCodeHandler = async (event) => {
   }
 
   const code = body?.code;
+  const codeVerifier = body?.codeVerifier;
   if (!code) {
     return json(400, standardizedResponse(false, 'token', 'Authorization code is required', {}), buildCorsHeaders(event));
   }
 
   try {
-    const tokenPayload = await exchangeCodeInternal(code, cfg, { simulateFailure: body?.simulateFailure });
+    const tokenPayload = await exchangeCodeInternal(code, cfg, { simulateFailure: body?.simulateFailure, codeVerifier });
     return json(200, standardizedResponse(true, 'token', 'Token exchange successful', {
+      accessToken: tokenPayload.access_token || null,
       tokenType: tokenPayload.token_type || null,
       expiresIn: tokenPayload.expires_in || null,
       scope: tokenPayload.scope || null

@@ -1233,13 +1233,18 @@ const TenantPortal = () => {
             throw new Error(exchangeData?.message || 'Token exchange failed.');
           }
 
+          const accessToken = exchangeData?.data?.accessToken;
+          if (!accessToken) {
+            throw new Error('Token exchange succeeded but no access token received.');
+          }
+
           // Step 2: Fetch user profile
           setKycCallbackMessage('Fetching DigiLocker profile...');
           const profileUrl = `${DEFAULT_KYC_FUNCTION_BASE_URL}/fetchUserProfile`;
           const profileResp = await fetch(profileUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({}),
+            body: JSON.stringify({ accessToken }),
           });
           const profileData = await profileResp.json().catch(() => ({}));
 
