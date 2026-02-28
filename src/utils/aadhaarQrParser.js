@@ -382,7 +382,10 @@ function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
   }
 
   // Extract UID (last 4 digits of Aadhaar from reference ID)
-  const uidLast4 = refId.replace(/\D/g, '').substring(0, 4);
+  // UIDAI Secure QR: refID contains the last 4 digits of Aadhaar at the END
+  const refIdDigits = refId.replace(/\D/g, '');
+  const uidLast4 = refIdDigits.length >= 4 ? refIdDigits.slice(-4) : refIdDigits;
+  console.log(`[Aadhaar QR] refId="${refId.substring(0,20)}.." → last4="${uidLast4}"`);
 
   // Build address
   const address = {
@@ -743,8 +746,10 @@ export const crossVerify = (qrData, ocrData = {}, typedData = {}) => {
 export const maskAadhaar = (uid) => {
   if (!uid) return '';
   const clean = uid.replace(/\D/g, '');
-  if (clean.length <= 4) return clean;
-  return 'XXXX XXXX ' + clean.slice(-4);
+  if (clean.length === 0) return '';
+  if (clean.length <= 4) return 'XXXX XXXX ' + clean; // Secure QR: only last 4 digits available
+  if (clean.length <= 8) return 'XXXX ' + clean.slice(-8, -4) + ' ' + clean.slice(-4);
+  return clean.slice(0, 4) + ' ' + clean.slice(4, 8) + ' ' + clean.slice(-4);
 };
 
 /**
