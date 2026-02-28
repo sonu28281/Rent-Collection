@@ -9,6 +9,7 @@
  */
 
 import pako from 'pako';
+import { JpxImage } from 'jpeg2000';
 
 // ─── XML QR PARSER (Pre-2018 Aadhaar Cards) ────────────────────────────────
 
@@ -456,27 +457,74 @@ function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
         const photoBytes = remainingBytes.slice(SIGNATURE_LEN);
         
         if (photoBytes.length > 100) {
-          // Convert to base64 - use chunked approach for large arrays
-          let binary = '';
-          const chunkSize = 8192;
-          for (let i = 0; i < photoBytes.length; i += chunkSize) {
-            const chunk = photoBytes.subarray(i, Math.min(i + chunkSize, photoBytes.length));
-            binary += String.fromCharCode(...chunk);
-          }
-          const photoBase64 = btoa(binary);
-          
           // Detect image format from magic bytes
-          // JPEG: FF D8 FF | JPEG2000: 00 00 00 0C 6A 50 or FF 4F FF 51 | PNG: 89 50 4E 47
-          let mimeType = 'image/jpeg'; // default
-          if (photoBytes[0] === 0x00 && photoBytes[1] === 0x00 && photoBytes[2] === 0x00) {
-            mimeType = 'image/jp2'; // JPEG2000
-          } else if (photoBytes[0] === 0xFF && photoBytes[1] === 0x4F) {
-            mimeType = 'image/jp2'; // JPEG2000 codestream
-          } else if (photoBytes[0] === 0x89 && photoBytes[1] === 0x50) {
-            mimeType = 'image/png';
-          }
+          const isJP2Box = (photoBytes[0] === 0x00 && photoBytes[1] === 0x00 && photoBytes[2] === 0x00);
+          const isJP2Codestream = (photoBytes[0] === 0xFF && photoBytes[1] === 0x4F);
+          const isJPEG = (photoBytes[0] === 0xFF && photoBytes[1] === 0xD8);
+          const isPNG = (photoBytes[0] === 0x89 && photoBytes[1] === 0x50);
           
-          photo = `data:${mimeType};base64,${photoBase64}`;
+          if (isJP2Box || isJP2Codestream) {
+            // ─── JPEG2000 DECODE ─────────────────────────────
+            // Browsers don't support JP2 natively. Decode using jpeg2000 library
+            // and render to canvas → PNG data URL
+            try {
+              const jpx = new JpxImage();
+              jpx.parse(photoBytes);
+              
+              if (jpx.tiles && jpx.tiles.length > 0 && jpx.width > 0 && jpx.height > 0) {
+                const tile = jpx.tiles[0];
+                const canvas = document.createElement('canvas');
+                canvas.width = jpx.width;
+                canvas.height = jpx.height;
+                const ctx = canvas.getContext('2d');
+                const imgData = ctx.createImageData(jpx.width, jpx.height);
+                
+                // tile.items contains pixel data (RGB or RGBA)
+                const pixels = tile.items;
+                const components = jpx.componentsCount;
+                
+                for (let p = 0; p < jpx.width * jpx.height; p++) {
+                  if (components >= 3) {
+                    imgData.data[p * 4]     = pixels[p * components];     // R
+                    imgData.data[p * 4 + 1] = pixels[p * components + 1]; // G
+                    imgData.data[p * 4 + 2] = pixels[p * components + 2]; // B
+                    imgData.data[p * 4 + 3] = components >= 4 ? pixels[p * components + 3] : 255; // A
+                  } else {
+                    // Grayscale
+                    const val = pixels[p * components];
+                    imgData.data[p * 4] = val;
+                    imgData.data[p * 4 + 1] = val;
+                    imgData.data[p * 4 + 2] = val;
+                    imgData.data[p * 4 + 3] = 255;
+                  }
+                }
+                
+                ctx.putImageData(imgData, 0, 0);
+                photo = canvas.toDataURL('image/png');
+                console.log(`[Aadhaar QR] JP2 photo decoded: ${jpx.width}x${jpx.height}, ${components} components`);
+              }
+            } catch (jp2Err) {
+              console.warn('[Aadhaar QR] JP2 decode failed:', jp2Err.message);
+              // Fallback: store as JP2 data URL (won't display but preserves data)
+              let binary = '';
+              const chunkSize = 8192;
+              for (let i = 0; i < photoBytes.length; i += chunkSize) {
+                const chunk = photoBytes.subarray(i, Math.min(i + chunkSize, photoBytes.length));
+                binary += String.fromCharCode(...chunk);
+              }
+              photo = `data:image/jp2;base64,${btoa(binary)}`;
+            }
+          } else {
+            // Regular JPEG or PNG — browsers support these natively
+            let binary = '';
+            const chunkSize = 8192;
+            for (let i = 0; i < photoBytes.length; i += chunkSize) {
+              const chunk = photoBytes.subarray(i, Math.min(i + chunkSize, photoBytes.length));
+              binary += String.fromCharCode(...chunk);
+            }
+            const mimeType = isPNG ? 'image/png' : 'image/jpeg';
+            photo = `data:${mimeType};base64,${btoa(binary)}`;
+          }
         }
       }
     } catch {
