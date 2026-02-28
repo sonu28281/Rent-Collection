@@ -956,6 +956,9 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                         <div className="bg-gradient-to-r from-red-600 to-red-700 px-4 py-2.5 text-center">
                           <p className="text-[9px] text-white/70 mb-0.5">Aadhaar No / आधार नंबर</p>
                           <p className="text-xl font-bold text-white tracking-[0.2em] font-mono">{qrDisplayData.aadhaarNumber}</p>
+                          {qrDisplayData.aadhaarNumber === 'XXXX XXXX XXXX' && (
+                            <p className="text-[8px] text-white/60 mt-0.5">Secure QR me number nahi hota — Document photo se verify hoga</p>
+                          )}
                         </div>
                         
                         {/* Footer */}

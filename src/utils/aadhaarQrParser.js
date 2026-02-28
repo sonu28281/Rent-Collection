@@ -381,11 +381,10 @@ function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
     console.log(`[Aadhaar QR] Fallback: name at field[${nameIdx}]`);
   }
 
-  // Extract UID (last 4 digits of Aadhaar from reference ID)
-  // UIDAI Secure QR: refID contains the last 4 digits of Aadhaar at the END
-  const refIdDigits = refId.replace(/\D/g, '');
-  const uidLast4 = refIdDigits.length >= 4 ? refIdDigits.slice(-4) : refIdDigits;
-  console.log(`[Aadhaar QR] refId="${refId.substring(0,20)}.." → last4="${uidLast4}"`);
+  // NOTE: UIDAI Secure QR does NOT contain the Aadhaar number (privacy by design).
+  // The reference ID is NOT the Aadhaar number. Don't try to extract UID from it.
+  // Aadhaar number can only come from OCR of physical card or XML QR (old format).
+  console.log(`[Aadhaar QR] refId="${refId.substring(0,20)}.." (not Aadhaar number)`);
 
   // Build address
   const address = {
@@ -489,7 +488,7 @@ function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
     success: true,
     qrType: 'secure',
     name: textFields[nameIdx] || '',
-    uid: uidLast4, // Last 4 digits of Aadhaar (from Reference ID)
+    uid: '', // Secure QR does not contain Aadhaar number (UIDAI privacy)
     dob: textFields[dobIdx] || '',
     gender: textFields[genderIdx] || '',
     address,
@@ -760,7 +759,7 @@ export const formatQrDataForDisplay = (qrData) => {
 
   return {
     name: qrData.name || 'N/A',
-    aadhaarNumber: maskAadhaar(qrData.uid),
+    aadhaarNumber: qrData.uid ? maskAadhaar(qrData.uid) : (qrData.qrType === 'secure' ? 'XXXX XXXX XXXX' : 'N/A'),
     dob: qrData.dob || 'N/A',
     gender: qrData.gender === 'M' ? 'Male' : qrData.gender === 'F' ? 'Female' : qrData.gender === 'T' ? 'Transgender' : qrData.gender || 'N/A',
     address: qrData.fullAddress || 'N/A',
