@@ -467,21 +467,21 @@ const Tenants = () => {
         applicationId: applicant.id,
         // Copy KYC data
         kyc: {
-          verified: !!(applicant.digiLocker?.verified),
-          verifiedBy: applicant.digiLocker?.verified ? 'DigiLocker' : null,
-          verifiedAt: applicant.digiLocker?.verifiedAt || null,
+          verified: !!(applicant.digiLocker?.data?.verified || applicant.digiLocker?.verified || applicant.digiLocker?.status === 'verified'),
+          verifiedBy: (applicant.digiLocker?.data?.verified || applicant.digiLocker?.verified || applicant.digiLocker?.status === 'verified') ? 'DigiLocker' : null,
+          verifiedAt: applicant.digiLocker?.verifiedAt || applicant.digiLocker?.data?.verifiedAt || null,
           aadhaarQr: applicant.aadhaarQr || null,
           crossVerification: applicant.crossVerification || null,
           documents: {
-            aadhaarFront: applicant.aadhaarFront || null,
-            aadhaarBack: applicant.aadhaarBack || null,
-            selfie: applicant.selfie || null,
-            panCard: applicant.panCard || null,
-            drivingLicense: applicant.drivingLicense || null,
+            aadhaarFront: applicant.aadharFrontImage || null,
+            aadhaarBack: applicant.aadharBackImage || null,
+            selfie: applicant.selfieImage || null,
+            panCard: applicant.panImage || null,
+            drivingLicense: applicant.dlImage || null,
           },
           digiLocker: applicant.digiLocker || null,
         },
-        kycStatus: applicant.digiLocker?.verified ? 'completed' : 'pending',
+        kycStatus: (applicant.digiLocker?.data?.verified || applicant.digiLocker?.verified || applicant.digiLocker?.status === 'verified') ? 'completed' : 'pending',
       };
 
       const tenantRef = await addDoc(collection(db, 'tenants'), tenantPayload);
@@ -1579,8 +1579,8 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc }) => 
 const ApplicantCard = ({ applicant, onViewKyc, onAssignRoom, onDelete }) => {
   const name = applicant.fullName || `${applicant.firstName || ''} ${applicant.lastName || ''}`.trim() || 'Unknown';
   const hasAadhaarQr = !!applicant.aadhaarQr;
-  const hasDocuments = !!(applicant.aadhaarFront || applicant.aadhaarBack || applicant.selfie);
-  const hasDigiLocker = !!applicant.digiLocker?.verified;
+  const hasDocuments = !!(applicant.aadharFrontImage || applicant.aadharBackImage || applicant.selfieImage);
+  const hasDigiLocker = !!(applicant.digiLocker?.data?.verified || applicant.digiLocker?.verified || applicant.digiLocker?.status === 'verified');
   const isApproved = applicant.status === 'approved';
 
   const submittedDate = applicant.submittedAt
@@ -1656,9 +1656,9 @@ const ApplicantCard = ({ applicant, onViewKyc, onAssignRoom, onDelete }) => {
         </span>
         {applicant.crossVerification && (
           <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-            applicant.crossVerification.isMatch ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+            applicant.crossVerification.overallStatus === 'verified' ? 'bg-green-100 text-green-700' : applicant.crossVerification.overallStatus === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
           }`}>
-            {applicant.crossVerification.isMatch ? '✅' : '⚠️'} Cross-Check
+            {applicant.crossVerification.overallStatus === 'verified' ? '✅' : applicant.crossVerification.overallStatus === 'rejected' ? '❌' : '⚠️'} Cross-Check
           </span>
         )}
       </div>
@@ -1698,6 +1698,18 @@ const KycDetailModal = ({ applicant, onClose }) => {
   const qr = applicant.aadhaarQr || {};
   const cross = applicant.crossVerification || {};
   const dl = applicant.digiLocker || {};
+  const dlVerified = !!(dl.data?.verified || dl.verified || dl.status === 'verified');
+
+  // Helper to render address (may be string or object)
+  const formatAddress = (addr) => {
+    if (!addr) return '';
+    if (typeof addr === 'string') return addr;
+    if (typeof addr === 'object') {
+      const parts = [addr.house, addr.street, addr.landmark, addr.locality, addr.vtc, addr.district, addr.state, addr.pincode].filter(Boolean);
+      return parts.join(', ') || JSON.stringify(addr);
+    }
+    return String(addr);
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1729,8 +1741,8 @@ const KycDetailModal = ({ applicant, onClose }) => {
               <div><span className="text-gray-500">Gender:</span> <span className="font-semibold">{applicant.gender || qr.gender || '-'}</span></div>
               <div><span className="text-gray-500">Occupation:</span> <span className="font-semibold">{applicant.occupation || '-'}</span></div>
               <div><span className="text-gray-500">Emergency:</span> <span className="font-semibold">{applicant.emergencyContact || '-'}</span></div>
-              {applicant.address && (
-                <div className="col-span-2"><span className="text-gray-500">Address:</span> <span className="font-semibold">{applicant.address}</span></div>
+              {(applicant.address || qr.address) && (
+                <div className="col-span-2"><span className="text-gray-500">Address:</span> <span className="font-semibold">{formatAddress(applicant.address || qr.address)}</span></div>
               )}
             </div>
           </section>
@@ -1743,8 +1755,8 @@ const KycDetailModal = ({ applicant, onClose }) => {
                 {qr.name && <div><span className="text-gray-500">Name:</span> <span className="font-semibold">{qr.name}</span></div>}
                 {qr.dob && <div><span className="text-gray-500">DOB:</span> <span className="font-semibold">{qr.dob}</span></div>}
                 {qr.gender && <div><span className="text-gray-500">Gender:</span> <span className="font-semibold">{qr.gender}</span></div>}
-                {qr.maskedAadhaar && <div><span className="text-gray-500">Aadhaar:</span> <span className="font-semibold font-mono">{qr.maskedAadhaar}</span></div>}
-                {qr.address && <div><span className="text-gray-500">Address:</span> <span className="font-semibold">{qr.address}</span></div>}
+                {(qr.maskedAadhaar || qr.uid) && <div><span className="text-gray-500">Aadhaar:</span> <span className="font-semibold font-mono">{qr.maskedAadhaar || (qr.uid ? `XXXX-XXXX-${String(qr.uid).slice(-4)}` : '')}</span></div>}
+                {qr.address && <div><span className="text-gray-500">Address:</span> <span className="font-semibold">{formatAddress(qr.address)}</span></div>}
                 {qr.photo && (
                   <div className="mt-2">
                     <span className="text-gray-500 block mb-1">QR Photo:</span>
@@ -1759,18 +1771,21 @@ const KycDetailModal = ({ applicant, onClose }) => {
           {Object.keys(cross).length > 0 && (
             <section>
               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Cross Verification</h3>
-              <div className={`rounded-lg p-3 text-sm ${cross.isMatch ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
+              <div className={`rounded-lg p-3 text-sm ${cross.overallStatus === 'verified' ? 'bg-green-50 border border-green-200' : cross.overallStatus === 'rejected' ? 'bg-red-50 border border-red-200' : 'bg-amber-50 border border-amber-200'}`}>
                 <p className="font-semibold mb-1">
-                  {cross.isMatch ? '✅ Verified Match' : '⚠️ Mismatch / Warning'}
+                  {cross.overallStatus === 'verified' ? '✅ Verified' : cross.overallStatus === 'rejected' ? '❌ Rejected' : cross.overallStatus === 'flagged' ? '⚠️ Flagged' : '⏳ Pending'}
                 </p>
-                {cross.confidence != null && (
-                  <p className="text-gray-600">Confidence: {Math.round(cross.confidence)}%</p>
-                )}
-                {cross.details && (
+                {cross.flags && cross.flags.length > 0 && (
                   <ul className="mt-2 space-y-1 text-gray-700">
-                    {cross.details.map((d, i) => <li key={i}>• {d}</li>)}
+                    {cross.flags.map((f, i) => (
+                      <li key={i} className={f.type === 'error' ? 'text-red-700' : f.type === 'warning' ? 'text-amber-700' : 'text-gray-700'}>
+                        {f.type === 'error' ? '❌' : f.type === 'warning' ? '⚠️' : '✅'} <strong>{f.label}:</strong> {f.message}
+                      </li>
+                    ))}
                   </ul>
                 )}
+                {cross.qrVsTypedName && <p className="text-gray-600 mt-1">Name check: {cross.qrVsTypedName}</p>}
+                {cross.qrVsOcrAadhaarNo && <p className="text-gray-600">Aadhaar # check: {cross.qrVsOcrAadhaarNo}</p>}
               </div>
             </section>
           )}
@@ -1778,14 +1793,15 @@ const KycDetailModal = ({ applicant, onClose }) => {
           {/* DigiLocker */}
           <section>
             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">DigiLocker</h3>
-            <div className={`rounded-lg p-3 text-sm ${dl.verified ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}>
+            <div className={`rounded-lg p-3 text-sm ${dlVerified ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}>
               <p className="font-semibold">
-                {dl.verified ? '✅ DigiLocker Verified' : '❌ Not Verified'}
+                {dlVerified ? '✅ DigiLocker Verified' : '❌ Not Verified'}
               </p>
-              {dl.name && <p className="text-gray-600 mt-1">Name: {dl.name}</p>}
-              {dl.dob && <p className="text-gray-600">DOB: {dl.dob}</p>}
-              {dl.gender && <p className="text-gray-600">Gender: {dl.gender}</p>}
-              {dl.verifiedAt && <p className="text-gray-600">Verified at: {new Date(dl.verifiedAt).toLocaleString('en-IN')}</p>}
+              <p className="text-gray-600 mt-1">Status: {dl.status || '-'}</p>
+              {(dl.data?.name || dl.name) && <p className="text-gray-600">Name: {dl.data?.name || dl.name}</p>}
+              {(dl.data?.dob || dl.dob) && <p className="text-gray-600">DOB: {dl.data?.dob || dl.dob}</p>}
+              {(dl.data?.gender || dl.gender) && <p className="text-gray-600">Gender: {dl.data?.gender || dl.gender}</p>}
+              {(dl.verifiedAt || dl.data?.verifiedAt) && <p className="text-gray-600">Verified at: {new Date(dl.verifiedAt || dl.data?.verifiedAt).toLocaleString('en-IN')}</p>}
             </div>
           </section>
 
@@ -1793,37 +1809,37 @@ const KycDetailModal = ({ applicant, onClose }) => {
           <section>
             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Uploaded Documents</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {applicant.aadhaarFront && (
+              {applicant.aadharFrontImage && (
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Aadhaar Front</p>
-                  <img src={applicant.aadhaarFront} alt="Aadhaar Front" className="rounded-lg border w-full h-32 object-cover" />
+                  <img src={applicant.aadharFrontImage} alt="Aadhaar Front" className="rounded-lg border w-full h-32 object-cover" />
                 </div>
               )}
-              {applicant.aadhaarBack && (
+              {applicant.aadharBackImage && (
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Aadhaar Back</p>
-                  <img src={applicant.aadhaarBack} alt="Aadhaar Back" className="rounded-lg border w-full h-32 object-cover" />
+                  <img src={applicant.aadharBackImage} alt="Aadhaar Back" className="rounded-lg border w-full h-32 object-cover" />
                 </div>
               )}
-              {applicant.selfie && (
+              {applicant.selfieImage && (
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Selfie</p>
-                  <img src={applicant.selfie} alt="Selfie" className="rounded-lg border w-full h-32 object-cover" />
+                  <img src={applicant.selfieImage} alt="Selfie" className="rounded-lg border w-full h-32 object-cover" />
                 </div>
               )}
-              {applicant.panCard && (
+              {applicant.panImage && (
                 <div>
                   <p className="text-xs text-gray-500 mb-1">PAN Card</p>
-                  <img src={applicant.panCard} alt="PAN" className="rounded-lg border w-full h-32 object-cover" />
+                  <img src={applicant.panImage} alt="PAN" className="rounded-lg border w-full h-32 object-cover" />
                 </div>
               )}
-              {applicant.drivingLicense && (
+              {applicant.dlImage && (
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Driving License</p>
-                  <img src={applicant.drivingLicense} alt="DL" className="rounded-lg border w-full h-32 object-cover" />
+                  <img src={applicant.dlImage} alt="DL" className="rounded-lg border w-full h-32 object-cover" />
                 </div>
               )}
-              {!applicant.aadhaarFront && !applicant.aadhaarBack && !applicant.selfie && !applicant.panCard && !applicant.drivingLicense && (
+              {!applicant.aadharFrontImage && !applicant.aadharBackImage && !applicant.selfieImage && !applicant.panImage && !applicant.dlImage && (
                 <p className="text-gray-500 text-sm col-span-full">No documents uploaded</p>
               )}
             </div>
