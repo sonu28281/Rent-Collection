@@ -106,10 +106,22 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
   const extractAadharNumberFromText = (text) => {
     const dense = String(text || '').replace(/\s+/g, ' ');
-    const grouped = dense.match(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/);
+    // Try standard format: 1234 5678 9012
+    const grouped = dense.match(/\b\d{4}[\s.-]?\d{4}[\s.-]?\d{4}\b/);
     if (grouped?.[0]) return normalizeAadhar(grouped[0]);
+    // Try plain 12 digits
     const plain = dense.match(/\b\d{12}\b/);
     if (plain?.[0]) return normalizeAadhar(plain[0]);
+    // Try with OCR artifacts (O→0, l→1, etc.)
+    const cleaned = dense.replace(/[oO]/g, '0').replace(/[lI]/g, '1').replace(/[sS]/g, '5');
+    const retryGrouped = cleaned.match(/\b\d{4}[\s.-]?\d{4}[\s.-]?\d{4}\b/);
+    if (retryGrouped?.[0]) return normalizeAadhar(retryGrouped[0]);
+    // Try to find any 12-digit sequence with spaces
+    const anyDigits = dense.replace(/[^\d\s]/g, '').replace(/\s+/g, '');
+    if (anyDigits.length >= 12) {
+      const twelve = anyDigits.match(/\d{12}/);
+      if (twelve?.[0]) return normalizeAadhar(twelve[0]);
+    }
     return '';
   };
 
@@ -367,9 +379,32 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
       // Cross-verify with QR data
       if (qrData?.success && docType === 'aadhar') {
+        // Try to extract just the name from OCR text instead of passing raw dump
+        // Look for name near known labels on Aadhaar card
+        let ocrExtractedName = '';
+        const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].toLowerCase();
+          // If this line contains a name-like label, next line might be the name
+          if (/\b(name|naam|नाम)\b/i.test(line)) {
+            // Check if name is on same line after colon, or on next line
+            const afterColon = lines[i].split(/[:\/]/)[1]?.trim();
+            if (afterColon && /[A-Za-z]{2,}/.test(afterColon)) {
+              ocrExtractedName = afterColon;
+            } else if (i + 1 < lines.length && /^[A-Za-z\s.'-]{3,}$/.test(lines[i + 1].trim())) {
+              ocrExtractedName = lines[i + 1].trim();
+            }
+            break;
+          }
+          // Also check if a line looks like a name (just letters, 2+ words)
+          if (!ocrExtractedName && /^[A-Za-z][A-Za-z\s.'-]{4,}$/.test(lines[i]) && lines[i].split(/\s+/).length >= 2) {
+            ocrExtractedName = lines[i];
+          }
+        }
+        
         const verification = crossVerify(
           qrData,
-          { name: rawText, aadhaarNumber: extractedNumber },
+          { name: ocrExtractedName || rawText, aadhaarNumber: extractedNumber, confidence },
           { firstName: formData.firstName, lastName: formData.lastName }
         );
         setCrossVerification(verification);

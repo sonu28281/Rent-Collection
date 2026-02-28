@@ -715,12 +715,18 @@ export const crossVerify = (qrData, ocrData = {}, typedData = {}) => {
 
   // 2. QR Name vs OCR Name (from Aadhaar document image)
   const ocrName = ocrData.name || '';
+  const ocrConfidence = ocrData.confidence || 0;
   if (ocrName) {
     const similarity = stringSimilarity(qrName, ocrName);
-    if (similarity >= 0.7) {
+    if (similarity >= 0.6) {
       checks.qrVsOcrName = 'match';
-    } else if (similarity >= 0.4) {
-      checks.qrVsOcrName = 'mismatch';
+      flags.push({ type: 'success', label: 'Document Match', message: `Upload ki gayi Aadhaar card photo QR data se match ho gayi ✓` });
+    } else if (ocrConfidence > 0 && ocrConfidence < 65) {
+      // Low OCR confidence — don't flag as error, image quality is poor
+      checks.qrVsOcrName = 'match'; // Be lenient
+      flags.push({ type: 'warning', label: 'Photo Quality', message: `Aadhaar card photo thodi unclear hai (${Math.round(ocrConfidence)}% readable). Clear photo upload karein to aur achhe se verify hoga.` });
+    } else if (similarity >= 0.3) {
+      checks.qrVsOcrName = 'match'; // Partial match is OK
       flags.push({ type: 'warning', label: 'Document Photo Check', message: `Upload ki gayi Aadhaar photo aur QR scan me naam thoda alag dikh raha hai. Photo clear hai to koi problem nahi.` });
     } else {
       checks.qrVsOcrName = 'mismatch';
