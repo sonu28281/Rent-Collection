@@ -2406,25 +2406,25 @@ const TenantPortal = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-3 sm:p-4">
         <div className="max-w-md w-full">
           {/* Login Card */}
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-6 sm:p-8">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-5 sm:p-6">
             {/* Logo/Header */}
-            <div className="text-center mb-6 sm:mb-8">
-                <div className="flex justify-end mb-2">
+            <div className="text-center mb-4">
+                <div className="flex justify-end mb-1">
                   <button
                     type="button"
                     onClick={togglePortalLanguage}
-                    className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-semibold text-gray-700"
+                    className="px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-semibold text-gray-700"
                   >
                     {portalLanguage === 'en' ? '🇮🇳 हिंदी' : '🇬🇧 English'}
                   </button>
                 </div>
-              <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">🏠</div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">Tenant Portal</h1>
-                <p className="text-sm sm:text-base text-gray-600">{t('Login to view your records', 'अपने रिकॉर्ड देखने के लिए लॉगिन करें')}</p>
+              <div className="text-3xl sm:text-4xl mb-1">🏠</div>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-0.5">Tenant Portal</h1>
+                <p className="text-sm text-gray-600">{t('Login to view your records', 'अपने रिकॉर्ड देखने के लिए लॉगिन करें')}</p>
             </div>
 
             {/* Login Form */}
-            <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
+            <form onSubmit={handleLogin} className="space-y-3">
               {installPromptEvent && !isAppInstalled && (
                 <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
                   <p className="text-xs sm:text-sm text-indigo-800 mb-2">📱 Install app on your phone for one-tap access every month.</p>
@@ -2440,7 +2440,7 @@ const TenantPortal = () => {
 
               {/* Username */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
                   {t('Room Number', 'रूम नंबर')}
                 </label>
                 <input
@@ -2448,7 +2448,7 @@ const TenantPortal = () => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Enter your room number (e.g., 101)"
-                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-sm border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                   autoFocus
                 />
@@ -2473,7 +2473,7 @@ const TenantPortal = () => {
 
               {/* Password */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
                   {t('Password', 'पासवर्ड')}
                 </label>
                 <input
@@ -2481,7 +2481,7 @@ const TenantPortal = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-sm border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
               </div>
@@ -2497,14 +2497,14 @@ const TenantPortal = () => {
               <button
                 type="submit"
                 disabled={loggingIn}
-                className="w-full bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white font-bold py-3 sm:py-3.5 px-6 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-base touch-manipulation"
+                className="w-full bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-sm touch-manipulation"
               >
                 {loggingIn ? t('⏳ Logging in...', '⏳ लॉगिन हो रहा है...') : t('🔐 Login', '🔐 लॉगिन')}
               </button>
             </form>
 
             {/* Help Text */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="mt-3 pt-3 border-t border-gray-200">
               <p className="text-xs text-gray-500 text-center">
                 {t(
                   'Your room number is your username. Contact property manager if you forgot your password.',
@@ -2514,13 +2514,13 @@ const TenantPortal = () => {
             </div>
 
             {/* New Tenant Onboarding */}
-            <div className="mt-4 pt-4 border-t border-gray-200 text-center">
-              <p className="text-xs text-gray-500 mb-2">
+            <div className="mt-3 pt-3 border-t border-gray-200 text-center">
+              <p className="text-xs text-gray-500 mb-1.5">
                 {t('New tenant? Complete KYC to get started.', 'नए किराएदार? KYC पूरा करके शुरू करें।')}
               </p>
               <button
                 onClick={() => navigate('/onboarding')}
-                className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 px-6 rounded-lg text-sm transition-colors"
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors"
               >
                 {t('🏠 New Tenant? Sign Up / Onboard', '🏠 नए किराएदार? रजिस्टर करें')}
               </button>
