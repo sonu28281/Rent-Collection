@@ -296,29 +296,39 @@ function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
   }
 
   // ─── DETECT V1 vs V2 FORMAT ─────────────────────────────────────────
-  // V2 has email/mobile indicator as field[0] (single digit 0-3)
-  // V1 has reference ID directly as field[0]
-  // We detect by checking if field[0] is a single digit 0-3
+  // UIDAI Secure QR V2 layout (based on actual QR data):
+  //   field[0] = Reference ID (large number, e.g. "834720200911152733143")
+  //   field[1] = Email/Mobile presence indicator (single digit: 0/1/2/3)
+  //   field[2] = Name
+  //   field[3] = DOB
+  //   field[4] = Gender
+  //   field[5..15] = Address fields
+  //
+  // V1 layout:
+  //   field[0] = Reference ID
+  //   field[1] = Name
+  //   field[2] = DOB
+  //   ...
+  //
+  // Detection: if field[1] is a single digit 0-3, it's V2
   
   let emailMobileIndicator = 0;
-  let refId = '';
+  let refId = textFields[0] || '';
   let nameIdx, dobIdx, genderIdx, coIdx, distIdx, lmIdx, houseIdx, locIdx;
   let pinIdx, poIdx, stateIdx, streetIdx, subDistIdx, vtcIdx;
 
-  const field0 = textFields[0] || '';
-  const isV2 = /^[0-3]$/.test(field0);
+  const field1 = textFields[1] || '';
+  const isV2 = /^[0-3]$/.test(field1);
 
   if (isV2) {
-    // V2 format: field[0] = indicator, field[1] = refId, field[2..] = data
-    emailMobileIndicator = parseInt(field0, 10);
-    refId = textFields[1] || '';
+    // V2 format: field[0] = refId, field[1] = indicator, field[2..] = data
+    emailMobileIndicator = parseInt(field1, 10);
     nameIdx = 2; dobIdx = 3; genderIdx = 4; coIdx = 5;
     distIdx = 6; lmIdx = 7; houseIdx = 8; locIdx = 9;
     pinIdx = 10; poIdx = 11; stateIdx = 12; streetIdx = 13;
     subDistIdx = 14; vtcIdx = 15;
   } else {
-    // V1 format: field[0] = refId, field[1..] = data
-    refId = field0;
+    // V1 format: field[0] = refId, field[1] = name, field[2..] = data
     nameIdx = 1; dobIdx = 2; genderIdx = 3; coIdx = 4;
     distIdx = 5; lmIdx = 6; houseIdx = 7; locIdx = 8;
     pinIdx = 9; poIdx = 10; stateIdx = 11; streetIdx = 12;
@@ -594,10 +604,10 @@ export const crossVerify = (qrData, ocrData = {}, typedData = {}) => {
       checks.qrVsTypedName = 'match';
     } else if (similarity >= 0.5) {
       checks.qrVsTypedName = 'mismatch';
-      flags.push(`⚠️ QR name "${qrName}" partially matches typed name "${typedFullName}" (${Math.round(similarity * 100)}% match)`);
+      flags.push(`⚠️ Aadhaar QR pe naam "${qrName}" aapke typed naam "${typedFullName}" se thoda alag hai. Please check spelling.`);
     } else {
       checks.qrVsTypedName = 'mismatch';
-      flags.push(`❌ QR name "${qrName}" does NOT match typed name "${typedFullName}" (${Math.round(similarity * 100)}% match)`);
+      flags.push(`⚠️ Aadhaar QR pe naam aapke typed naam se match nahi ho raha. Sahi Aadhaar scan kiya hai? Please re-check.`);
     }
   } else {
     checks.qrVsTypedName = 'pending';
@@ -611,10 +621,10 @@ export const crossVerify = (qrData, ocrData = {}, typedData = {}) => {
       checks.qrVsOcrName = 'match';
     } else if (similarity >= 0.4) {
       checks.qrVsOcrName = 'mismatch';
-      flags.push(`⚠️ QR name "${qrName}" partially matches OCR name "${ocrName}" (${Math.round(similarity * 100)}% match)`);
+      flags.push(`⚠️ QR aur document image pe naam thoda alag hai. Ye OCR reading ke kaaran ho sakta hai.`);
     } else {
       checks.qrVsOcrName = 'mismatch';
-      flags.push(`❌ QR name "${qrName}" does NOT match document OCR name "${ocrName}" — possible fake document`);
+      flags.push(`⚠️ QR aur document image pe naam match nahi ho raha. Sahi document upload kiya hai? Please re-check.`);
     }
   } else {
     checks.qrVsOcrName = 'pending';
@@ -631,7 +641,7 @@ export const crossVerify = (qrData, ocrData = {}, typedData = {}) => {
         checks.qrVsOcrAadhaarNo = 'match';
       } else {
         checks.qrVsOcrAadhaarNo = 'mismatch';
-        flags.push(`❌ QR Aadhaar last 4 digits (${qrUid}) do NOT match OCR number ending (${ocrUid.slice(-4)}) — REJECTED`);
+        flags.push(`❌ Aadhaar number match nahi ho raha. QR ke last 4 digits (${qrUid}) document se alag hain (${ocrUid.slice(-4)}). Please sahi Aadhaar card upload karein.`);
       }
     } else {
       // Old QR has full 12 digits
@@ -639,7 +649,7 @@ export const crossVerify = (qrData, ocrData = {}, typedData = {}) => {
         checks.qrVsOcrAadhaarNo = 'match';
       } else {
         checks.qrVsOcrAadhaarNo = 'mismatch';
-        flags.push(`❌ QR Aadhaar number (${maskAadhaar(qrUid)}) does NOT match OCR number (${maskAadhaar(ocrUid)}) — REJECTED`);
+        flags.push(`❌ Aadhaar number match nahi ho raha. QR (${maskAadhaar(qrUid)}) aur document (${maskAadhaar(ocrUid)}) me alag number hai. Sahi document upload karein.`);
       }
     }
   } else {
@@ -651,12 +661,12 @@ export const crossVerify = (qrData, ocrData = {}, typedData = {}) => {
 
   // Determine overall status
   const checkValues = Object.values(checks).filter(v => v !== 'pending' && v !== 'skipped');
-  const hasRejection = flags.some(f => f.includes('REJECTED'));
+  const hasAadhaarMismatch = checks.qrVsOcrAadhaarNo === 'mismatch';
   const hasMismatch = checkValues.includes('mismatch');
   const allMatch = checkValues.length > 0 && checkValues.every(v => v === 'match');
 
   let overallStatus;
-  if (hasRejection) {
+  if (hasAadhaarMismatch) {
     overallStatus = 'rejected';
   } else if (hasMismatch) {
     overallStatus = 'flagged';

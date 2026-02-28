@@ -255,17 +255,22 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   // ─── DOCUMENT UPLOAD + OCR ──────────────────────────────────────────────
 
   const openCameraForField = (field, facing = 'environment') => {
+    // Create a hidden file input with capture attribute to open camera directly
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.capture = facing;
+    // 'capture' attribute tells mobile browsers to open camera:
+    // 'environment' = rear camera, 'user' = front camera (selfie)
+    input.setAttribute('capture', facing);
+    input.style.display = 'none';
     input.onchange = (e) => {
       const file = e.target.files?.[0];
       if (file) handleDocumentUpload(field, file);
       input.remove();
     };
     document.body.appendChild(input);
-    input.click();
+    // Small delay ensures the input is in the DOM before clicking
+    setTimeout(() => input.click(), 50);
   };
 
   const handleDocumentUpload = async (field, file) => {
@@ -944,14 +949,18 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                   'bg-gray-50 border-gray-300'
                 }`}>
                   <p className="text-xs font-semibold mb-1">
-                    {crossVerification.overallStatus === 'verified' ? '🟢 QR → Document Cross-Verification: PASSED' :
-                     crossVerification.overallStatus === 'flagged' ? '🟡 QR → Document Cross-Verification: FLAGS DETECTED' :
-                     crossVerification.overallStatus === 'rejected' ? '🔴 QR → Document Cross-Verification: REJECTED' :
-                     '⏳ Cross-verification pending...'}
+                    {crossVerification.overallStatus === 'verified' ? '✅ Document verification successful!' :
+                     crossVerification.overallStatus === 'flagged' ? '⚠️ Kuch details match nahi ho rahi — neeche check karein' :
+                     crossVerification.overallStatus === 'rejected' ? '❌ Document match nahi ho raha — sahi document upload karein' :
+                     '⏳ Verification ho raha hai...'}
                   </p>
-                  {crossVerification.flags?.map((flag, i) => (
-                    <p key={i} className="text-xs text-gray-700">{flag}</p>
-                  ))}
+                  {crossVerification.flags?.length > 0 && (
+                    <div className="mt-1.5 space-y-1">
+                      {crossVerification.flags.map((flag, i) => (
+                        <p key={i} className="text-xs text-gray-700">{flag}</p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
