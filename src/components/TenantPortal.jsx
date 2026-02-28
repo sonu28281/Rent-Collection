@@ -2512,24 +2512,15 @@ const TenantPortal = () => {
                 )}
               </p>
             </div>
-          </div>
 
-          {/* Additional Info */}
-          <div className="mt-4 text-center">
-            <p className="text-sm text-gray-600">
-              {t('First time logging in? Default password is:', 'पहली बार लॉगिन कर रहे हैं? डिफ़ॉल्ट पासवर्ड है:')} <strong>password</strong>
-            </p>
-          </div>
-
-          {/* New Tenant Onboarding Button */}
-          <div className="mt-4 text-center">
-            <div className="border-t border-gray-200 pt-4">
-              <p className="text-sm text-gray-600 mb-2">
+            {/* New Tenant Onboarding */}
+            <div className="mt-4 pt-4 border-t border-gray-200 text-center">
+              <p className="text-xs text-gray-500 mb-2">
                 {t('New tenant? Complete KYC to get started.', 'नए किराएदार? KYC पूरा करके शुरू करें।')}
               </p>
               <button
                 onClick={() => navigate('/onboarding')}
-                className="bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 px-6 rounded-lg text-sm transition-colors"
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 px-6 rounded-lg text-sm transition-colors"
               >
                 {t('🏠 New Tenant? Sign Up / Onboard', '🏠 नए किराएदार? रजिस्टर करें')}
               </button>

@@ -595,14 +595,33 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-2xl mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold text-gray-900">
-            {mode === 'tenant' ? '🛡️ Complete Your KYC' : '🏠 Tenant Onboarding'}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {mode === 'tenant'
-              ? 'Complete KYC verification to activate your account.'
-              : 'Fill details, scan Aadhaar QR, upload documents, and sign agreement.'}
-          </p>
+          <div className="flex items-center gap-3">
+            {/* DigiLocker Official Logo */}
+            <img
+              src="https://www.digilocker.gov.in/assets/img/digilocker_logo.png"
+              alt="DigiLocker"
+              className="h-10 w-auto"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+            <div className="flex-1">
+              <h1 className="text-xl font-bold text-gray-900">
+                {mode === 'tenant' ? '🛡️ Complete Your KYC' : '🏠 Tenant Onboarding'}
+              </h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {mode === 'tenant'
+                  ? 'Complete KYC verification to activate your account.'
+                  : 'Fill details, scan Aadhaar, upload documents, and sign agreement.'}
+              </p>
+            </div>
+          </div>
+          {/* DigiLocker Trust Badge */}
+          <div className="mt-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg px-3 py-2 flex items-center gap-2">
+            <span className="text-lg">🔐</span>
+            <div>
+              <p className="text-xs font-semibold text-blue-900">Powered by DigiLocker — Government of India</p>
+              <p className="text-[10px] text-blue-700">Your identity is verified securely via UIDAI & DigiLocker (digilocker.gov.in). No data is shared with third parties.</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -777,18 +796,18 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                         onClick={startQrScanner}
                         className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 rounded-xl text-base transition-colors flex items-center justify-center gap-2"
                       >
-                        📷 Open Camera & Scan QR
+                        📷 Open Camera & Scan Aadhaar
                       </button>
 
                       <div className="text-center text-xs text-gray-400">— OR —</div>
 
                       <label className="block w-full cursor-pointer">
                         <div className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-lg text-sm text-center transition-colors border-2 border-dashed border-gray-300">
-                          📁 Upload QR Image from Gallery
+                          📁 Upload Aadhaar Image from Gallery
                         </div>
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/*,application/pdf"
                           className="hidden"
                           onChange={handleQrImageUpload}
                         />
@@ -861,7 +880,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                     onClick={resetQrScan}
                     className="text-xs text-gray-500 hover:text-red-600 underline"
                   >
-                    Re-scan QR Code
+                    Re-scan Aadhaar
                   </button>
                 </div>
               )}
@@ -1167,7 +1186,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
         {/* Footer */}
         <div className="text-center py-4 mt-4">
-          <p className="text-xs text-gray-400">🔒 Your data is securely stored and only accessible to the admin.</p>
+          <p className="text-xs text-gray-400">🔒 KYC verified via DigiLocker (Govt. of India). Your data is securely stored and only accessible to the admin.</p>
         </div>
       </div>
     </div>
@@ -1243,11 +1262,11 @@ const DocumentUploadCard = ({ label, field, image, status, reason, confidence, i
           </button>
           <label className="flex-1 cursor-pointer">
             <div className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-lg text-xs text-center transition-colors border border-gray-300">
-              📁 Gallery
+              📁 Gallery / PDF
             </div>
             <input
               type="file"
-              accept="image/*"
+              accept="image/*,application/pdf"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
