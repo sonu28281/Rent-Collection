@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react';
 import { useAuth } from '../AuthContext';
 import { getDashboardStats, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary, getTodaysCollection } from '../utils/financial';
 import ViewModeToggle from './ui/ViewModeToggle';
+import LiveDateTime from './ui/LiveDateTime';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
 
 const Dashboard = () => {
@@ -278,13 +279,14 @@ const Dashboard = () => {
   return (
     <div className="p-4 lg:p-8">
       {/* Header with Profile */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 leading-tight">
-          Welcome Back, Admin! 👋
-        </h2>
-        
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-3 min-w-0">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
+            Welcome Back, Admin! 👋
+          </h2>
+        </div>
         {/* Profile Button */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-shrink-0">
           <div className="text-right hidden sm:block">
             <p className="text-sm text-gray-600">
               <span className="font-semibold">{currentUser?.email}</span>
@@ -298,6 +300,8 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+      {/* Date & Time */}
+      <LiveDateTime className="mb-4" />
 
       {/* Current Month Detailed Summary */}
       {currentMonthSummary && (

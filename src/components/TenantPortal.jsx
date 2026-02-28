@@ -6,6 +6,7 @@ import SubmitPayment from './SubmitPayment';
 import googlePayLogo from '../assets/payment-icons/google-pay.svg';
 import phonePeLogo from '../assets/payment-icons/phonepe.svg';
 import Tesseract from 'tesseract.js';
+import LiveDateTime from './ui/LiveDateTime';
 
 /**
  * Tenant Portal - Username/Password Login
@@ -2531,7 +2532,8 @@ const TenantPortal = () => {
                 <p className="text-xs sm:text-sm text-gray-600 truncate">Room {tenant?.roomNumber} - {tenant?.name}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <LiveDateTime className="hidden sm:block" />
               {notificationPermission !== 'granted' && (
                 <button
                   type="button"
@@ -2556,6 +2558,7 @@ const TenantPortal = () => {
               </button>
             </div>
           </div>
+          <LiveDateTime className="sm:hidden mt-1" />
         </div>
       </div>
 
