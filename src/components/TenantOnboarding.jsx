@@ -294,7 +294,21 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
         audio: false,
       });
       cameraStreamRef.current = stream;
-      // The video element will be mounted by React; attach stream in useEffect
+      // Stream is ready — attach to video element. Use a small retry loop
+      // because the <video> element may not be in the DOM yet after setState.
+      const attachStream = () => {
+        const video = cameraVideoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          video.setAttribute('autoplay', '');
+          video.setAttribute('playsinline', '');
+          video.play().catch(() => {});
+        } else {
+          // Video element not mounted yet, retry
+          requestAnimationFrame(attachStream);
+        }
+      };
+      attachStream();
     } catch (err) {
       console.error('Camera access error:', err);
       showToast(
@@ -306,14 +320,6 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       setCameraOpen(false);
     }
   };
-
-  // Attach stream to <video> when camera opens
-  useEffect(() => {
-    if (cameraOpen && cameraVideoRef.current && cameraStreamRef.current) {
-      cameraVideoRef.current.srcObject = cameraStreamRef.current;
-      cameraVideoRef.current.play().catch(() => {});
-    }
-  }, [cameraOpen]);
 
   const closeCamera = () => {
     if (cameraStreamRef.current) {
@@ -840,7 +846,14 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
           {/* Camera feed */}
           <div className="flex-1 relative overflow-hidden">
             <video
-              ref={cameraVideoRef}
+              ref={(el) => {
+                cameraVideoRef.current = el;
+                // When React mounts the video element and stream is ready, attach it
+                if (el && cameraStreamRef.current && !el.srcObject) {
+                  el.srcObject = cameraStreamRef.current;
+                  el.play().catch(() => {});
+                }
+              }}
               autoPlay
               playsInline
               muted
