@@ -120,22 +120,44 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   const normalizeDl = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   const extractAadharNumberFromText = (text) => {
-    const dense = String(text || '').replace(/\s+/g, ' ');
-    // Try standard format: 1234 5678 9012
+    const raw = String(text || '');
+    const dense = raw.replace(/\s+/g, ' ');
+
+    // 1. Standard format: 1234 5678 9012 (with word boundaries)
     const grouped = dense.match(/\b\d{4}[\s.-]?\d{4}[\s.-]?\d{4}\b/);
     if (grouped?.[0]) return normalizeAadhar(grouped[0]);
-    // Try plain 12 digits
-    const plain = dense.match(/\b\d{12}\b/);
+
+    // 2. Plain 12 digits
+    const plain = dense.match(/\d{12}/);
     if (plain?.[0]) return normalizeAadhar(plain[0]);
-    // Try with OCR artifacts (O→0, l→1, etc.)
-    const cleaned = dense.replace(/[oO]/g, '0').replace(/[lI]/g, '1').replace(/[sS]/g, '5');
-    const retryGrouped = cleaned.match(/\b\d{4}[\s.-]?\d{4}[\s.-]?\d{4}\b/);
+
+    // 3. OCR artifact cleanup: O→0, l/I→1, S→5, B→8, G→6, Z→2, T→7, q→9
+    const cleaned = raw
+      .replace(/[oO]/g, '0').replace(/[lI|]/g, '1').replace(/[sS]/g, '5')
+      .replace(/[B]/g, '8').replace(/[G]/g, '6').replace(/[Z]/g, '2')
+      .replace(/[T]/g, '7').replace(/[q]/g, '9')
+      .replace(/\s+/g, ' ');
+    const retryGrouped = cleaned.match(/\d{4}[\s.-]?\d{4}[\s.-]?\d{4}/);
     if (retryGrouped?.[0]) return normalizeAadhar(retryGrouped[0]);
-    // Try to find any 12-digit sequence with spaces
-    const anyDigits = dense.replace(/[^\d\s]/g, '').replace(/\s+/g, '');
-    if (anyDigits.length >= 12) {
-      const twelve = anyDigits.match(/\d{12}/);
-      if (twelve?.[0]) return normalizeAadhar(twelve[0]);
+
+    // 4. Relaxed: find any 4-digit groups separated by spaces/garbage in lines
+    const lines = raw.split('\n');
+    for (const line of lines) {
+      // Try to find 3 groups of 4 digits on the same line
+      const digits = line.replace(/[^\d\s]/g, ' ').replace(/\s+/g, ' ').trim();
+      const groups = digits.match(/(\d{4})/g);
+      if (groups && groups.length >= 3) {
+        const candidate = groups.slice(0, 3).join('');
+        if (candidate.length === 12) return normalizeAadhar(candidate);
+      }
+    }
+
+    // 5. Last resort: collect all digits, find any 12-digit substring
+    const allDigits = raw.replace(/\D/g, '');
+    if (allDigits.length >= 12) {
+      // Prefer the last 12 digits (Aadhaar number is usually at bottom of card)
+      const twelve = allDigits.slice(-12);
+      return normalizeAadhar(twelve);
     }
     return '';
   };
@@ -438,7 +460,11 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       let status = 'verified';
       let reason = '✅ Document verified successfully.';
 
-      if (!extractedNumber) {
+      if (!extractedNumber && confidence < 60) {
+        // Low OCR confidence — don't block, just warn
+        status = 'verified';
+        reason = `⚠️ OCR confidence low (${Math.round(confidence)}%). Photo clear hai to koi issue nahi.`;
+      } else if (!extractedNumber) {
         status = 'number_not_found';
         reason = `${docType === 'aadhar' ? 'Aadhaar' : docType === 'pan' ? 'PAN' : 'DL'} number not detected. Upload a clearer image.`;
       } else if ((docType === 'pan' || docType === 'dl') && expectedNumber && expectedNumber !== extractedNumber) {

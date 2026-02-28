@@ -1152,29 +1152,141 @@ const TenantPortal = () => {
       if (oauthError) {
         setKycCallbackStatus('error');
         setKycCallbackMessage(`DigiLocker returned error: ${oauthError}`);
-        setTimeout(() => navigate('/tenant-portal', { replace: true }), 1500);
+        // Store error for onboarding parent window
+        localStorage.setItem('digilocker_kyc_result', JSON.stringify({ success: false, error: oauthError }));
+        if (window.opener && !window.opener.closed) {
+          setTimeout(() => window.close(), 1500);
+        } else {
+          setTimeout(() => navigate('/tenant-portal', { replace: true }), 1500);
+        }
         return;
       }
 
       if (!code || !state) {
         setKycCallbackStatus('error');
-        setKycCallbackMessage(`Missing code/state in callback URL. This usually means DigiLocker rejected the authorization request (possibly due to invalid scope). Check browser console for details.`);
-        setTimeout(() => navigate('/tenant-portal', { replace: true }), 3000);
+        setKycCallbackMessage('Missing code/state in callback URL.');
+        localStorage.setItem('digilocker_kyc_result', JSON.stringify({ success: false, error: 'DigiLocker ne code/state nahi diya.' }));
+        if (window.opener && !window.opener.closed) {
+          setTimeout(() => window.close(), 2000);
+        } else {
+          setTimeout(() => navigate('/tenant-portal', { replace: true }), 3000);
+        }
         return;
       }
 
+      // ─── Check for pending state: try both onboarding and tenant portal keys ───
+      const ONBOARDING_KYC_KEY = 'kycPendingState';
       let pending = null;
+      let isOnboardingFlow = false;
+
+      // Try onboarding key first
       try {
-        const raw = localStorage.getItem(KYC_PENDING_KEY);
-        pending = raw ? JSON.parse(raw) : null;
-      } catch {
-        pending = null;
+        const raw = localStorage.getItem(ONBOARDING_KYC_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.state && parsed?.source === 'onboarding') {
+            pending = parsed;
+            isOnboardingFlow = true;
+          }
+        }
+      } catch { /* ignore */ }
+
+      // Fall back to tenant portal key
+      if (!pending) {
+        try {
+          const raw = localStorage.getItem(KYC_PENDING_KEY);
+          pending = raw ? JSON.parse(raw) : null;
+        } catch {
+          pending = null;
+        }
       }
 
+      console.log('🔍 Pending state:', { isOnboardingFlow, hasState: !!pending?.state, hasTenantId: !!pending?.tenantId });
+
+      // ─── ONBOARDING FLOW: No tenantId, exchange code → profile client-side ───
+      if (isOnboardingFlow && pending?.state) {
+        // Validate state matches
+        if (state !== pending.state) {
+          setKycCallbackStatus('error');
+          setKycCallbackMessage('State mismatch. Please try again.');
+          localStorage.setItem('digilocker_kyc_result', JSON.stringify({ success: false, error: 'State mismatch — dobara try karein.' }));
+          localStorage.removeItem(ONBOARDING_KYC_KEY);
+          if (window.opener) setTimeout(() => window.close(), 2000);
+          return;
+        }
+
+        try {
+          // Step 1: Exchange authorization code for tokens
+          setKycCallbackMessage('Exchanging authorization code...');
+          const exchangeUrl = `${DEFAULT_KYC_FUNCTION_BASE_URL}/exchangeAuthorizationCode`;
+          const exchangeBody = { code };
+          if (pending.codeVerifier) exchangeBody.codeVerifier = pending.codeVerifier;
+
+          const exchangeResp = await fetch(exchangeUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(exchangeBody),
+          });
+          const exchangeData = await exchangeResp.json().catch(() => ({}));
+
+          if (!exchangeResp.ok || !exchangeData?.success) {
+            throw new Error(exchangeData?.message || 'Token exchange failed.');
+          }
+
+          // Step 2: Fetch user profile
+          setKycCallbackMessage('Fetching DigiLocker profile...');
+          const profileUrl = `${DEFAULT_KYC_FUNCTION_BASE_URL}/fetchUserProfile`;
+          const profileResp = await fetch(profileUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          });
+          const profileData = await profileResp.json().catch(() => ({}));
+
+          const profile = profileData?.data?.profile || profileData?.data || {};
+          const name = profile?.name || profile?.digilockerName || '';
+          const dob = profile?.dob || profile?.dateOfBirth || '';
+
+          // Store result for the parent (TenantOnboarding) window
+          localStorage.setItem('digilocker_kyc_result', JSON.stringify({
+            success: true,
+            name,
+            dob,
+            verifiedAt: new Date().toISOString(),
+          }));
+          localStorage.removeItem(ONBOARDING_KYC_KEY);
+
+          setKycCallbackStatus('success');
+          setKycCallbackMessage('✅ DigiLocker verification successful! Closing...');
+          if (window.opener && !window.opener.closed) {
+            setTimeout(() => window.close(), 800);
+          }
+        } catch (err) {
+          console.error('Onboarding KYC callback failed:', err);
+          localStorage.setItem('digilocker_kyc_result', JSON.stringify({
+            success: false,
+            error: err?.message || 'Verification fail ho gaya.',
+          }));
+          localStorage.removeItem(ONBOARDING_KYC_KEY);
+          setKycCallbackStatus('error');
+          setKycCallbackMessage(err?.message || 'Verification failed.');
+          if (window.opener && !window.opener.closed) {
+            setTimeout(() => window.close(), 2000);
+          }
+        }
+        return;
+      }
+
+      // ─── TENANT PORTAL FLOW: Requires tenantId ───
       if (!pending?.tenantId || !pending?.state) {
         setKycCallbackStatus('error');
         setKycCallbackMessage('KYC session missing. Please start verification again.');
-        setTimeout(() => navigate('/tenant-portal', { replace: true }), 1500);
+        if (window.opener && !window.opener.closed) {
+          localStorage.setItem('digilocker_kyc_result', JSON.stringify({ success: false, error: 'KYC session missing.' }));
+          setTimeout(() => window.close(), 1500);
+        } else {
+          setTimeout(() => navigate('/tenant-portal', { replace: true }), 1500);
+        }
         return;
       }
 

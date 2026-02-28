@@ -717,20 +717,22 @@ export const crossVerify = (qrData, ocrData = {}, typedData = {}) => {
   const ocrName = ocrData.name || '';
   const ocrConfidence = ocrData.confidence || 0;
   if (ocrName) {
-    const similarity = stringSimilarity(qrName, ocrName);
-    if (similarity >= 0.6) {
-      checks.qrVsOcrName = 'match';
-      flags.push({ type: 'success', label: 'Document Match', message: `Upload ki gayi Aadhaar card photo QR data se match ho gayi ✓` });
-    } else if (ocrConfidence > 0 && ocrConfidence < 65) {
-      // Low OCR confidence — don't flag as error, image quality is poor
-      checks.qrVsOcrName = 'match'; // Be lenient
+    // For low OCR confidence (<70%), be very lenient — OCR text is unreliable
+    if (ocrConfidence > 0 && ocrConfidence < 70) {
+      checks.qrVsOcrName = 'match'; // Don't penalize for bad OCR
       flags.push({ type: 'warning', label: 'Photo Quality', message: `Aadhaar card photo thodi unclear hai (${Math.round(ocrConfidence)}% readable). Clear photo upload karein to aur achhe se verify hoga.` });
-    } else if (similarity >= 0.3) {
-      checks.qrVsOcrName = 'match'; // Partial match is OK
-      flags.push({ type: 'warning', label: 'Document Photo Check', message: `Upload ki gayi Aadhaar photo aur QR scan me naam thoda alag dikh raha hai. Photo clear hai to koi problem nahi.` });
     } else {
-      checks.qrVsOcrName = 'mismatch';
-      flags.push({ type: 'error', label: 'Galat Document', message: `Upload ki gayi Aadhaar card photo QR scan se match nahi ho rahi. Kya aapne same Aadhaar card ki photo upload ki hai?` });
+      const similarity = stringSimilarity(qrName, ocrName);
+      if (similarity >= 0.5) {
+        checks.qrVsOcrName = 'match';
+        flags.push({ type: 'success', label: 'Document Match', message: `Upload ki gayi Aadhaar card photo QR data se match ho gayi ✓` });
+      } else if (similarity >= 0.25) {
+        checks.qrVsOcrName = 'match'; // Partial match is OK
+        flags.push({ type: 'warning', label: 'Document Photo Check', message: `Upload ki gayi Aadhaar photo aur QR scan me naam thoda alag dikh raha hai. Photo clear hai to koi problem nahi.` });
+      } else {
+        checks.qrVsOcrName = 'match'; // Even on low similarity, don't block — just warn
+        flags.push({ type: 'warning', label: 'Document Check', message: `OCR se naam clearly read nahi ho paya. Document clear dikhna chahiye.` });
+      }
     }
   } else {
     checks.qrVsOcrName = 'pending';
