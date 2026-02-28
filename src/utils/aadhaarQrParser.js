@@ -325,20 +325,20 @@ function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
 
   // Heuristic: a "name" field contains letters and usually a space
   const looksLikeName = (s) => /^[A-Za-z\s.'-]{2,}$/.test(s) && /[A-Za-z]/.test(s);
-  // Heuristic: an "indicator" field is a single digit 0-3
-  const looksLikeIndicator = (s) => /^[0-3]$/.test(s);
+  // Heuristic: an "indicator" field is a single/short digit (0-9, seen values: 0,1,2,3,5)
+  const looksLikeIndicator = (s) => /^\d{1,2}$/.test(s) && s.length <= 2;
   // Heuristic: a "refID" field is a long numeric string
   const looksLikeRefId = (s) => /^\d{10,}$/.test(s);
 
-  if (looksLikeRefId(field0) && looksLikeIndicator(field1) && looksLikeName(field2)) {
-    // V2: [refID, indicator, name, dob, gender, ...]
+  if (looksLikeRefId(field0) && !looksLikeName(field1) && looksLikeName(field2)) {
+    // V2: [refID, indicator/short-field, name, dob, gender, ...]
     refId = field0;
-    emailMobileIndicator = parseInt(field1, 10);
+    emailMobileIndicator = parseInt(field1, 10) || 0;
     nameIdx = 2; dobIdx = 3; genderIdx = 4; coIdx = 5;
     distIdx = 6; lmIdx = 7; houseIdx = 8; locIdx = 9;
     pinIdx = 10; poIdx = 11; stateIdx = 12; streetIdx = 13;
     subDistIdx = 14; vtcIdx = 15;
-    console.log('[Aadhaar QR] Detected V2 format: refID + indicator + name');
+    console.log(`[Aadhaar QR] Detected V2 format: refID="${field0.substring(0,10)}.." indicator="${field1}" name="${field2}"`);
   } else if (looksLikeIndicator(field0) && looksLikeRefId(field1) && looksLikeName(field2)) {
     // V2 alt: [indicator, refID, name, dob, gender, ...]
     emailMobileIndicator = parseInt(field0, 10);
