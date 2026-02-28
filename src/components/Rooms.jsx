@@ -311,83 +311,81 @@ const Rooms = () => {
       </div>
 
       {/* Filter and Bulk Actions */}
-      <div className="card mb-6 space-y-4">
-        {/* Status Filters */}
-        <div>
-          <label className="text-sm font-semibold text-gray-700 mb-2 block">Status Filter</label>
-          <div className="flex flex-wrap gap-2">
+      <div className="card mb-6 space-y-3">
+        {/* Status & Floor Filters */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          {/* Status Filters */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">Status:</span>
             <button
               onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
                 filter === 'all'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              All Rooms ({stats.total})
+              All ({stats.total})
             </button>
             <button
               onClick={() => setFilter('vacant')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
                 filter === 'vacant'
-                  ? 'bg-gray-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  ? 'bg-gray-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               Vacant ({stats.vacant})
             </button>
             <button
               onClick={() => setFilter('occupied')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
                 filter === 'occupied'
-                  ? 'bg-green-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  ? 'bg-green-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               Occupied ({stats.occupied})
             </button>
           </div>
-        </div>
 
-        {/* Floor Filters */}
-        <div className="hidden md:block">
-          <label className="text-sm font-semibold text-gray-700 mb-2 block">Floor Filter</label>
-          <div className="flex flex-wrap gap-2">
+          {/* Floor Filters */}
+          <div className="hidden md:flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">Floor:</span>
             <button
               onClick={() => setFloorFilter('all')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
                 floorFilter === 'all'
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  ? 'bg-purple-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              All Floors
+              All
             </button>
             <button
               onClick={() => setFloorFilter('floor1')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
                 floorFilter === 'floor1'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  ? 'bg-blue-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Floor 1 (Ground) ({stats.floor1})
+              Ground ({stats.floor1})
             </button>
             <button
               onClick={() => setFloorFilter('floor2')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
                 floorFilter === 'floor2'
-                  ? 'bg-indigo-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  ? 'bg-indigo-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Floor 2 (First) ({stats.floor2})
+              First ({stats.floor2})
             </button>
           </div>
         </div>
 
         <div className="hidden md:block">
-          <label className="text-sm font-semibold text-gray-700 mb-2 block">View Mode</label>
           <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
         </div>
 
