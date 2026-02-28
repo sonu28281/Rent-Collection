@@ -7,6 +7,7 @@ import googlePayLogo from '../assets/payment-icons/google-pay.svg';
 import phonePeLogo from '../assets/payment-icons/phonepe.svg';
 import Tesseract from 'tesseract.js';
 import LiveDateTime from './ui/LiveDateTime';
+import { scanDocument } from '../utils/documentScanner';
 
 /**
  * Tenant Portal - Username/Password Login
@@ -131,6 +132,21 @@ const TenantPortal = () => {
   const selfieFileInputRef = useRef(null);
   const selfieCameraInputRef = useRef(null);
   
+  // Open camera directly (creates a fresh input to force camera on mobile)
+  const openCameraForField = (field, facing = 'environment') => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = facing; // 'environment' = back camera, 'user' = front camera
+    input.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (file) handleProfileFileChange(field, file);
+      input.remove();
+    };
+    document.body.appendChild(input);
+    input.click();
+  };
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -557,15 +573,20 @@ const TenantPortal = () => {
   const handleProfileFileChange = async (field, file) => {
     if (!file) return;
     try {
-      const dataUrl = await toDataUrl(file);
+      const rawDataUrl = await toDataUrl(file);
+
+      // Apply document scanning for ID documents (not selfie)
+      const isSelfie = field === 'selfieImage';
+      const scannedDataUrl = await scanDocument(rawDataUrl, { isSelfie });
+
       const nextProfile = {
         ...tenantProfile,
-        [field]: dataUrl
+        [field]: scannedDataUrl
       };
 
       setTenantProfile((prev) => ({
         ...prev,
-        [field]: dataUrl,
+        [field]: scannedDataUrl,
         ...(field === 'aadharFrontImage'
           ? {
               aadharDocStatus: 'checking',
@@ -2499,6 +2520,21 @@ const TenantPortal = () => {
               {t('First time logging in? Default password is:', 'पहली बार लॉगिन कर रहे हैं? डिफ़ॉल्ट पासवर्ड है:')} <strong>password</strong>
             </p>
           </div>
+
+          {/* New Tenant Onboarding Button */}
+          <div className="mt-4 text-center">
+            <div className="border-t border-gray-200 pt-4">
+              <p className="text-sm text-gray-600 mb-2">
+                {t('New tenant? Complete KYC to get started.', 'नए किराएदार? KYC पूरा करके शुरू करें।')}
+              </p>
+              <button
+                onClick={() => navigate('/onboarding')}
+                className="bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 px-6 rounded-lg text-sm transition-colors"
+              >
+                {t('🏠 New Tenant? Sign Up / Onboard', '🏠 नए किराएदार? रजिस्टर करें')}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -2571,6 +2607,34 @@ const TenantPortal = () => {
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">
+            {/* KYC Status Banner */}
+            {(() => {
+              const kycProgress = getKycStepProgress();
+              const kycDone = kycProgress.overall.stepsCompleted === kycProgress.overall.totalSteps;
+              return !kycDone ? (
+                <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-300 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-red-800">🔴 KYC Incomplete ({kycProgress.overall.stepsCompleted}/{kycProgress.overall.totalSteps} steps done)</p>
+                      <p className="text-xs text-red-700 mt-0.5">
+                        {t('Complete KYC to verify your identity.', 'अपनी पहचान की पुष्टि करने के लिए KYC पूरा करें।')}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => navigate('/kyc')}
+                      className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg text-xs transition-colors whitespace-nowrap"
+                    >
+                      {t('Complete KYC →', 'KYC पूरा करें →')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+                  <p className="text-xs font-semibold text-green-800">✅ {t('KYC Verified', 'KYC सत्यापित')}</p>
+                </div>
+              );
+            })()}
+
             {/* DigiLocker KYC section removed - now integrated into Tenant KYC Profile below */}
 
             {/* Due Date Alert - Mobile Optimized with Smart Logic */}
@@ -2977,6 +3041,19 @@ const TenantPortal = () => {
                           <p className="text-sm text-green-700">PAN/DL me se ek select karke number fill karein aur upload karein — number match auto-check hoga.</p>
                         </div>
 
+                        {/* Document Scanning Tips */}
+                        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-300 rounded-xl p-4 mb-4">
+                          <h4 className="text-sm font-bold text-amber-900 mb-2">💡 Clear Scan ke liye Tips:</h4>
+                          <ul className="text-xs text-amber-800 space-y-1">
+                            <li>☀️ <strong>Acchi light mein rakhein</strong> — ander ki room light ON rakhe ya window ke paas jaayein</li>
+                            <li>📋 <strong>Document flat surface pe rakhein</strong> — table ya floor par seedha rakh kar photo lein</li>
+                            <li>📐 <strong>Camera seedha upar se rakhein</strong> — angled (tirchhi) photo na lein</li>
+                            <li>🔍 <strong>Poora document frame mein aana chahiye</strong> — koi corner na kate</li>
+                            <li>🚫 <strong>Shadow na pade</strong> — apna haath ya phone ka shadow document par na pade</li>
+                            <li>✨ <strong>Auto-scan hoga</strong> — photo lete hi document scanner mode mein convert ho jayega!</li>
+                          </ul>
+                        </div>
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                           <div className="bg-white border-2 border-gray-200 rounded-lg p-4 shadow-sm">
                             <div className="flex items-center gap-2 mb-3">
@@ -2999,20 +3076,12 @@ const TenantPortal = () => {
                                 📁 Choose Front Image
                               </button>
 
-                              <input
-                                ref={aadharFrontCameraInputRef}
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                onChange={(e) => handleProfileFileChange('aadharFrontImage', e.target.files?.[0])}
-                                className="sr-only"
-                              />
                               <button
                                 type="button"
-                                onClick={() => aadharFrontCameraInputRef.current?.click()}
+                                onClick={() => openCameraForField('aadharFrontImage')}
                                 className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
                               >
-                                📸 Take Front Photo
+                                📸 Scan Front Photo
                               </button>
                             </div>
 
@@ -3046,20 +3115,12 @@ const TenantPortal = () => {
                                 📁 Choose Back Image
                               </button>
 
-                              <input
-                                ref={aadharBackCameraInputRef}
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                onChange={(e) => handleProfileFileChange('aadharBackImage', e.target.files?.[0])}
-                                className="sr-only"
-                              />
                               <button
                                 type="button"
-                                onClick={() => aadharBackCameraInputRef.current?.click()}
+                                onClick={() => openCameraForField('aadharBackImage')}
                                 className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
                               >
-                                📸 Take Back Photo
+                                📸 Scan Back Photo
                               </button>
                             </div>
 
@@ -3149,20 +3210,12 @@ const TenantPortal = () => {
                                 >
                                   📁 Upload PAN
                                 </button>
-                                <input
-                                  ref={panCameraInputRef}
-                                  type="file"
-                                  accept="image/*"
-                                  capture="environment"
-                                  onChange={(e) => handleProfileFileChange('panImage', e.target.files?.[0])}
-                                  className="sr-only"
-                                />
                                 <button
                                   type="button"
-                                  onClick={() => panCameraInputRef.current?.click()}
+                                  onClick={() => openCameraForField('panImage')}
                                   className="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
                                 >
-                                  📸 Capture PAN
+                                  📸 Scan PAN
                                 </button>
                                 {tenantProfile.panImage && (
                                   <img src={tenantProfile.panImage} alt="PAN" className="w-full sm:w-64 h-28 object-cover rounded-lg border-2 border-gray-300" />
@@ -3184,20 +3237,12 @@ const TenantPortal = () => {
                                 >
                                   📁 Upload DL
                                 </button>
-                                <input
-                                  ref={dlCameraInputRef}
-                                  type="file"
-                                  accept="image/*"
-                                  capture="environment"
-                                  onChange={(e) => handleProfileFileChange('dlImage', e.target.files?.[0])}
-                                  className="sr-only"
-                                />
                                 <button
                                   type="button"
-                                  onClick={() => dlCameraInputRef.current?.click()}
+                                  onClick={() => openCameraForField('dlImage')}
                                   className="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
                                 >
-                                  📸 Capture DL
+                                  📸 Scan DL
                                 </button>
                                 {tenantProfile.dlImage && (
                                   <img src={tenantProfile.dlImage} alt="Driving License" className="w-full sm:w-64 h-28 object-cover rounded-lg border-2 border-gray-300" />
@@ -3298,17 +3343,9 @@ const TenantPortal = () => {
                             >
                               📁 Upload Selfie
                             </button>
-                            <input
-                              ref={selfieCameraInputRef}
-                              type="file"
-                              accept="image/*"
-                              capture="user"
-                              onChange={(e) => handleProfileFileChange('selfieImage', e.target.files?.[0])}
-                              className="sr-only"
-                            />
                             <button
                               type="button"
-                              onClick={() => selfieCameraInputRef.current?.click()}
+                              onClick={() => openCameraForField('selfieImage', 'user')}
                               className="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm"
                             >
                               🤳 Take Selfie

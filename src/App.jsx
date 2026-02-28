@@ -23,6 +23,7 @@ import ImportLogsPage from './components/ImportLogsPage';
 import PaymentsReset from './components/PaymentsReset';
 import DatabaseCleanup from './components/DatabaseCleanup';
 import VacancyReport from './components/VacancyReport';
+import TenantOnboarding from './components/TenantOnboarding';
 import DialogProvider from './components/ui/DialogProvider';
 
 function App() {
@@ -52,6 +53,10 @@ function App() {
           <Route path="/tenant-portal" element={<TenantPortal />} />
           <Route path="/kyc/callback" element={<TenantPortal />} />
           <Route path="/t/:token" element={<TenantPortal />} />
+          
+          {/* Public Onboarding & KYC Routes */}
+          <Route path="/onboarding" element={<TenantOnboarding mode="standalone" />} />
+          <Route path="/kyc" element={<TenantOnboarding mode="tenant" />} />
           
           <Route path="/login" element={isTenantPortalDomain ? tenantPortalRedirect : <Login />} />
           <Route 
