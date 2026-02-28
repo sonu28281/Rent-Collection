@@ -185,87 +185,84 @@ function decompressData(byteArray) {
 }
 
 /**
- * Split a Uint8Array on a given byte delimiter.
- * Returns array of Uint8Array segments.
+ * Find positions of a delimiter byte in a Uint8Array.
+ * Returns array of indices where the delimiter occurs.
  */
-function splitBytes(byteArray, delimiter) {
-  const segments = [];
-  let start = 0;
+function findDelimiterPositions(byteArray, delimiter) {
+  const positions = [];
   for (let i = 0; i < byteArray.length; i++) {
     if (byteArray[i] === delimiter) {
-      segments.push(byteArray.slice(start, i));
-      start = i + 1;
+      positions.push(i);
     }
   }
-  // Push remaining bytes (last field, often the photo)
-  if (start < byteArray.length) {
-    segments.push(byteArray.slice(start));
-  }
-  return segments;
+  return positions;
 }
 
 /**
  * Parse decompressed Secure QR byte data.
  * 
- * UIDAI Secure QR v2 format:
- * - Fields are separated by byte 0xFF
- * - First 15 fields are text (UTF-8), field 16+ is photo (JPEG2000 binary)
- * - The photo data MUST NOT be decoded as text — it contains JJ2000 headers
- *   and binary image data that corrupts the address/other fields when mixed.
+ * UIDAI Secure QR V2 format (after decompression):
+ * Fields are separated by 0xFF byte delimiter.
  * 
- * Secure QR v2 field order:
- * [0] Reference ID (last 4 digits of Aadhaar)
- * [1] Name
- * [2] Date of Birth (DD-MM-YYYY or DD/MM/YYYY)
- * [3] Gender (M/F/T)
- * [4] Care Of (S/O, D/O, W/O)
- * [5] District
- * [6] Landmark
- * [7] House
- * [8] Location
- * [9] Pin Code
- * [10] Post Office
- * [11] State
- * [12] Street
- * [13] Sub District
- * [14] VTC (Village/Town/City)
- * [15..] Signature + Photo (binary)
+ * Field order (0-indexed):
+ * [0]  Email/Mobile presence indicator (0=none, 1=email, 2=mobile, 3=both)
+ * [1]  Reference ID (last 4 digits of Aadhaar + timestamp)
+ * [2]  Name
+ * [3]  Date of Birth (DD-MM-YYYY or DD/MM/YYYY)
+ * [4]  Gender (M/F/T)
+ * [5]  Care Of (C/O, S/O, D/O, W/O)
+ * [6]  District
+ * [7]  Landmark
+ * [8]  House
+ * [9]  Location
+ * [10] Pin Code
+ * [11] Post Office
+ * [12] State
+ * [13] Street
+ * [14] Sub District
+ * [15] VTC (Village/Town/City)
+ * 
+ * After VTC (depending on indicator):
+ *   If indicator has email (1 or 3): next field = email
+ *   If indicator has mobile (2 or 3): next field = mobile
+ * Then: 256 bytes digital signature
+ * Then: Photo bytes (JPEG2000 format — NOT regular JPEG)
+ * 
+ * IMPORTANT: We must NOT split on 0xFF beyond the text fields, because
+ * the signature and photo contain 0xFF bytes naturally.
  */
 function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
   const textDecoder = new TextDecoder('utf-8', { fatal: false });
   
-  // Split on 0xFF delimiter at byte level
-  const segments = splitBytes(decompressedBytes, 0xFF);
-  
-  // Also try other delimiters if 0xFF didn't produce enough fields
-  let fields = segments;
-  if (fields.length < 8) {
-    const altDelimiters = [0x00, 0x0A, 0x09, 0x1E, 0x1C]; // null, newline, tab, RS, FS
+  // Find all 0xFF positions
+  let delimPositions = findDelimiterPositions(decompressedBytes, 0xFF);
+  let delimByte = 0xFF;
+
+  // If 0xFF didn't produce enough fields, try alternatives
+  if (delimPositions.length < 10) {
+    const altDelimiters = [0x00, 0x0A, 0x09, 0x1E, 0x1C];
     for (const delim of altDelimiters) {
-      const parts = splitBytes(decompressedBytes, delim);
-      if (parts.length >= 8) {
-        fields = parts;
+      const positions = findDelimiterPositions(decompressedBytes, delim);
+      if (positions.length >= 10) {
+        delimPositions = positions;
+        delimByte = delim;
         break;
       }
     }
   }
 
-  // Decode text fields (only first 15 fields — rest is binary photo/signature)
-  const TEXT_FIELD_COUNT = 15;
-  const textFields = [];
-  for (let i = 0; i < Math.min(fields.length, TEXT_FIELD_COUNT); i++) {
-    textFields.push(textDecoder.decode(fields[i]).trim());
-  }
+  // We need at least 16 text fields (indices 0-15)
+  // That means at least 15 delimiters between them
+  const TEXT_FIELD_COUNT = 16;
 
-  // If we still don't have enough text fields, try regex-based fallback on text portion only
-  if (textFields.length < 8) {
-    // Decode only possible text portion (first ~500 bytes to avoid photo data)
+  if (delimPositions.length < TEXT_FIELD_COUNT - 1) {
+    // Fallback: try regex on the first ~500 bytes
     const textPortion = textDecoder.decode(decompressedBytes.slice(0, Math.min(500, decompressedBytes.length)));
     const nameMatch = textPortion.match(/([A-Z][a-zA-Z]+(?: [A-Z][a-zA-Z]+)+)/);
     const dobMatch = textPortion.match(/(\d{2}[-/]\d{2}[-/]\d{4})/);
     const genderMatch = textPortion.match(/\b([MFT])\b/);
     const pinMatch = textPortion.match(/\b(\d{6})\b/);
-    const last4Match = textPortion.match(/^(\d{4})/);
+    const last4Match = textPortion.match(/\b(\d{4})\b/);
 
     return {
       success: true,
@@ -287,17 +284,61 @@ function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
     };
   }
 
-  // Build structured data from text fields
+  // Extract only the first TEXT_FIELD_COUNT fields as text
+  // DO NOT split beyond that — rest is binary (signature + photo)
+  const textFields = [];
+  let fieldStart = 0;
+  for (let i = 0; i < TEXT_FIELD_COUNT && i <= delimPositions.length; i++) {
+    const fieldEnd = i < delimPositions.length ? delimPositions[i] : decompressedBytes.length;
+    const fieldBytes = decompressedBytes.slice(fieldStart, fieldEnd);
+    textFields.push(textDecoder.decode(fieldBytes).trim());
+    fieldStart = fieldEnd + 1; // skip delimiter
+  }
+
+  // ─── DETECT V1 vs V2 FORMAT ─────────────────────────────────────────
+  // V2 has email/mobile indicator as field[0] (single digit 0-3)
+  // V1 has reference ID directly as field[0]
+  // We detect by checking if field[0] is a single digit 0-3
+  
+  let emailMobileIndicator = 0;
+  let refId = '';
+  let nameIdx, dobIdx, genderIdx, coIdx, distIdx, lmIdx, houseIdx, locIdx;
+  let pinIdx, poIdx, stateIdx, streetIdx, subDistIdx, vtcIdx;
+
+  const field0 = textFields[0] || '';
+  const isV2 = /^[0-3]$/.test(field0);
+
+  if (isV2) {
+    // V2 format: field[0] = indicator, field[1] = refId, field[2..] = data
+    emailMobileIndicator = parseInt(field0, 10);
+    refId = textFields[1] || '';
+    nameIdx = 2; dobIdx = 3; genderIdx = 4; coIdx = 5;
+    distIdx = 6; lmIdx = 7; houseIdx = 8; locIdx = 9;
+    pinIdx = 10; poIdx = 11; stateIdx = 12; streetIdx = 13;
+    subDistIdx = 14; vtcIdx = 15;
+  } else {
+    // V1 format: field[0] = refId, field[1..] = data
+    refId = field0;
+    nameIdx = 1; dobIdx = 2; genderIdx = 3; coIdx = 4;
+    distIdx = 5; lmIdx = 6; houseIdx = 7; locIdx = 8;
+    pinIdx = 9; poIdx = 10; stateIdx = 11; streetIdx = 12;
+    subDistIdx = 13; vtcIdx = 14;
+  }
+
+  // Extract UID (last 4 digits of Aadhaar from reference ID)
+  const uidLast4 = refId.replace(/\D/g, '').substring(0, 4);
+
+  // Build address
   const address = {
-    co: textFields[4] || '',
-    house: textFields[7] || '',
-    street: textFields[12] || '',
-    landmark: textFields[6] || '',
-    locality: textFields[8] || '',
-    vtc: textFields[14] || '',
-    district: textFields[5] || '',
-    state: textFields[11] || '',
-    pincode: textFields[9] || '',
+    co: textFields[coIdx] || '',
+    house: textFields[houseIdx] || '',
+    street: textFields[streetIdx] || '',
+    landmark: textFields[lmIdx] || '',
+    locality: textFields[locIdx] || '',
+    vtc: textFields[vtcIdx] || '',
+    district: textFields[distIdx] || '',
+    state: textFields[stateIdx] || '',
+    pincode: textFields[pinIdx] || '',
   };
 
   const addressParts = [
@@ -312,25 +353,71 @@ function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
     address.pincode,
   ].filter(Boolean);
 
-  // Extract photo if available (field index 15+)
+  // ─── EXTRACT PHOTO ────────────────────────────────────────────────────
+  // After the last text field, determine how many extra fields (email/mobile)
+  // then 256 bytes signature, then remaining = photo
   let photo = null;
-  if (fields.length > 15) {
+
+  // Position after last text field delimiter
+  const lastTextDelimIdx = isV2 ? 15 : 14; // index in delimPositions
+  if (delimPositions.length > lastTextDelimIdx) {
     try {
-      // Concatenate all remaining binary segments as photo data
-      const photoSegments = fields.slice(15);
-      let totalLen = photoSegments.reduce((sum, seg) => sum + seg.length, 0) + (photoSegments.length - 1);
-      const photoBytes = new Uint8Array(totalLen);
-      let offset = 0;
-      for (let i = 0; i < photoSegments.length; i++) {
-        if (i > 0) {
-          photoBytes[offset++] = 0xFF; // Re-insert delimiters within photo data
-        }
-        photoBytes.set(photoSegments[i], offset);
-        offset += photoSegments[i].length;
+      const binaryStart = delimPositions[lastTextDelimIdx] + 1;
+      
+      // Skip VTC field content — find end of VTC
+      let tailStart = binaryStart;
+      // VTC ends at the next delimiter or we need to skip its content
+      // Actually tailStart already points after VTC delimiter
+      // We need to skip email/mobile fields if present
+      let extraFieldsCount = 0;
+      if (emailMobileIndicator === 1 || emailMobileIndicator === 2) extraFieldsCount = 1;
+      if (emailMobileIndicator === 3) extraFieldsCount = 2;
+      
+      // Skip extra email/mobile fields (find their delimiters)
+      let skipStart = tailStart;
+      // First, skip the VTC field content
+      if (lastTextDelimIdx + 1 < delimPositions.length) {
+        skipStart = delimPositions[lastTextDelimIdx + 1] + 1; // after VTC content
       }
-      const photoBase64 = btoa(String.fromCharCode(...photoBytes));
-      if (photoBase64.length > 100) {
-        photo = `data:image/jpeg;base64,${photoBase64}`;
+      // Skip email/mobile fields
+      for (let e = 0; e < extraFieldsCount; e++) {
+        // Find next delimiter after current position
+        const nextDelim = delimPositions.find(p => p > skipStart);
+        if (nextDelim !== undefined) {
+          skipStart = nextDelim + 1;
+        }
+      }
+
+      // Remaining bytes: 256 bytes signature + photo
+      const remainingBytes = decompressedBytes.slice(skipStart);
+      
+      if (remainingBytes.length > 256) {
+        const SIGNATURE_LEN = 256;
+        const photoBytes = remainingBytes.slice(SIGNATURE_LEN);
+        
+        if (photoBytes.length > 100) {
+          // Convert to base64 - use chunked approach for large arrays
+          let binary = '';
+          const chunkSize = 8192;
+          for (let i = 0; i < photoBytes.length; i += chunkSize) {
+            const chunk = photoBytes.subarray(i, Math.min(i + chunkSize, photoBytes.length));
+            binary += String.fromCharCode(...chunk);
+          }
+          const photoBase64 = btoa(binary);
+          
+          // Detect image format from magic bytes
+          // JPEG: FF D8 FF | JPEG2000: 00 00 00 0C 6A 50 or FF 4F FF 51 | PNG: 89 50 4E 47
+          let mimeType = 'image/jpeg'; // default
+          if (photoBytes[0] === 0x00 && photoBytes[1] === 0x00 && photoBytes[2] === 0x00) {
+            mimeType = 'image/jp2'; // JPEG2000
+          } else if (photoBytes[0] === 0xFF && photoBytes[1] === 0x4F) {
+            mimeType = 'image/jp2'; // JPEG2000 codestream
+          } else if (photoBytes[0] === 0x89 && photoBytes[1] === 0x50) {
+            mimeType = 'image/png';
+          }
+          
+          photo = `data:${mimeType};base64,${photoBase64}`;
+        }
       }
     } catch {
       // Photo extraction failed — non-critical
@@ -340,10 +427,10 @@ function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
   return {
     success: true,
     qrType: 'secure',
-    name: textFields[1] || '',
-    uid: textFields[0] || '', // Last 4 digits of Aadhaar (Reference ID)
-    dob: textFields[2] || '',
-    gender: textFields[3] || '',
+    name: textFields[nameIdx] || '',
+    uid: uidLast4, // Last 4 digits of Aadhaar (from Reference ID)
+    dob: textFields[dobIdx] || '',
+    gender: textFields[genderIdx] || '',
     address,
     fullAddress: addressParts.join(', '),
     photo,

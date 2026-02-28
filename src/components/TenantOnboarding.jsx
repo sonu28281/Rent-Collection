@@ -871,7 +871,17 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                         )}
                         {qrDisplayData.photo && (
                           <div className="text-center mt-2">
-                            <img src={qrDisplayData.photo} alt="QR Photo" className="w-20 h-24 object-cover rounded border mx-auto" />
+                            <img
+                              src={qrDisplayData.photo}
+                              alt="QR Photo"
+                              className="w-20 h-24 object-cover rounded border mx-auto"
+                              onError={(e) => {
+                                // JPEG2000 not supported by browser — hide broken image
+                                e.target.style.display = 'none';
+                                const fallback = e.target.nextElementSibling;
+                                if (fallback) fallback.textContent = '📷 Photo extracted (format not supported by browser)';
+                              }}
+                            />
                             <p className="text-[10px] text-gray-500 mt-1">Photo from Aadhaar QR</p>
                           </div>
                         )}
