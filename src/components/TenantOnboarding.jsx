@@ -840,66 +840,135 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                   )}
                 </>
               ) : (
-                /* QR Scanned Successfully */
+                /* QR Scanned Successfully - Aadhaar Card Design */
                 <div className="space-y-3">
-                  <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-2xl">✅</span>
-                      <h3 className="text-base font-bold text-green-800">Aadhaar QR Verified!</h3>
+                  {/* ─── AADHAAR CARD ─── */}
+                  <div className="border-2 border-gray-300 rounded-xl overflow-hidden shadow-lg bg-white max-w-sm mx-auto">
+                    {/* Top Header - Saffron/Orange */}
+                    <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-white text-lg">🏛️</span>
+                        <div>
+                          <p className="text-[10px] text-white/90 leading-tight font-medium">भारत सरकार</p>
+                          <p className="text-[9px] text-white/80 leading-tight">Government of India</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-white tracking-wider">aadhaar</p>
+                        <p className="text-[9px] text-white/80">आधार</p>
+                      </div>
+                    </div>
+                    
+                    {/* Verified Badge */}
+                    <div className="bg-green-50 border-b border-green-200 px-3 py-1.5 flex items-center gap-1.5">
+                      <span className="text-green-600 text-sm">✅</span>
+                      <span className="text-[11px] font-semibold text-green-700">QR Verified — Data from UIDAI Signed QR Code</span>
                     </div>
                     
                     {qrDisplayData && (
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Name:</span>
-                          <span className="font-semibold text-gray-900">{qrDisplayData.name}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Aadhaar:</span>
-                          <span className="font-semibold text-gray-900">{qrDisplayData.aadhaarNumber}</span>
-                        </div>
-                        {qrDisplayData.dob !== 'N/A' && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">DOB:</span>
-                            <span className="font-semibold text-gray-900">{qrDisplayData.dob}</span>
+                      <>
+                        {/* Main Body - Photo + Details */}
+                        <div className="px-4 py-3">
+                          <div className="flex gap-3">
+                            {/* Photo Section */}
+                            <div className="flex-shrink-0">
+                              {qrDisplayData.photo ? (
+                                <div className="w-[80px] h-[100px] border-2 border-gray-300 rounded bg-gray-50 overflow-hidden">
+                                  <img
+                                    src={qrDisplayData.photo}
+                                    alt="Aadhaar Photo"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      // JPEG2000 not supported — try as generic image
+                                      if (!e.target.dataset.retried) {
+                                        e.target.dataset.retried = 'true';
+                                        // Try without specific MIME type
+                                        const src = e.target.src;
+                                        if (src.includes('image/jp2')) {
+                                          e.target.src = src.replace('image/jp2', 'image/jpeg');
+                                          return;
+                                        }
+                                      }
+                                      // Show fallback person silhouette
+                                      e.target.style.display = 'none';
+                                      const parent = e.target.parentElement;
+                                      if (parent) {
+                                        parent.innerHTML = `
+                                          <div class="w-full h-full flex flex-col items-center justify-center bg-gray-100 text-gray-400">
+                                            <svg class="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
+                                              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                                            </svg>
+                                            <span class="text-[8px] mt-1 text-center leading-tight">Photo in QR<br/>(JP2 format)</span>
+                                          </div>
+                                        `;
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-[80px] h-[100px] border-2 border-gray-300 rounded bg-gray-100 flex flex-col items-center justify-center text-gray-400">
+                                  <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                                  </svg>
+                                  <span className="text-[8px] mt-0.5">No Photo</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Details Section */}
+                            <div className="flex-1 min-w-0">
+                              {/* Name */}
+                              <div className="mb-2">
+                                <p className="text-[10px] text-gray-500 leading-tight">Name / नाम</p>
+                                <p className="text-sm font-bold text-gray-900 leading-tight">{qrDisplayData.name}</p>
+                              </div>
+                              
+                              {/* DOB */}
+                              {qrDisplayData.dob !== 'N/A' && (
+                                <div className="mb-1.5">
+                                  <p className="text-[10px] text-gray-500 leading-tight">DOB / जन्म तिथि</p>
+                                  <p className="text-xs font-semibold text-gray-800">{qrDisplayData.dob}</p>
+                                </div>
+                              )}
+                              
+                              {/* Gender */}
+                              <div className="mb-1.5">
+                                <p className="text-[10px] text-gray-500 leading-tight">Gender / लिंग</p>
+                                <p className="text-xs font-semibold text-gray-800">
+                                  {qrDisplayData.gender}
+                                  {qrDisplayData.gender === 'Male' && ' / पुरुष'}
+                                  {qrDisplayData.gender === 'Female' && ' / महिला'}
+                                </p>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Gender:</span>
-                          <span className="font-semibold text-gray-900">{qrDisplayData.gender}</span>
+                          
+                          {/* Address */}
+                          {qrDisplayData.address !== 'N/A' && (
+                            <div className="mt-2 pt-2 border-t border-gray-200">
+                              <p className="text-[10px] text-gray-500 leading-tight">Address / पता</p>
+                              <p className="text-[11px] text-gray-700 leading-snug mt-0.5">{qrDisplayData.address}</p>
+                            </div>
+                          )}
                         </div>
-                        {qrDisplayData.address !== 'N/A' && (
-                          <div>
-                            <span className="text-gray-600 text-xs">Address:</span>
-                            <p className="text-xs text-gray-800 mt-0.5">{qrDisplayData.address}</p>
-                          </div>
-                        )}
-                        {qrDisplayData.photo && (
-                          <div className="text-center mt-2">
-                            <img
-                              src={qrDisplayData.photo}
-                              alt="QR Photo"
-                              className="w-20 h-24 object-cover rounded border mx-auto"
-                              onError={(e) => {
-                                // JPEG2000 not supported by browser — hide broken image
-                                e.target.style.display = 'none';
-                                const fallback = e.target.nextElementSibling;
-                                if (fallback) fallback.textContent = '📷 Photo extracted (format not supported by browser)';
-                              }}
-                            />
-                            <p className="text-[10px] text-gray-500 mt-1">Photo from Aadhaar QR</p>
-                          </div>
-                        )}
-                        <div className="flex justify-between text-xs text-gray-500 mt-2 pt-2 border-t">
-                          <span>QR Type:</span>
-                          <span>{qrDisplayData.qrType}</span>
+                        
+                        {/* Aadhaar Number - Bottom Section */}
+                        <div className="bg-gradient-to-r from-red-600 to-red-700 px-4 py-2.5 text-center">
+                          <p className="text-[9px] text-white/70 mb-0.5">Aadhaar No / आधार नंबर</p>
+                          <p className="text-xl font-bold text-white tracking-[0.2em] font-mono">{qrDisplayData.aadhaarNumber}</p>
                         </div>
-                      </div>
+                        
+                        {/* Footer */}
+                        <div className="bg-gray-50 px-3 py-1.5 flex items-center justify-between border-t">
+                          <span className="text-[9px] text-gray-500">{qrDisplayData.qrType}</span>
+                          <span className="text-[9px] text-gray-400">{qrDisplayData.scannedAt}</span>
+                        </div>
+                      </>
                     )}
 
                     {qrDisplayData?.hasWarning && (
-                      <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded p-2">
-                        <p className="text-xs text-yellow-700">⚠️ {qrDisplayData.warning}</p>
+                      <div className="bg-yellow-50 border-t border-yellow-200 px-3 py-2">
+                        <p className="text-[11px] text-yellow-700">⚠️ {qrDisplayData.warning}</p>
                       </div>
                     )}
                   </div>

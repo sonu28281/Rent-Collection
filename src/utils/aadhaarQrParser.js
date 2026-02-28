@@ -295,44 +295,90 @@ function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
     fieldStart = fieldEnd + 1; // skip delimiter
   }
 
+  // Debug: log first few fields to help diagnose field mapping
+  console.log('[Aadhaar QR] Parsed fields:', textFields.slice(0, 6).map((f, i) => `[${i}]="${f.substring(0, 30)}"`).join(', '));
+
   // ─── DETECT V1 vs V2 FORMAT ─────────────────────────────────────────
   // UIDAI Secure QR V2 layout (based on actual QR data):
   //   field[0] = Reference ID (large number, e.g. "834720200911152733143")
   //   field[1] = Email/Mobile presence indicator (single digit: 0/1/2/3)
   //   field[2] = Name
   //   field[3] = DOB
-  //   field[4] = Gender
+  //   field[4] = Gender (M/F/T)
   //   field[5..15] = Address fields
   //
-  // V1 layout:
-  //   field[0] = Reference ID
-  //   field[1] = Name
-  //   field[2] = DOB
-  //   ...
+  // Detection strategy: check multiple heuristics
+  //   - If field[1] is single digit 0-3 → V2 (indicator after refID)
+  //   - If field[0] is single digit 0-3 → V2 alt (indicator before refID)  
+  //   - Else → V1 (no indicator)
   //
-  // Detection: if field[1] is a single digit 0-3, it's V2
+  // Also detect by checking which field looks like a name (has letters and space)
   
   let emailMobileIndicator = 0;
-  let refId = textFields[0] || '';
+  let refId = '';
   let nameIdx, dobIdx, genderIdx, coIdx, distIdx, lmIdx, houseIdx, locIdx;
   let pinIdx, poIdx, stateIdx, streetIdx, subDistIdx, vtcIdx;
 
+  const field0 = textFields[0] || '';
   const field1 = textFields[1] || '';
-  const isV2 = /^[0-3]$/.test(field1);
+  const field2 = textFields[2] || '';
 
-  if (isV2) {
-    // V2 format: field[0] = refId, field[1] = indicator, field[2..] = data
+  // Heuristic: a "name" field contains letters and usually a space
+  const looksLikeName = (s) => /^[A-Za-z\s.'-]{2,}$/.test(s) && /[A-Za-z]/.test(s);
+  // Heuristic: an "indicator" field is a single digit 0-3
+  const looksLikeIndicator = (s) => /^[0-3]$/.test(s);
+  // Heuristic: a "refID" field is a long numeric string
+  const looksLikeRefId = (s) => /^\d{10,}$/.test(s);
+
+  if (looksLikeRefId(field0) && looksLikeIndicator(field1) && looksLikeName(field2)) {
+    // V2: [refID, indicator, name, dob, gender, ...]
+    refId = field0;
     emailMobileIndicator = parseInt(field1, 10);
     nameIdx = 2; dobIdx = 3; genderIdx = 4; coIdx = 5;
     distIdx = 6; lmIdx = 7; houseIdx = 8; locIdx = 9;
     pinIdx = 10; poIdx = 11; stateIdx = 12; streetIdx = 13;
     subDistIdx = 14; vtcIdx = 15;
-  } else {
-    // V1 format: field[0] = refId, field[1] = name, field[2..] = data
+    console.log('[Aadhaar QR] Detected V2 format: refID + indicator + name');
+  } else if (looksLikeIndicator(field0) && looksLikeRefId(field1) && looksLikeName(field2)) {
+    // V2 alt: [indicator, refID, name, dob, gender, ...]
+    emailMobileIndicator = parseInt(field0, 10);
+    refId = field1;
+    nameIdx = 2; dobIdx = 3; genderIdx = 4; coIdx = 5;
+    distIdx = 6; lmIdx = 7; houseIdx = 8; locIdx = 9;
+    pinIdx = 10; poIdx = 11; stateIdx = 12; streetIdx = 13;
+    subDistIdx = 14; vtcIdx = 15;
+    console.log('[Aadhaar QR] Detected V2-alt format: indicator + refID + name');
+  } else if (looksLikeRefId(field0) && looksLikeName(field1)) {
+    // V1: [refID, name, dob, gender, ...]
+    refId = field0;
     nameIdx = 1; dobIdx = 2; genderIdx = 3; coIdx = 4;
     distIdx = 5; lmIdx = 6; houseIdx = 7; locIdx = 8;
     pinIdx = 9; poIdx = 10; stateIdx = 11; streetIdx = 12;
     subDistIdx = 13; vtcIdx = 14;
+    console.log('[Aadhaar QR] Detected V1 format: refID + name');
+  } else {
+    // Fallback: try to find the name field by scanning
+    let foundNameIdx = -1;
+    for (let i = 0; i < Math.min(5, textFields.length); i++) {
+      if (looksLikeName(textFields[i])) {
+        foundNameIdx = i;
+        break;
+      }
+    }
+    if (foundNameIdx >= 0) {
+      nameIdx = foundNameIdx;
+      // Determine refID from fields before name
+      refId = foundNameIdx > 0 ? textFields[0] : '';
+    } else {
+      nameIdx = 1; // default fallback
+      refId = field0;
+    }
+    dobIdx = nameIdx + 1; genderIdx = nameIdx + 2; coIdx = nameIdx + 3;
+    distIdx = nameIdx + 4; lmIdx = nameIdx + 5; houseIdx = nameIdx + 6;
+    locIdx = nameIdx + 7; pinIdx = nameIdx + 8; poIdx = nameIdx + 9;
+    stateIdx = nameIdx + 10; streetIdx = nameIdx + 11; subDistIdx = nameIdx + 12;
+    vtcIdx = nameIdx + 13;
+    console.log(`[Aadhaar QR] Fallback: name at field[${nameIdx}]`);
   }
 
   // Extract UID (last 4 digits of Aadhaar from reference ID)
@@ -369,7 +415,9 @@ function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
   let photo = null;
 
   // Position after last text field delimiter
-  const lastTextDelimIdx = isV2 ? 15 : 14; // index in delimPositions
+  // V2 format has 16 fields (0-15), so last delim index = 15
+  // V1 format has 15 fields (0-14), so last delim index = 14
+  const lastTextDelimIdx = (nameIdx === 2) ? 15 : 14; // nameIdx=2 means V2
   if (delimPositions.length > lastTextDelimIdx) {
     try {
       const binaryStart = delimPositions[lastTextDelimIdx] + 1;
