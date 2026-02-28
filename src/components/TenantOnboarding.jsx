@@ -569,6 +569,109 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
     setSignedAt(null);
   };
 
+  // ─── DIGILOCKER VERIFICATION ───────────────────────────────────────────
+
+  const startDigiLockerVerification = async () => {
+    setDigiLockerStatus('loading');
+    setDigiLockerError('');
+
+    try {
+      const initiateUrl = `${DEFAULT_KYC_FUNCTION_BASE_URL}/initiateKyc?t=${Date.now()}`;
+      const response = await fetch(initiateUrl, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+      });
+
+      const rawText = await response.text();
+      let payload = {};
+      try {
+        payload = JSON.parse(rawText);
+      } catch {
+        throw new Error('Server ne invalid response diya.');
+      }
+
+      const payloadData = payload?.data || {};
+      const authorizationUrl = payload?.authorizationUrl || payloadData?.authorizationUrl;
+      const state = payload?.state || payloadData?.state;
+      const codeVerifier = payload?.codeVerifier || payloadData?.codeVerifier;
+
+      if (!response.ok || !authorizationUrl || !state) {
+        throw new Error(payload?.message || 'DigiLocker initiate fail hua.');
+      }
+
+      // Save state for callback
+      localStorage.setItem(KYC_PENDING_KEY, JSON.stringify({
+        state: String(state),
+        codeVerifier: codeVerifier ? String(codeVerifier) : undefined,
+        stateCreatedAt: Date.now(),
+        source: 'onboarding',
+      }));
+
+      // Open DigiLocker popup
+      const popupWidth = 600;
+      const popupHeight = 700;
+      const left = (window.screen.width - popupWidth) / 2;
+      const top = (window.screen.height - popupHeight) / 2;
+      const popup = window.open(
+        authorizationUrl,
+        'DigiLockerKYC',
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no,resizable=yes,scrollbars=yes`,
+      );
+
+      if (!popup) {
+        throw new Error('Popup block ho gaya. Please allow popups for this site.');
+      }
+
+      // Monitor popup closure
+      const checkInterval = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkInterval);
+          // Check if callback stored verification data
+          const storedKyc = localStorage.getItem('digilocker_kyc_result');
+          if (storedKyc) {
+            try {
+              const kycResult = JSON.parse(storedKyc);
+              if (kycResult.success) {
+                setDigiLockerStatus('verified');
+                setDigiLockerData({
+                  name: kycResult.name || '',
+                  dob: kycResult.dob || '',
+                  verifiedAt: kycResult.verifiedAt || new Date().toISOString(),
+                });
+              } else {
+                setDigiLockerStatus('error');
+                setDigiLockerError(kycResult.error || 'Verification fail hua.');
+              }
+            } catch {
+              setDigiLockerStatus('error');
+              setDigiLockerError('DigiLocker result read nahi ho paya.');
+            }
+            localStorage.removeItem('digilocker_kyc_result');
+          } else {
+            // Popup closed without result — user might have cancelled
+            setDigiLockerStatus('not_started');
+            showToast('DigiLocker window band ho gaya. Dobara try karein.', 'info');
+          }
+        }
+      }, 500);
+
+      // Timeout after 10 minutes
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        if (!popup.closed) popup.close();
+        if (digiLockerStatus === 'loading') {
+          setDigiLockerStatus('not_started');
+        }
+      }, 600000);
+
+    } catch (err) {
+      console.error('DigiLocker initiate failed:', err);
+      setDigiLockerStatus('error');
+      setDigiLockerError(err?.message || 'DigiLocker verification start nahi ho paya.');
+    }
+  };
+
   // ─── SAVE / SUBMIT ─────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
