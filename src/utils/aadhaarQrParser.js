@@ -99,13 +99,13 @@ export const parseXmlQr = (xmlString) => {
  */
 export const parseSecureQr = (rawData) => {
   try {
-    let decompressedData;
+    let decompressedBytes;
     
     if (typeof rawData === 'string') {
       // Check if it's a numeric string (big integer representation)
       if (/^\d+$/.test(rawData.trim())) {
         const byteArray = bigIntToByteArray(rawData.trim());
-        decompressedData = decompressData(byteArray);
+        decompressedBytes = decompressDataToBytes(byteArray);
       } else {
         // Try direct decompression (might be base64 or raw bytes as string)
         try {
@@ -115,22 +115,22 @@ export const parseSecureQr = (rawData) => {
           for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
           }
-          decompressedData = decompressData(bytes);
+          decompressedBytes = decompressDataToBytes(bytes);
         } catch {
           // Try as raw string bytes
           const encoder = new TextEncoder();
           const bytes = encoder.encode(rawData);
-          decompressedData = decompressData(bytes);
+          decompressedBytes = decompressDataToBytes(bytes);
         }
       }
     } else if (rawData instanceof Uint8Array) {
-      decompressedData = decompressData(rawData);
+      decompressedBytes = decompressDataToBytes(rawData);
     } else {
       throw new Error('Unsupported QR data format');
     }
 
-    // Parse the decompressed data
-    return parseDecompressedSecureQr(decompressedData, rawData);
+    // Parse the decompressed bytes (not string)
+    return parseDecompressedSecureQrBytes(decompressedBytes, rawData);
   } catch (error) {
     return {
       success: false,
@@ -158,27 +158,60 @@ function bigIntToByteArray(bigIntStr) {
 }
 
 /**
- * Decompress zlib-compressed data using pako.
+ * Decompress zlib-compressed data using pako — returns raw Uint8Array.
+ * IMPORTANT: We must NOT convert to string here because the data contains
+ * binary photo bytes and 0xFF delimiters that get corrupted in string form.
  */
-function decompressData(byteArray) {
+function decompressDataToBytes(byteArray) {
   try {
-    // Try raw inflate first (no header)
-    return pako.inflateRaw(byteArray, { to: 'string' });
+    // Try raw inflate first (no header) — returns Uint8Array
+    return pako.inflateRaw(byteArray);
   } catch {
     try {
       // Try with zlib header
-      return pako.inflate(byteArray, { to: 'string' });
+      return pako.inflate(byteArray);
     } catch {
-      // Try as-is (maybe not compressed)
-      const decoder = new TextDecoder('utf-8');
-      return decoder.decode(byteArray);
+      // Return as-is (maybe not compressed)
+      return byteArray;
     }
   }
 }
 
+// Legacy wrapper (kept for backward compatibility)
+function decompressData(byteArray) {
+  const bytes = decompressDataToBytes(byteArray);
+  const decoder = new TextDecoder('utf-8', { fatal: false });
+  return decoder.decode(bytes);
+}
+
 /**
- * Parse decompressed Secure QR data.
- * The format uses byte separators (0xFF) or specific delimiters.
+ * Split a Uint8Array on a given byte delimiter.
+ * Returns array of Uint8Array segments.
+ */
+function splitBytes(byteArray, delimiter) {
+  const segments = [];
+  let start = 0;
+  for (let i = 0; i < byteArray.length; i++) {
+    if (byteArray[i] === delimiter) {
+      segments.push(byteArray.slice(start, i));
+      start = i + 1;
+    }
+  }
+  // Push remaining bytes (last field, often the photo)
+  if (start < byteArray.length) {
+    segments.push(byteArray.slice(start));
+  }
+  return segments;
+}
+
+/**
+ * Parse decompressed Secure QR byte data.
+ * 
+ * UIDAI Secure QR v2 format:
+ * - Fields are separated by byte 0xFF
+ * - First 15 fields are text (UTF-8), field 16+ is photo (JPEG2000 binary)
+ * - The photo data MUST NOT be decoded as text — it contains JJ2000 headers
+ *   and binary image data that corrupts the address/other fields when mixed.
  * 
  * Secure QR v2 field order:
  * [0] Reference ID (last 4 digits of Aadhaar)
@@ -196,49 +229,54 @@ function decompressData(byteArray) {
  * [12] Street
  * [13] Sub District
  * [14] VTC (Village/Town/City)
- * [15] Photo (JPEG bytes) — if present
+ * [15..] Signature + Photo (binary)
  */
-function parseDecompressedSecureQr(decompressedString, originalRaw) {
-  // Try delimiter-based parsing (common in Secure QR v2)
-  // Delimiters could be: 0xFF, newline, tab, or custom byte
-  let fields;
+function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
+  const textDecoder = new TextDecoder('utf-8', { fatal: false });
   
-  // Try different delimiters
-  const delimiters = ['\xFF', '\x00', '\n', '\t', '\u001e', '\u001c'];
+  // Split on 0xFF delimiter at byte level
+  const segments = splitBytes(decompressedBytes, 0xFF);
   
-  for (const delim of delimiters) {
-    const parts = decompressedString.split(delim).filter(p => p.length > 0);
-    if (parts.length >= 8) {
-      fields = parts;
-      break;
+  // Also try other delimiters if 0xFF didn't produce enough fields
+  let fields = segments;
+  if (fields.length < 8) {
+    const altDelimiters = [0x00, 0x0A, 0x09, 0x1E, 0x1C]; // null, newline, tab, RS, FS
+    for (const delim of altDelimiters) {
+      const parts = splitBytes(decompressedBytes, delim);
+      if (parts.length >= 8) {
+        fields = parts;
+        break;
+      }
     }
   }
 
-  // If no delimiter worked, try fixed-position parsing
-  if (!fields || fields.length < 8) {
-    // Some Secure QR codes use a different format — try to extract as much as possible
-    // Look for recognizable patterns
-    const nameMatch = decompressedString.match(/([A-Z][a-z]+ [A-Z][a-z]+)/);
-    const dobMatch = decompressedString.match(/(\d{2}[-/]\d{2}[-/]\d{4})/);
-    const genderMatch = decompressedString.match(/\b([MFT])\b/);
-    const pinMatch = decompressedString.match(/\b(\d{6})\b/);
-    
+  // Decode text fields (only first 15 fields — rest is binary photo/signature)
+  const TEXT_FIELD_COUNT = 15;
+  const textFields = [];
+  for (let i = 0; i < Math.min(fields.length, TEXT_FIELD_COUNT); i++) {
+    textFields.push(textDecoder.decode(fields[i]).trim());
+  }
+
+  // If we still don't have enough text fields, try regex-based fallback on text portion only
+  if (textFields.length < 8) {
+    // Decode only possible text portion (first ~500 bytes to avoid photo data)
+    const textPortion = textDecoder.decode(decompressedBytes.slice(0, Math.min(500, decompressedBytes.length)));
+    const nameMatch = textPortion.match(/([A-Z][a-zA-Z]+(?: [A-Z][a-zA-Z]+)+)/);
+    const dobMatch = textPortion.match(/(\d{2}[-/]\d{2}[-/]\d{4})/);
+    const genderMatch = textPortion.match(/\b([MFT])\b/);
+    const pinMatch = textPortion.match(/\b(\d{6})\b/);
+    const last4Match = textPortion.match(/^(\d{4})/);
+
     return {
       success: true,
       qrType: 'secure',
       name: nameMatch ? nameMatch[1] : '',
-      uid: decompressedString.substring(0, 4).replace(/\D/g, '') || '', // Try first 4 chars
+      uid: last4Match ? last4Match[1] : '',
       dob: dobMatch ? dobMatch[1] : '',
       gender: genderMatch ? genderMatch[1] : '',
       address: {
-        co: '',
-        house: '',
-        street: '',
-        landmark: '',
-        locality: '',
-        vtc: '',
-        district: '',
-        state: '',
+        co: '', house: '', street: '', landmark: '',
+        locality: '', vtc: '', district: '', state: '',
         pincode: pinMatch ? pinMatch[1] : '',
       },
       fullAddress: '',
@@ -249,17 +287,17 @@ function parseDecompressedSecureQr(decompressedString, originalRaw) {
     };
   }
 
-  // Successfully split into fields
+  // Build structured data from text fields
   const address = {
-    co: fields[4] || '',
-    house: fields[7] || '',
-    street: fields[12] || '',
-    landmark: fields[6] || '',
-    locality: fields[8] || '',
-    vtc: fields[14] || '',
-    district: fields[5] || '',
-    state: fields[11] || '',
-    pincode: fields[9] || '',
+    co: textFields[4] || '',
+    house: textFields[7] || '',
+    street: textFields[12] || '',
+    landmark: textFields[6] || '',
+    locality: textFields[8] || '',
+    vtc: textFields[14] || '',
+    district: textFields[5] || '',
+    state: textFields[11] || '',
+    pincode: textFields[9] || '',
   };
 
   const addressParts = [
@@ -274,18 +312,24 @@ function parseDecompressedSecureQr(decompressedString, originalRaw) {
     address.pincode,
   ].filter(Boolean);
 
-  // Extract photo if available (field 15+)
+  // Extract photo if available (field index 15+)
   let photo = null;
   if (fields.length > 15) {
     try {
-      const photoBinary = fields[15];
-      // Convert to base64 data URL
-      const photoBytes = new Uint8Array(photoBinary.length);
-      for (let i = 0; i < photoBinary.length; i++) {
-        photoBytes[i] = photoBinary.charCodeAt(i);
+      // Concatenate all remaining binary segments as photo data
+      const photoSegments = fields.slice(15);
+      let totalLen = photoSegments.reduce((sum, seg) => sum + seg.length, 0) + (photoSegments.length - 1);
+      const photoBytes = new Uint8Array(totalLen);
+      let offset = 0;
+      for (let i = 0; i < photoSegments.length; i++) {
+        if (i > 0) {
+          photoBytes[offset++] = 0xFF; // Re-insert delimiters within photo data
+        }
+        photoBytes.set(photoSegments[i], offset);
+        offset += photoSegments[i].length;
       }
       const photoBase64 = btoa(String.fromCharCode(...photoBytes));
-      if (photoBase64.length > 100) { // Valid photo should have substantial data
+      if (photoBase64.length > 100) {
         photo = `data:image/jpeg;base64,${photoBase64}`;
       }
     } catch {
@@ -296,10 +340,10 @@ function parseDecompressedSecureQr(decompressedString, originalRaw) {
   return {
     success: true,
     qrType: 'secure',
-    name: fields[1] || '',
-    uid: fields[0] || '', // Last 4 digits of Aadhaar (Reference ID)
-    dob: fields[2] || '',
-    gender: fields[3] || '',
+    name: textFields[1] || '',
+    uid: textFields[0] || '', // Last 4 digits of Aadhaar (Reference ID)
+    dob: textFields[2] || '',
+    gender: textFields[3] || '',
     address,
     fullAddress: addressParts.join(', '),
     photo,
