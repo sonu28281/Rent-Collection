@@ -942,23 +942,49 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
               {/* Cross-Verification Status */}
               {crossVerification && (
-                <div className={`rounded-lg p-3 border ${
+                <div className={`rounded-xl p-4 border-2 ${
                   crossVerification.overallStatus === 'verified' ? 'bg-green-50 border-green-300' :
                   crossVerification.overallStatus === 'flagged' ? 'bg-yellow-50 border-yellow-300' :
                   crossVerification.overallStatus === 'rejected' ? 'bg-red-50 border-red-300' :
                   'bg-gray-50 border-gray-300'
                 }`}>
-                  <p className="text-xs font-semibold mb-1">
-                    {crossVerification.overallStatus === 'verified' ? '✅ Document verification successful!' :
-                     crossVerification.overallStatus === 'flagged' ? '⚠️ Kuch details match nahi ho rahi — neeche check karein' :
-                     crossVerification.overallStatus === 'rejected' ? '❌ Document match nahi ho raha — sahi document upload karein' :
-                     '⏳ Verification ho raha hai...'}
+                  <p className="text-sm font-bold mb-2">
+                    {crossVerification.overallStatus === 'verified' ? '✅ Sab kuch sahi hai! Document verified.' :
+                     crossVerification.overallStatus === 'flagged' ? '⚠️ Kuch cheezein check karni hain:' :
+                     crossVerification.overallStatus === 'rejected' ? '❌ Problem mili — neeche padh kar fix karein:' :
+                     '⏳ Check ho raha hai...'}
                   </p>
                   {crossVerification.flags?.length > 0 && (
-                    <div className="mt-1.5 space-y-1">
-                      {crossVerification.flags.map((flag, i) => (
-                        <p key={i} className="text-xs text-gray-700">{flag}</p>
-                      ))}
+                    <div className="mt-2 space-y-2">
+                      {crossVerification.flags.map((flag, i) => {
+                        // Support both old string flags and new object flags
+                        const isObj = typeof flag === 'object';
+                        const type = isObj ? flag.type : (flag.startsWith('✅') ? 'success' : flag.startsWith('⚠️') ? 'warning' : 'error');
+                        const label = isObj ? flag.label : '';
+                        const message = isObj ? flag.message : flag;
+                        return (
+                          <div key={i} className={`rounded-lg px-3 py-2 ${
+                            type === 'success' ? 'bg-green-100 border border-green-300' :
+                            type === 'warning' ? 'bg-yellow-100 border border-yellow-300' :
+                            'bg-red-100 border border-red-300'
+                          }`}>
+                            {label && (
+                              <p className={`text-xs font-bold mb-0.5 ${
+                                type === 'success' ? 'text-green-800' :
+                                type === 'warning' ? 'text-yellow-800' :
+                                'text-red-800'
+                              }`}>
+                                {type === 'success' ? '✅' : type === 'warning' ? '⚠️' : '❌'} {label}
+                              </p>
+                            )}
+                            <p className={`text-xs ${
+                              type === 'success' ? 'text-green-700' :
+                              type === 'warning' ? 'text-yellow-700' :
+                              'text-red-700'
+                            }`}>{message}</p>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

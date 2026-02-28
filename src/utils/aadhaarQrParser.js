@@ -602,12 +602,13 @@ export const crossVerify = (qrData, ocrData = {}, typedData = {}) => {
     const similarity = stringSimilarity(qrName, typedFullName);
     if (similarity >= 0.8) {
       checks.qrVsTypedName = 'match';
+      flags.push({ type: 'success', label: 'Naam Verification', message: `Aadhaar pe naam "${qrName}" aapke typed naam "${typedFullName}" se match ho gaya ✓` });
     } else if (similarity >= 0.5) {
       checks.qrVsTypedName = 'mismatch';
-      flags.push(`⚠️ Aadhaar QR pe naam "${qrName}" aapke typed naam "${typedFullName}" se thoda alag hai. Please check spelling.`);
+      flags.push({ type: 'warning', label: 'Naam Mismatch', message: `Aapka typed naam "${typedFullName}" hai lekin Aadhaar pe "${qrName}" likha hai. Spelling check karein ya sahi Aadhaar scan karein.` });
     } else {
       checks.qrVsTypedName = 'mismatch';
-      flags.push(`⚠️ Aadhaar QR pe naam aapke typed naam se match nahi ho raha. Sahi Aadhaar scan kiya hai? Please re-check.`);
+      flags.push({ type: 'error', label: 'Naam Match Nahi Hua', message: `Aapne naam "${typedFullName}" likha hai lekin Aadhaar card pe "${qrName}" hai. Kya aapne apna hi Aadhaar scan kiya hai?` });
     }
   } else {
     checks.qrVsTypedName = 'pending';
@@ -621,10 +622,10 @@ export const crossVerify = (qrData, ocrData = {}, typedData = {}) => {
       checks.qrVsOcrName = 'match';
     } else if (similarity >= 0.4) {
       checks.qrVsOcrName = 'mismatch';
-      flags.push(`⚠️ QR aur document image pe naam thoda alag hai. Ye OCR reading ke kaaran ho sakta hai.`);
+      flags.push({ type: 'warning', label: 'Document Photo Check', message: `Upload ki gayi Aadhaar photo aur QR scan me naam thoda alag dikh raha hai. Photo clear hai to koi problem nahi.` });
     } else {
       checks.qrVsOcrName = 'mismatch';
-      flags.push(`⚠️ QR aur document image pe naam match nahi ho raha. Sahi document upload kiya hai? Please re-check.`);
+      flags.push({ type: 'error', label: 'Galat Document', message: `Upload ki gayi Aadhaar card photo QR scan se match nahi ho rahi. Kya aapne same Aadhaar card ki photo upload ki hai?` });
     }
   } else {
     checks.qrVsOcrName = 'pending';
@@ -639,17 +640,19 @@ export const crossVerify = (qrData, ocrData = {}, typedData = {}) => {
       // Secure QR only has last 4 digits
       if (ocrUid.endsWith(qrUid)) {
         checks.qrVsOcrAadhaarNo = 'match';
+        flags.push({ type: 'success', label: 'Aadhaar Number', message: `Aadhaar number verified — last 4 digits (${qrUid}) match ho gaye ✓` });
       } else {
         checks.qrVsOcrAadhaarNo = 'mismatch';
-        flags.push(`❌ Aadhaar number match nahi ho raha. QR ke last 4 digits (${qrUid}) document se alag hain (${ocrUid.slice(-4)}). Please sahi Aadhaar card upload karein.`);
+        flags.push({ type: 'error', label: 'Aadhaar Number Alag Hai', message: `QR scan me Aadhaar ke last 4 digits "${qrUid}" hain lekin upload ki gayi photo me last 4 digits "${ocrUid.slice(-4)}" hain. Same Aadhaar card ki photo upload karein.` });
       }
     } else {
       // Old QR has full 12 digits
       if (qrUid === ocrUid) {
         checks.qrVsOcrAadhaarNo = 'match';
+        flags.push({ type: 'success', label: 'Aadhaar Number', message: `Aadhaar number (${maskAadhaar(qrUid)}) verified ✓` });
       } else {
         checks.qrVsOcrAadhaarNo = 'mismatch';
-        flags.push(`❌ Aadhaar number match nahi ho raha. QR (${maskAadhaar(qrUid)}) aur document (${maskAadhaar(ocrUid)}) me alag number hai. Sahi document upload karein.`);
+        flags.push({ type: 'error', label: 'Aadhaar Number Alag Hai', message: `QR scan me number ${maskAadhaar(qrUid)} hai aur photo me ${maskAadhaar(ocrUid)} hai. Dono same Aadhaar card ke hone chahiye.` });
       }
     }
   } else {
