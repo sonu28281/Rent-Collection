@@ -902,14 +902,11 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                 </div>
               </div>
             )}
-            {/* Selfie face guide */}
+            {/* Selfie — clean camera, no overlay guide */}
             {cameraField === 'selfieImage' && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-48 h-60 border-2 border-white/70 rounded-[50%]"
-                     style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.4)' }}>
-                </div>
-                <div className="absolute top-[15%] bg-black/60 text-white text-xs px-3 py-1 rounded-full">
-                  🤳 Position your face in the oval
+              <div className="absolute inset-0 flex items-start justify-center pointer-events-none">
+                <div className="mt-[10%] bg-black/50 text-white text-sm px-4 py-2 rounded-full">
+                  🤳 Apna chehra camera ke saamne rakhein
                 </div>
               </div>
             )}
