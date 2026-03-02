@@ -349,19 +349,19 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
         rememberLastUsedCamera: true,
         showTorchButtonIfSupported: true,
         showZoomSliderIfSupported: true,
-        defaultZoomValueIfSupported: 1.5,
-        // IMPORTANT: Enable ALL barcode formats for Aadhaar QR compatibility
-        // Some Aadhaar QRs may need multiple format decoders
-        // Leave formatsToSupport undefined to enable all formats
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true // Use native browser barcode API if available
-        }
+        defaultZoomValueIfSupported: 1.5
+        // NO formatsToSupport restriction - allow ALL formats for maximum compatibility
+        // NO experimentalFeatures - keep it simple and stable
       };
 
       console.log('📷 Starting scanner with config:', scanConfig);
+      console.log('⚠️ Config check: formatsToSupport =', scanConfig.formatsToSupport);
+      console.log('⚠️ Config check: experimentalFeatures =', scanConfig.experimentalFeatures);
 
       let frameCount = 0;
       let lastLogTime = Date.now();
+      let scanAttempts = 0; // Track scan attempts for debugging
+      
       frameCountIntervalRef.current = setInterval(() => {
         frameCount++;
         const now = Date.now();
@@ -412,22 +412,24 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
           // Scan failed (no QR in frame) — this fires continuously
           // These are NORMAL errors while scanning - only log unusual ones
           
-          // Ignore common scanning errors
+          scanAttempts++;
+          
+          // Log first 10 scan attempts to verify scanner is trying
+          if (scanAttempts <= 10) {
+            console.log(`🔍 Scan attempt ${scanAttempts}: ${errorMessage || 'Unknown error'}`);
+          }
+          
+          // Ignore common scanning errors (after logging first 10)
           if (errorMessage && (
             errorMessage.includes('NotFoundException') ||
             errorMessage.includes('No MultiFormat Readers') ||
             errorMessage.includes('error = B:')
           )) {
-            // Silent - these are expected during active scanning
+            // Silent after first 10 - these are expected during active scanning
             return;
           }
           
-          // Log first 5 attempts for debugging
-          if (frameCount <= 5) {
-            console.log(`🔍 Scan attempt ${frameCount}: ${errorMessage}`);
-          }
-          
-          // Log only unusual errors
+          // Log unusual errors always
           if (errorMessage && errorMessage.trim()) {
             console.warn('⚠️ Unusual scan error:', errorMessage);
           }
