@@ -99,72 +99,40 @@ export const parseXmlQr = (xmlString) => {
  * @returns {object} Parsed Aadhaar data
  */
 export const parseSecureQr = (rawData) => {
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🔐 parseSecureQr() called');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  
   try {
     let decompressedBytes;
     
     if (typeof rawData === 'string') {
-      console.log('📊 Raw Data Type: string, length:', rawData.length);
-      
       // Check if it's a numeric string (big integer representation)
       if (/^\d+$/.test(rawData.trim())) {
-        console.log('✅ Detected numeric string - converting to byte array...');
         const byteArray = bigIntToByteArray(rawData.trim());
-        console.log('✅ Byte array created, length:', byteArray.length);
-        
-        console.log('🔄 Decompressing bytes...');
         decompressedBytes = decompressDataToBytes(byteArray);
-        console.log('✅ Decompressed! Length:', decompressedBytes.length);
       } else {
-        console.log('⚠️ Not purely numeric - trying base64/raw decode...');
         // Try direct decompression (might be base64 or raw bytes as string)
         try {
           // Try base64 decode first
-          console.log('  Attempting base64 decode...');
           const binaryString = atob(rawData);
           const bytes = new Uint8Array(binaryString.length);
           for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
           }
-          console.log('✅ Base64 decoded, length:', bytes.length);
           decompressedBytes = decompressDataToBytes(bytes);
-          console.log('✅ Decompressed! Length:', decompressedBytes.length);
-        } catch (err) {
-          console.log('  ❌ Base64 decode failed:', err.message);
-          console.log('  Trying raw string bytes...');
+        } catch {
           // Try as raw string bytes
           const encoder = new TextEncoder();
           const bytes = encoder.encode(rawData);
-          console.log('✅ Encoded to bytes, length:', bytes.length);
           decompressedBytes = decompressDataToBytes(bytes);
-          console.log('✅ Decompressed! Length:', decompressedBytes.length);
         }
       }
     } else if (rawData instanceof Uint8Array) {
-      console.log('📊 Raw Data Type: Uint8Array, length:', rawData.length);
       decompressedBytes = decompressDataToBytes(rawData);
-      console.log('✅ Decompressed! Length:', decompressedBytes.length);
     } else {
       throw new Error('Unsupported QR data format');
     }
 
-    console.log('🔄 Parsing decompressed bytes...');
     // Parse the decompressed bytes (not string)
-    const result = parseDecompressedSecureQrBytes(decompressedBytes, rawData);
-    console.log('✅ Parse result:', result.success ? 'SUCCESS' : 'FAILED');
-    if (!result.success) {
-      console.error('❌ Parse error:', result.error);
-    }
-    return result;
+    return parseDecompressedSecureQrBytes(decompressedBytes, rawData);
   } catch (error) {
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.error('❌ EXCEPTION in parseSecureQr()');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.error('Error:', error.message);
-    console.error('Stack:', error.stack);
     return {
       success: false,
       error: `Secure QR Parse Error: ${error.message}`,
@@ -589,45 +557,28 @@ function parseDecompressedSecureQrBytes(decompressedBytes, originalRaw) {
  * @returns {object} Parsed Aadhaar data
  */
 export const parseAadhaarQr = (qrData) => {
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🔍 parseAadhaarQr() called');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  
   if (!qrData || typeof qrData !== 'string') {
-    console.error('❌ No QR data provided or wrong type:', typeof qrData);
     return { success: false, error: 'No QR data provided' };
   }
 
   const trimmed = qrData.trim();
-  console.log('📊 QR Data Analysis:');
-  console.log('  - Length:', trimmed.length);
-  console.log('  - First 50 chars:', trimmed.substring(0, 50));
-  console.log('  - Last 50 chars:', trimmed.substring(trimmed.length - 50));
-  console.log('  - Starts with <:', trimmed.startsWith('<'));
-  console.log('  - Contains PrintLetterBarcodeData:', trimmed.includes('PrintLetterBarcodeData'));
-  console.log('  - Is numeric:', /^\d+$/.test(trimmed));
-  console.log('  - Is 50+ digit numeric:', /^\d{50,}$/.test(trimmed));
 
   // Check if it's XML (starts with < or contains PrintLetterBarcodeData)
   if (trimmed.startsWith('<') || trimmed.includes('PrintLetterBarcodeData')) {
-    console.log('✅ Detected XML QR - calling parseXmlQr()');
     return parseXmlQr(trimmed);
   }
 
   // Check if it's a large numeric string (Secure QR)
   if (/^\d{50,}$/.test(trimmed)) {
-    console.log('✅ Detected Secure QR (50+ digits) - calling parseSecureQr()');
     return parseSecureQr(trimmed);
   }
 
   // Try generic parsing — might be encoded differently
   // Some mAadhaar apps output differently formatted QR
   if (trimmed.length > 100) {
-    console.log('⚠️ Unknown format but length > 100 - attempting parseSecureQr()');
     return parseSecureQr(trimmed);
   }
 
-  console.error('❌ QR code format not recognized');
   return {
     success: false,
     error: 'QR code does not appear to be an Aadhaar QR code. Please scan the QR code on your physical Aadhaar card or mAadhaar app.',
