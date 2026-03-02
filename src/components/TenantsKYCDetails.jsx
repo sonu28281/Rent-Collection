@@ -190,6 +190,10 @@ const TenantsKYCDetails = () => {
         const profile = profilesByTenantId[tenant.id] || {};
         const rooms = getAssignedRooms(tenant);
         const completion = completionFromProfile(profile);
+        
+        // Extract DigiLocker KYC data
+        const kycData = tenant.kyc || {};
+        const isDigiLockerVerified = kycData.verified && kycData.verifiedBy === 'DigiLocker';
 
         return {
           id: tenant.id,
@@ -200,7 +204,7 @@ const TenantsKYCDetails = () => {
           lastName: profile.lastName || '',
           phoneNumber: profile.phoneNumber || tenant.phone || '',
           occupation: profile.occupation || '',
-          aadharNumber: profile.aadharExtractedNumber || profile.aadharNumber || '',
+          aadharNumber: profile.aadharExtractedNumber || profile.aadharNumber || (kycData.aadhaar?.aadhaarNumber || ''),
           panNumber: profile.panExtractedNumber || profile.panNumber || '',
           aadharImage: profile.aadharImage || '',
           panImage: profile.panImage || '',
@@ -218,7 +222,16 @@ const TenantsKYCDetails = () => {
           agreementAccepted: !!profile.agreementAccepted,
           agreementSignature: profile.agreementSignature || '',
           agreementSignedAt: profile.agreementSignedAt || '',
-          completion
+          completion,
+          // DigiLocker KYC fields
+          digiLockerVerified: isDigiLockerVerified,
+          digiLockerData: kycData,
+          digiLockerName: kycData.name || '',
+          digiLockerDob: kycData.dob || '',
+          digiLockerAddress: kycData.address || '',
+          digiLockerVerifiedAt: kycData.verifiedAt || '',
+          digiLockerAadhaarNumber: kycData.aadhaar?.aadhaarNumber || '',
+          digiLockerGender: kycData.aadhaar?.gender || kycData.gender || ''
         };
       })
       .sort((a, b) => {
@@ -236,8 +249,9 @@ const TenantsKYCDetails = () => {
     const panVerified = filteredRows.filter((row) => row.panDocStatus === 'verified').length;
     const aadharMismatched = filteredRows.filter((row) => ['name_mismatch', 'number_not_found', 'error', 'recheck_needed'].includes(row.aadharDocStatus)).length;
     const panMismatched = filteredRows.filter((row) => ['name_mismatch', 'number_not_found', 'error', 'recheck_needed'].includes(row.panDocStatus)).length;
+    const digiLockerVerified = filteredRows.filter((row) => row.digiLockerVerified).length;
 
-    return { aadharVerified, panVerified, aadharMismatched, panMismatched };
+    return { aadharVerified, panVerified, aadharMismatched, panMismatched, digiLockerVerified };
   }, [filteredRows]);
 
   const runOcrRecheckForFiltered = async () => {
@@ -382,7 +396,12 @@ const TenantsKYCDetails = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
+        <div className="card bg-blue-50 border border-blue-200">
+          <p className="text-xs text-blue-700 font-semibold">🏛️ DigiLocker Verified</p>
+          <p className="text-2xl font-bold text-blue-900">{verificationSummary.digiLockerVerified}</p>
+          <p className="text-xs text-blue-600 mt-1">Govt. eKYC Verified</p>
+        </div>
         <div className="card bg-green-50 border border-green-200">
           <p className="text-xs text-green-700">Aadhaar Verified</p>
           <p className="text-2xl font-bold text-green-900">{verificationSummary.aadharVerified}</p>
@@ -411,6 +430,7 @@ const TenantsKYCDetails = () => {
                 <th className="px-3 py-2 text-left">Tenant</th>
                 <th className="px-3 py-2 text-left">Phone</th>
                 <th className="px-3 py-2 text-left">Occupation</th>
+                <th className="px-3 py-2 text-center">🏛️ DigiLocker</th>
                 <th className="px-3 py-2 text-left">Aadhaar (Captured)</th>
                 <th className="px-3 py-2 text-left">PAN (Captured)</th>
                 <th className="px-3 py-2 text-center">Verification</th>
@@ -425,10 +445,12 @@ const TenantsKYCDetails = () => {
               {filteredRows.map((row) => (
                 <tr
                   key={row.id}
-                  className={`border-b hover:bg-gray-50 align-top ${
-                    (row.aadharDocStatus !== 'verified' && row.aadharImage) || (row.panDocStatus !== 'verified' && row.panImage)
-                      ? 'bg-red-50/40'
-                      : ''
+                  className={`border-b align-top ${
+                    row.digiLockerVerified
+                      ? 'bg-green-50 hover:bg-green-100'
+                      : (row.aadharDocStatus !== 'verified' && row.aadharImage) || (row.panDocStatus !== 'verified' && row.panImage)
+                      ? 'bg-red-50/40 hover:bg-red-100/40'
+                      : 'hover:bg-gray-50'
                   }`}
                 >
                   <td className="px-3 py-2 font-semibold">{row.rooms.length ? row.rooms.join(', ') : '-'}</td>
@@ -451,6 +473,25 @@ const TenantsKYCDetails = () => {
                   </td>
                   <td className="px-3 py-2">{row.phoneNumber || '-'}</td>
                   <td className="px-3 py-2">{row.occupation || '-'}</td>
+                  <td className="px-3 py-2 text-center">
+                    {row.digiLockerVerified ? (
+                      <div>
+                        <div className="inline-flex px-2 py-1 rounded-full text-xs font-bold bg-green-600 text-white">
+                          ✅ Verified
+                        </div>
+                        <div className="text-[11px] text-gray-600 mt-1">
+                          {row.digiLockerVerifiedAt && new Date(row.digiLockerVerifiedAt.seconds * 1000).toLocaleDateString('en-IN')}
+                        </div>
+                        {row.digiLockerAadhaarNumber && (
+                          <div className="text-[11px] font-mono text-green-700 mt-1">
+                            {row.digiLockerAadhaarNumber}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">Not Verified</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2">
                     <div className="font-mono text-xs">{row.aadharNumber || '-'}</div>
                     {row.aadharExtractedNumber && (
@@ -519,9 +560,11 @@ const TenantsKYCDetails = () => {
             <div
               key={row.id}
               className={`card p-4 border-2 transition-all ${
-                ((row.aadharDocStatus !== 'verified' && row.aadharImage) || (row.panDocStatus !== 'verified' && row.panImage))
+                row.digiLockerVerified
+                  ? 'border-green-500 bg-green-50/60'
+                  : ((row.aadharDocStatus !== 'verified' && row.aadharImage) || (row.panDocStatus !== 'verified' && row.panImage))
                   ? 'border-red-300 bg-red-50/40'
-                  : 'border-green-300 bg-green-50/40'
+                  : 'border-gray-300 bg-gray-50/40'
               }`}
             >
               <div className="flex items-start justify-between gap-3 mb-3">
@@ -541,6 +584,11 @@ const TenantsKYCDetails = () => {
               </div>
 
               <div className="flex items-center gap-2 mb-3 flex-wrap">
+                {row.digiLockerVerified && (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-600 text-white">
+                    🏛️ DigiLocker Verified ✅
+                  </span>
+                )}
                 <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadge(row.aadharDocStatus).className}`}>
                   Aadhaar: {getStatusBadge(row.aadharDocStatus).label}
                 </span>
@@ -658,6 +706,35 @@ const TenantsKYCDetails = () => {
               </button>
             </div>
 
+            {/* DigiLocker Verification Status */}
+            {selectedTenant.digiLockerVerified && (
+              <div className="mb-4 bg-green-50 border-2 border-green-500 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">🏛️</span>
+                  <div>
+                    <h4 className="text-lg font-bold text-green-900">DigiLocker eKYC Verified ✅</h4>
+                    <p className="text-xs text-green-700">Government of India - Digital Identity Verification</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <p><span className="font-semibold text-gray-700">Full Name:</span> <span className="text-green-800 font-medium">{selectedTenant.digiLockerName || '-'}</span></p>
+                  <p><span className="font-semibold text-gray-700">Date of Birth:</span> <span className="text-green-800 font-medium">{selectedTenant.digiLockerDob || '-'}</span></p>
+                  <p><span className="font-semibold text-gray-700">Gender:</span> <span className="text-green-800 font-medium">{selectedTenant.digiLockerGender || '-'}</span></p>
+                  <p><span className="font-semibold text-gray-700">Verified At:</span> <span className="text-green-800 font-medium">
+                    {selectedTenant.digiLockerVerifiedAt ? new Date(selectedTenant.digiLockerVerifiedAt.seconds * 1000).toLocaleString('en-IN') : '-'}
+                  </span></p>
+                  {selectedTenant.digiLockerAadhaarNumber && (
+                    <p className="col-span-2"><span className="font-semibold text-gray-700">Aadhaar Number:</span> <span className="text-green-800 font-mono font-medium">{selectedTenant.digiLockerAadhaarNumber}</span></p>
+                  )}
+                  {selectedTenant.digiLockerAddress && (
+                    <p className="col-span-2"><span className="font-semibold text-gray-700">Address:</span> <span className="text-green-800 font-medium">{selectedTenant.digiLockerAddress}</span></p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Manual KYC Details */}
+            <h4 className="text-md font-bold text-gray-800 mb-3">📋 Manual KYC Details</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-sm">
               <p><span className="font-semibold text-gray-700">First Name:</span> {selectedTenant.firstName || '-'}</p>
               <p><span className="font-semibold text-gray-700">Last Name:</span> {selectedTenant.lastName || '-'}</p>

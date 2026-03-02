@@ -323,6 +323,16 @@ const Dashboard = () => {
     return { floor1, floor2 };
   };
 
+  // Helper function to calculate floor-wise summary stats
+  const calculateFloorStats = (floorTenants) => {
+    const totalExpected = floorTenants.reduce((sum, tenant) => sum + (tenant.expectedTotal || 0), 0);
+    const totalCollected = floorTenants.reduce((sum, tenant) => sum + (tenant.collectedAmount || 0), 0);
+    const totalDue = totalExpected - totalCollected;
+    const paidCount = floorTenants.filter(t => t.status === 'paid' && t.collectedAmount > 0).length;
+    const pendingCount = floorTenants.length - paidCount;
+    return { totalExpected, totalCollected, totalDue, paidCount, pendingCount, totalTenants: floorTenants.length };
+  };
+
   return (
     <div className="p-4 lg:p-8">
       {/* Header with Profile */}
@@ -399,7 +409,10 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Summary Cards */}
+            {/* Overall Summary Cards */}
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Overall Summary</h3>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-center justify-between">
@@ -460,10 +473,126 @@ const Dashboard = () => {
               </div>
             </div>
 
+            {/* Floor-wise Summary */}
+            {currentMonthSummary.allTenants && currentMonthSummary.allTenants.length > 0 && (() => {
+              const { floor1, floor2 } = groupTenantsByFloor(currentMonthSummary.allTenants);
+              const floor1Stats = calculateFloorStats(floor1);
+              const floor2Stats = calculateFloorStats(floor2);
+              
+              return (
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Floor-wise Breakdown</h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Floor 1 Card */}
+                    <div className="border border-indigo-200 rounded-lg p-4 bg-gradient-to-br from-indigo-50 to-white">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-2xl">🏠</span>
+                        <h4 className="font-bold text-indigo-900">Floor 1 - Ground Floor</h4>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="text-center">
+                          <p className="text-xs text-gray-600 mb-1">Expected</p>
+                          <p className="text-lg font-bold text-blue-700">
+                            ₹{floor1Stats.totalExpected.toLocaleString('en-IN')}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-gray-600 mb-1">Collected</p>
+                          <p className="text-lg font-bold text-green-700">
+                            ₹{floor1Stats.totalCollected.toLocaleString('en-IN')}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-gray-600 mb-1">Due</p>
+                          <p className="text-lg font-bold text-orange-700">
+                            ₹{floor1Stats.totalDue.toLocaleString('en-IN')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-indigo-200 flex items-center justify-between text-xs">
+                        <span className="text-gray-600">{floor1Stats.totalTenants} tenants</span>
+                        <span className="text-green-700 font-semibold">{floor1Stats.paidCount} paid</span>
+                        <span className="text-orange-700 font-semibold">{floor1Stats.pendingCount} pending</span>
+                      </div>
+                      {/* Progress bar for Floor 1 */}
+                      <div className="mt-3">
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-500"
+                            style={{ 
+                              width: floor1Stats.totalExpected > 0 
+                                ? `${Math.min((floor1Stats.totalCollected / floor1Stats.totalExpected) * 100, 100)}%`
+                                : '0%'
+                            }}
+                          ></div>
+                        </div>
+                        <p className="text-xs text-gray-600 text-center mt-1">
+                          {floor1Stats.totalExpected > 0 
+                            ? ((floor1Stats.totalCollected / floor1Stats.totalExpected) * 100).toFixed(1)
+                            : 0}% collected
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Floor 2 Card */}
+                    <div className="border border-violet-200 rounded-lg p-4 bg-gradient-to-br from-violet-50 to-white">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-2xl">🏢</span>
+                        <h4 className="font-bold text-violet-900">Floor 2 - First Floor</h4>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="text-center">
+                          <p className="text-xs text-gray-600 mb-1">Expected</p>
+                          <p className="text-lg font-bold text-blue-700">
+                            ₹{floor2Stats.totalExpected.toLocaleString('en-IN')}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-gray-600 mb-1">Collected</p>
+                          <p className="text-lg font-bold text-green-700">
+                            ₹{floor2Stats.totalCollected.toLocaleString('en-IN')}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-gray-600 mb-1">Due</p>
+                          <p className="text-lg font-bold text-orange-700">
+                            ₹{floor2Stats.totalDue.toLocaleString('en-IN')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-violet-200 flex items-center justify-between text-xs">
+                        <span className="text-gray-600">{floor2Stats.totalTenants} tenants</span>
+                        <span className="text-green-700 font-semibold">{floor2Stats.paidCount} paid</span>
+                        <span className="text-orange-700 font-semibold">{floor2Stats.pendingCount} pending</span>
+                      </div>
+                      {/* Progress bar for Floor 2 */}
+                      <div className="mt-3">
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-500"
+                            style={{ 
+                              width: floor2Stats.totalExpected > 0 
+                                ? `${Math.min((floor2Stats.totalCollected / floor2Stats.totalExpected) * 100, 100)}%`
+                                : '0%'
+                            }}
+                          ></div>
+                        </div>
+                        <p className="text-xs text-gray-600 text-center mt-1">
+                          {floor2Stats.totalExpected > 0 
+                            ? ((floor2Stats.totalCollected / floor2Stats.totalExpected) * 100).toFixed(1)
+                            : 0}% collected
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Collection Progress */}
             <div className="mb-6">
               <div className="flex items-center justify-between text-sm mb-2">
-                <span className="font-semibold text-gray-700">Collection Progress</span>
+                <span className="font-semibold text-gray-700">Overall Collection Progress</span>
                 <span className="text-gray-600">
                   {currentMonthSummary.totalExpected > 0 
                     ? ((currentMonthSummary.totalCollected / currentMonthSummary.totalExpected) * 100).toFixed(1)

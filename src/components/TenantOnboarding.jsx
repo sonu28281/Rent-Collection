@@ -204,9 +204,34 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       const scanner = new Html5Qrcode(regionId);
       qrScannerRef.current = scanner;
 
+      // Better camera configuration for Aadhaar QR scanning
+      const cameraConfig = {
+        facingMode: 'environment',
+        // Request higher resolution for better QR detection
+        aspectRatio: 1.0,
+      };
+
+      const scanConfig = {
+        fps: 30, // Increased from 10 to 30 for faster scanning
+        qrbox: function(viewfinderWidth, viewfinderHeight) {
+          // Use 90% of viewfinder area for better QR code capture
+          // Aadhaar QR codes are large, need bigger scanning area
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const qrboxSize = Math.floor(minEdge * 0.9);
+          return {
+            width: qrboxSize,
+            height: qrboxSize
+          };
+        },
+        // Enable more formats for better compatibility
+        supportedScanTypes: [0], // 0 = QR_CODE
+        aspectRatio: 1.0,
+        disableFlip: false, // Try flipped image if needed
+      };
+
       await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        cameraConfig,
+        scanConfig,
         (decodedText) => {
           // QR code scanned successfully
           handleQrResult(decodedText);
@@ -1120,10 +1145,18 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
               {/* Info box */}
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <p className="text-xs text-amber-800 leading-relaxed">
+                <p className="text-xs text-amber-800 leading-relaxed mb-2">
                   <strong>🔒 Why QR Scan?</strong> The QR code on your Aadhaar card contains UIDAI digitally signed data. 
                   This prevents fake documents and auto-verifies your name, DOB, gender, and address.
                 </p>
+                <div className="mt-3 pt-3 border-t border-amber-300">
+                  <p className="text-xs font-bold text-amber-900 mb-2">📍 QR Code kahan hai?</p>
+                  <ul className="text-xs text-amber-800 space-y-1 ml-4">
+                    <li>• <strong>Front side</strong> par - Photo ke neeche, left corner mein</li>
+                    <li>• Square black & white pattern jaisa dikhta hai</li>
+                    <li>• Finger size ka (approx 1.5cm x 1.5cm)</li>
+                  </ul>
+                </div>
               </div>
 
               {!qrScanned ? (
@@ -1131,7 +1164,19 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                   {/* QR Scanner Region */}
                   {qrScanning && (
                     <div className="relative">
-                      <div id="qr-reader-region" className="rounded-lg overflow-hidden" />
+                      {/* Scanning Tips */}
+                      <div className="bg-blue-600 text-white p-3 rounded-t-lg">
+                        <p className="text-sm font-bold mb-2">📱 Scanning Tips:</p>
+                        <ul className="text-xs space-y-1.5">
+                          <li>✓ Aadhaar card ko camera ke samne <strong>straight</strong> pakdein</li>
+                          <li>✓ QR code ko <strong>green box</strong> ke andar laayein</li>
+                          <li>✓ Good lighting chahiye - <strong>bright area</strong> mein scan karein</li>
+                          <li>✓ Camera se <strong>10-15cm door</strong> rakhein (6 inch)</li>
+                          <li>✓ QR code <strong>blur na ho</strong> - focus hone tak wait karein</li>
+                          <li>✓ Dhire-dhire move karein, jaldi mat hilayein</li>
+                        </ul>
+                      </div>
+                      <div id="qr-reader-region" className="rounded-b-lg overflow-hidden" />
                       <button
                         onClick={stopQrScanner}
                         className="mt-2 w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded-lg text-sm"

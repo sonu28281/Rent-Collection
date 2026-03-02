@@ -31,6 +31,7 @@ const Tenants = () => {
   const [mergeTargetTenantId, setMergeTargetTenantId] = useState('');
   const [mergeSourceTenantId, setMergeSourceTenantId] = useState('');
   const [mergingTenants, setMergingTenants] = useState(false);
+  const [isFloorFilterExpanded, setIsFloorFilterExpanded] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -699,197 +700,157 @@ const Tenants = () => {
         </div>
       </div>
 
-      {/* Filter Buttons */}
-      <div className="card mb-6 space-y-4">
-        {/* Active/Inactive Filters */}
-        <div>
-          <label className="text-sm font-semibold text-gray-700 mb-2 block">Status Filter</label>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                filter === 'all'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              All Tenants ({stats.total})
-            </button>
-            <button
-              onClick={() => setFilter('active')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                filter === 'active'
-                  ? 'bg-green-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Active ({stats.active})
-            </button>
-            <button
-              onClick={() => setFilter('inactive')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                filter === 'inactive'
-                  ? 'bg-gray-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Inactive ({stats.inactive})
-            </button>
+      {/* Filters Section - Compact Single Row */}
+      <div className="card mb-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          {/* All Filters in One Row */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            {/* Status Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">Status:</span>
+              <button
+                onClick={() => setFilter('all')}
+                className={`font-semibold transition ${
+                  filter === 'all'
+                    ? 'text-primary underline underline-offset-4'
+                    : 'text-gray-600 hover:text-primary'
+                }`}
+              >
+                All ({stats.total})
+              </button>
+              <span className="text-gray-400">|</span>
+              <button
+                onClick={() => setFilter('active')}
+                className={`font-semibold transition ${
+                  filter === 'active'
+                    ? 'text-green-600 underline underline-offset-4'
+                    : 'text-gray-600 hover:text-green-600'
+                }`}
+              >
+                Active ({stats.active})
+              </button>
+              <span className="text-gray-400">|</span>
+              <button
+                onClick={() => setFilter('inactive')}
+                className={`font-semibold transition ${
+                  filter === 'inactive'
+                    ? 'text-gray-600 underline underline-offset-4'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Inactive ({stats.inactive})
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="hidden lg:block h-6 w-px bg-gray-300"></div>
+
+            {/* KYC Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">KYC:</span>
+              <button
+                onClick={() => setKycFilter('all')}
+                className={`font-semibold transition ${
+                  kycFilter === 'all'
+                    ? 'text-emerald-600 underline underline-offset-4'
+                    : 'text-gray-600 hover:text-emerald-600'
+                }`}
+              >
+                All ({stats.total})
+              </button>
+              <span className="text-gray-400">|</span>
+              <button
+                onClick={() => setKycFilter('verified')}
+                className={`font-semibold transition ${
+                  kycFilter === 'verified'
+                    ? 'text-green-600 underline underline-offset-4'
+                    : 'text-gray-600 hover:text-green-600'
+                }`}
+              >
+                ✅ Verified ({stats.kycVerified})
+              </button>
+              <span className="text-gray-400">|</span>
+              <button
+                onClick={() => setKycFilter('not_verified')}
+                className={`font-semibold transition ${
+                  kycFilter === 'not_verified'
+                    ? 'text-amber-600 underline underline-offset-4'
+                    : 'text-gray-600 hover:text-amber-600'
+                }`}
+              >
+                ⏳ Not Verified ({stats.kycNotVerified})
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="hidden lg:block h-6 w-px bg-gray-300"></div>
+
+            {/* View Mode */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">View:</span>
+              <button
+                onClick={() => setViewMode('card')}
+                className={`font-semibold transition flex items-center gap-1 ${
+                  viewMode === 'card'
+                    ? 'text-orange-600 underline underline-offset-4'
+                    : 'text-gray-600 hover:text-orange-600'
+                }`}
+              >
+                <span>🎴</span> Cards
+              </button>
+              <span className="text-gray-400">|</span>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`font-semibold transition flex items-center gap-1 ${
+                  viewMode === 'table'
+                    ? 'text-orange-600 underline underline-offset-4'
+                    : 'text-gray-600 hover:text-orange-600'
+                }`}
+              >
+                <span>📋</span> Table
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Floor Filters */}
-        <div className="hidden md:block">
-          <label className="text-sm font-semibold text-gray-700 mb-2 block">Floor Filter</label>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setFloorFilter('all')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                floorFilter === 'all'
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              All Floors
-            </button>
-            <button
-              onClick={() => setFloorFilter('floor1')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                floorFilter === 'floor1'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Floor 1 (Ground) ({stats.floor1})
-            </button>
-            <button
-              onClick={() => setFloorFilter('floor2')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                floorFilter === 'floor2'
-                  ? 'bg-indigo-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Floor 2 (First) ({stats.floor2})
-            </button>
-          </div>
-        </div>
-
-        {/* KYC Filters */}
-        <div>
-          <label className="text-sm font-semibold text-gray-700 mb-2 block">KYC Filter</label>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setKycFilter('all')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                kycFilter === 'all'
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              All ({stats.total})
-            </button>
-            <button
-              onClick={() => setKycFilter('verified')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                kycFilter === 'verified'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Verified ({stats.kycVerified})
-            </button>
-            <button
-              onClick={() => setKycFilter('not_verified')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                kycFilter === 'not_verified'
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Not Verified ({stats.kycNotVerified})
-            </button>
-          </div>
-        </div>
-
-        {/* View Mode Toggle */}
-        <div className="hidden md:block">
-          <label className="text-sm font-semibold text-gray-700 mb-2 block">View Mode</label>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setViewMode('card')}
-              className={`px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 ${
-                viewMode === 'card'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              <span>🎴</span> Card View
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 ${
-                viewMode === 'table'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              <span>📋</span> Table View
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Merge Tenant Accounts */}
-      <div className="card mb-6 border-2 border-amber-200 bg-amber-50">
-        <h3 className="text-lg font-bold text-amber-900 mb-3">🧩 Merge Duplicate Tenants</h3>
-        <p className="text-sm text-amber-800 mb-3">
-          Use this when the same person was added twice. Source tenant will be deactivated and records will move to target tenant.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-          <div>
-            <label className="block text-xs font-semibold text-amber-900 mb-1">Target Tenant (keep this)</label>
+          {/* Merge Section - Horizontal on Desktop */}
+          <div className="flex items-center gap-2 border-l-2 lg:border-l-2 border-amber-300 lg:pl-4">
+            <span className="text-xs font-bold text-amber-900 whitespace-nowrap">🧩 Merge:</span>
             <select
               value={mergeTargetTenantId}
               onChange={(event) => setMergeTargetTenantId(event.target.value)}
               disabled={mergingTenants}
-              className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white"
+              className="px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white max-w-[120px]"
             >
-              <option value="">Select target tenant</option>
+              <option value="">Target</option>
               {tenants.map((tenant) => (
                 <option key={`target_${tenant.id}`} value={tenant.id}>
-                  {tenant.name} ({getAssignedRooms(tenant).join(', ') || '-'}) {tenant.isActive ? '' : '[Inactive]'}
+                  {tenant.name}
                 </option>
               ))}
             </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-amber-900 mb-1">Source Tenant (merge this into target)</label>
+            <span className="text-gray-400">→</span>
             <select
               value={mergeSourceTenantId}
               onChange={(event) => setMergeSourceTenantId(event.target.value)}
               disabled={mergingTenants}
-              className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white"
+              className="px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white max-w-[120px]"
             >
-              <option value="">Select source tenant</option>
+              <option value="">Source</option>
               {tenants.map((tenant) => (
                 <option key={`source_${tenant.id}`} value={tenant.id}>
-                  {tenant.name} ({getAssignedRooms(tenant).join(', ') || '-'}) {tenant.isActive ? '' : '[Inactive]'}
+                  {tenant.name}
                 </option>
               ))}
             </select>
+            <button
+              onClick={mergeTenantAccounts}
+              disabled={mergingTenants}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 text-xs whitespace-nowrap"
+            >
+              {mergingTenants ? '...' : 'Merge'}
+            </button>
           </div>
         </div>
-
-        <button
-          onClick={mergeTenantAccounts}
-          disabled={mergingTenants}
-          className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
-        >
-          {mergingTenants ? 'Merging...' : 'Merge Tenants'}
-        </button>
       </div>
 
       {/* Tenants List */}
@@ -1113,29 +1074,114 @@ const Tenants = () => {
       </>
       )}
 
+      {/* Floating Floor Switcher - Mobile */}
       {isMobileViewport && categoryFilter === 'tenants' && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-white/95 backdrop-blur border border-gray-200 rounded-full shadow-lg px-2 py-1 flex items-center gap-1">
           <button
             type="button"
             onClick={() => setFloorFilter('all')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-full ${floorFilter === 'all' ? 'bg-primary text-white' : 'text-gray-700'}`}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${floorFilter === 'all' ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
             All
           </button>
           <button
             type="button"
             onClick={() => setFloorFilter('floor1')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-full ${floorFilter === 'floor1' ? 'bg-primary text-white' : 'text-gray-700'}`}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${floorFilter === 'floor1' ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
             Floor 1
           </button>
           <button
             type="button"
             onClick={() => setFloorFilter('floor2')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-full ${floorFilter === 'floor2' ? 'bg-primary text-white' : 'text-gray-700'}`}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${floorFilter === 'floor2' ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'}`}
           >
             Floor 2
           </button>
+        </div>
+      )}
+
+      {/* Floating Floor Switcher - Desktop (Collapsible) */}
+      {!isMobileViewport && categoryFilter === 'tenants' && (
+        <div className="fixed bottom-8 right-8 z-50">
+          {!isFloorFilterExpanded ? (
+            /* Collapsed - Small Floating Button */
+            <button
+              type="button"
+              onClick={() => setIsFloorFilterExpanded(true)}
+              className="group bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-4 rounded-full shadow-2xl hover:shadow-3xl hover:scale-110 transition-all duration-300"
+              title="Floor Filter"
+            >
+              <div className="flex flex-col items-center">
+                <span className="text-2xl">🏢</span>
+                <span className="text-[10px] font-bold mt-0.5 opacity-90">
+                  {floorFilter === 'all' ? 'All' : floorFilter === 'floor1' ? 'F1' : 'F2'}
+                </span>
+              </div>
+            </button>
+          ) : (
+            /* Expanded - Full Filter Options */
+            <div className="bg-white/95 backdrop-blur border-2 border-gray-300 rounded-2xl shadow-2xl overflow-hidden animate-slideIn">
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-2 flex items-center justify-between">
+                <p className="text-xs font-bold text-white uppercase tracking-wider">🏢 Floor Filter</p>
+                <button
+                  type="button"
+                  onClick={() => setIsFloorFilterExpanded(false)}
+                  className="text-white hover:text-gray-200 text-lg font-bold"
+                  title="Minimize"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-2 space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFloorFilter('all');
+                    setIsFloorFilterExpanded(false);
+                  }}
+                  className={`w-full px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-between ${
+                    floorFilter === 'all'
+                      ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <span>All Floors</span>
+                  <span className="text-xs">({stats.total})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFloorFilter('floor1');
+                    setIsFloorFilterExpanded(false);
+                  }}
+                  className={`w-full px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-between ${
+                    floorFilter === 'floor1'
+                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <span>Ground Floor</span>
+                  <span className="text-xs">({stats.floor1})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFloorFilter('floor2');
+                    setIsFloorFilterExpanded(false);
+                  }}
+                  className={`w-full px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-between ${
+                    floorFilter === 'floor2'
+                      ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <span>First Floor</span>
+                  <span className="text-xs">({stats.floor2})</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
