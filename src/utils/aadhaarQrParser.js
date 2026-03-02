@@ -607,6 +607,7 @@ export const parseAadhaarQr = (qrData) => {
   console.log('  - Contains PrintLetterBarcodeData:', trimmed.includes('PrintLetterBarcodeData'));
   console.log('  - Is numeric:', /^\d+$/.test(trimmed));
   console.log('  - Is 50+ digit numeric:', /^\d{50,}$/.test(trimmed));
+  console.log('  - Has only digits/spaces:', /^[\d\s]+$/.test(trimmed));
 
   // Check if it's XML (starts with < or contains PrintLetterBarcodeData)
   if (trimmed.startsWith('<') || trimmed.includes('PrintLetterBarcodeData')) {
@@ -614,23 +615,49 @@ export const parseAadhaarQr = (qrData) => {
     return parseXmlQr(trimmed);
   }
 
-  // Check if it's a large numeric string (Secure QR)
-  if (/^\d{50,}$/.test(trimmed)) {
-    console.log('✅ Detected Secure QR (50+ digits) - calling parseSecureQr()');
-    return parseSecureQr(trimmed);
+  // Check if it's numeric (with or without spaces) - Secure QR
+  // Remove spaces for checking
+  const numericOnly = trimmed.replace(/\s+/g, '');
+  if (/^\d+$/.test(numericOnly) && numericOnly.length >= 50) {
+    console.log('✅ Detected Secure QR (50+ digits, spaces removed) - calling parseSecureQr()');
+    return parseSecureQr(numericOnly);
   }
 
-  // Try generic parsing — might be encoded differently
-  // Some mAadhaar apps output differently formatted QR
+  // Try generic parsing for any data > 100 chars
   if (trimmed.length > 100) {
     console.log('⚠️ Unknown format but length > 100 - attempting parseSecureQr()');
-    return parseSecureQr(trimmed);
+    const result = parseSecureQr(trimmed);
+    if (result.success) {
+      return result;
+    }
+    console.log('❌ parseSecureQr() failed, trying with spaces removed...');
+    const numOnly = trimmed.replace(/\s+/g, '');
+    return parseSecureQr(numOnly);
   }
 
-  console.error('❌ QR code format not recognized');
+  // Last resort: try both parsers
+  console.log('⚠️ Unrecognized format - trying all parsers as last resort...');
+  
+  // Try XML first
+  console.log('  Attempting XML parse...');
+  const xmlResult = parseXmlQr(trimmed);
+  if (xmlResult.success) {
+    console.log('  ✅ XML parse successful!');
+    return xmlResult;
+  }
+  
+  // Try Secure QR
+  console.log('  Attempting Secure QR parse...');
+  const secureResult = parseSecureQr(trimmed);
+  if (secureResult.success) {
+    console.log('  ✅ Secure QR parse successful!');
+    return secureResult;
+  }
+
+  console.error('❌ All parsers failed - QR format not recognized');
   return {
     success: false,
-    error: 'QR code does not appear to be an Aadhaar QR code. Please scan the QR code on your physical Aadhaar card or mAadhaar app.',
+    error: 'Could not parse QR code. Please ensure you are scanning the QR code from your physical Aadhaar card.',
     rawData: trimmed.substring(0, 100),
   };
 };
