@@ -49,7 +49,6 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   const [qrDisplayData, setQrDisplayData] = useState(null);
   const qrScannerRef = useRef(null);
   const qrRegionRef = useRef(null);
-  const qrCameraInputRef = useRef(null);
   const [qrCameraOpen, setQrCameraOpen] = useState(false);
   const [qrCameraProcessing, setQrCameraProcessing] = useState(false);
 
@@ -389,10 +388,23 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   const openQrCamera = () => {
     setQrError('');
     setQrCameraOpen(true);
-    // Trigger camera input
-    if (qrCameraInputRef.current) {
-      qrCameraInputRef.current.click();
-    }
+    
+    // Create a fresh input element to force camera (not file picker)
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment'; // Force back camera on mobile
+    
+    input.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        handleQrCameraCapture({ target: { files: [file] } });
+      }
+      input.remove();
+    };
+    
+    document.body.appendChild(input);
+    input.click();
   };
 
   const handleQrResult = (rawText) => {
@@ -1401,15 +1413,6 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                       >
                         {qrCameraProcessing ? '📷 Processing...' : '📸 Take QR Photo & Submit'}
                       </button>
-
-                      <input
-                        ref={qrCameraInputRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={handleQrCameraCapture}
-                      />
 
                       <div className="text-center text-xs text-gray-400">— OR —</div>
 
