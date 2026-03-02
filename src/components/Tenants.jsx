@@ -93,7 +93,17 @@ const Tenants = () => {
       
       const tenantsData = [];
       tenantsSnapshot.forEach((doc) => {
-        tenantsData.push({ id: doc.id, ...doc.data() });
+        const tenantDoc = { id: doc.id, ...doc.data() };
+        
+        // Ensure isActive is properly calculated
+        // A tenant is active if:
+        // - isActive field exists and is true, OR
+        // - isActive field doesn't exist AND status is NOT 'inactive'
+        if (typeof tenantDoc.isActive === 'undefined') {
+          tenantDoc.isActive = tenantDoc.status !== 'inactive';
+        }
+        
+        tenantsData.push(tenantDoc);
       });
       
       // Fetch rooms

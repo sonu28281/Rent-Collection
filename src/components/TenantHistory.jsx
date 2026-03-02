@@ -135,11 +135,17 @@ const TenantHistory = () => {
           const tenantName = data.name?.trim();
           if (!tenantName) return;
 
+          // Ensure isActive is properly calculated
+          let isActive = Boolean(data.isActive);
+          if (typeof data.isActive === 'undefined') {
+            isActive = data.status !== 'inactive';
+          }
+
           if (!tenantMap.has(tenantName)) {
             tenantMap.set(tenantName, {
               id: tenantId,
               name: tenantName,
-              isActive: Boolean(data.isActive),
+              isActive: isActive,
               roomNumber: data.roomNumber ?? null,
               checkInDate: data.checkInDate ?? null,
               checkOutDate: data.checkOutDate ?? null,

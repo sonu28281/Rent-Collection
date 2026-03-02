@@ -145,7 +145,16 @@ const TenantsKYCDetails = () => {
         setError('');
 
         const tenantsSnapshot = await getDocs(query(collection(db, 'tenants'), orderBy('createdAt', 'desc')));
-        const tenantsData = tenantsSnapshot.docs.map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }));
+        const tenantsData = tenantsSnapshot.docs.map((snapshot) => {
+          const tenantDoc = { id: snapshot.id, ...snapshot.data() };
+          
+          // Ensure isActive is properly calculated
+          if (typeof tenantDoc.isActive === 'undefined') {
+            tenantDoc.isActive = tenantDoc.status !== 'inactive';
+          }
+          
+          return tenantDoc;
+        });
 
         const profilesSnapshot = await getDocs(collection(db, 'tenantProfiles'));
         const profileMap = {};
@@ -298,7 +307,16 @@ const TenantsKYCDetails = () => {
       }
 
       const tenantsSnapshot = await getDocs(query(collection(db, 'tenants'), orderBy('createdAt', 'desc')));
-      const tenantsData = tenantsSnapshot.docs.map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }));
+      const tenantsData = tenantsSnapshot.docs.map((snapshot) => {
+        const tenantDoc = { id: snapshot.id, ...snapshot.data() };
+        
+        // Ensure isActive is properly calculated
+        if (typeof tenantDoc.isActive === 'undefined') {
+          tenantDoc.isActive = tenantDoc.status !== 'inactive';
+        }
+        
+        return tenantDoc;
+      });
       const profilesSnapshot = await getDocs(collection(db, 'tenantProfiles'));
       const profileMap = {};
       profilesSnapshot.forEach((snapshot) => {
