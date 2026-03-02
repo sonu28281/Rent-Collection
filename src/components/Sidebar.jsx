@@ -37,6 +37,7 @@ const Sidebar = () => {
     { icon: '💾', label: 'Backup & Restore', path: '/backup' },
     { icon: '📥', label: 'Import CSV', path: '/import' },
     { icon: '📋', label: 'Import Logs', path: '/import-logs' },
+    { icon: '🗑️', label: 'KYC Manager', path: '/kyc-manager' },
   ];
 
   const handleNavigation = (path) => {

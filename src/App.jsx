@@ -22,6 +22,7 @@ import TenantHistory from './components/TenantHistory';
 import ImportLogsPage from './components/ImportLogsPage';
 import PaymentsReset from './components/PaymentsReset';
 import DatabaseCleanup from './components/DatabaseCleanup';
+import KYCDocumentManager from './components/KYCDocumentManager';
 import VacancyReport from './components/VacancyReport';
 import TenantOnboarding from './components/TenantOnboarding';
 import DialogProvider from './components/ui/DialogProvider';
@@ -140,6 +141,10 @@ function App() {
           <Route 
             path="/database-cleanup" 
             element={adminRouteElement(<DatabaseCleanup />)} 
+          />
+          <Route 
+            path="/kyc-manager" 
+            element={adminRouteElement(<KYCDocumentManager />)} 
           />
           <Route 
             path="/settings" 
