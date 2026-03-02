@@ -8,6 +8,7 @@ function KYCDocumentManager() {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [kycApplications, setKycApplications] = useState([]);
+  const [profilesByAppId, setProfilesByAppId] = useState({});
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all'); // all, pending_approval, rejected
@@ -39,7 +40,16 @@ function KYCDocumentManager() {
         return dateB - dateA;
       });
 
+      // Load corresponding tenant profiles for detailed KYC info
+      const profilesRef = collection(db, 'tenantProfiles');
+      const profilesSnapshot = await getDocs(profilesRef);
+      const profileMap = {};
+      profilesSnapshot.forEach((snapshot) => {
+        profileMap[snapshot.id] = snapshot.data() || {};
+      });
+
       setKycApplications(applications);
+      setProfilesByAppId(profileMap);
       
       // Calculate stats
       const stats = {
@@ -317,7 +327,15 @@ function KYCDocumentManager() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredApplications.map((app) => (
+            {filteredApplications.map((app) => {
+              const profile = profilesByAppId[app.id] || {};
+              const isDigiLockerVerified = profile.digiLockerVerified === true;
+              const aadharVerified = profile.aadharDocStatus === 'verified' && !!(profile.aadharExtractedNumber || profile.aadharNumber);
+              const panVerified = profile.panDocStatus === 'verified' && !!(profile.panExtractedNumber || profile.panNumber);
+              const aadharMismatched = profile.aadharDocStatus === 'mismatched';
+              const panMismatched = profile.panDocStatus === 'mismatched';
+
+              return (
               <div key={app.id} className={`bg-white rounded-lg border-2 p-4 hover:shadow-md transition-all ${selectedIds.has(app.id) ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
                 <div className="flex items-start justify-between gap-4">
                   {/* Checkbox */}
@@ -330,14 +348,16 @@ function KYCDocumentManager() {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2 flex-wrap">
+                    {/* Header */}
+                    <div className="flex items-center gap-3 mb-3 flex-wrap">
                       <h3 className="font-semibold text-gray-900 truncate">{app.fullName}</h3>
                       <span className={`px-2 py-1 text-xs font-medium rounded border ${getStatusColor(app.status)}`}>
                         {getStatusLabel(app.status)}
                       </span>
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-2">
+
+                    {/* Basic Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-3">
                       <div>
                         <span className="text-gray-500">Phone:</span> {app.phone}
                       </div>
@@ -349,9 +369,81 @@ function KYCDocumentManager() {
                       </div>
                     </div>
 
+                    {/* KYC Status Tags */}
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {/* DigiLocker */}
+                      <div className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
+                        isDigiLockerVerified 
+                          ? 'bg-green-100 text-green-800 border border-green-300' 
+                          : 'bg-gray-100 text-gray-700 border border-gray-300'
+                      }`}>
+                        🏛️ DigiLocker {isDigiLockerVerified ? '✓' : '✗'}
+                      </div>
+
+                      {/* Aadhar */}
+                      <div className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
+                        aadharVerified 
+                          ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                          : aadharMismatched
+                          ? 'bg-orange-100 text-orange-800 border border-orange-300'
+                          : 'bg-gray-100 text-gray-700 border border-gray-300'
+                      }`}>
+                        📋 Aadhar {aadharVerified ? '✓' : aadharMismatched ? '⚠️' : '✗'}
+                      </div>
+
+                      {/* PAN */}
+                      <div className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
+                        panVerified 
+                          ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                          : panMismatched
+                          ? 'bg-orange-100 text-orange-800 border border-orange-300'
+                          : 'bg-gray-100 text-gray-700 border border-gray-300'
+                      }`}>
+                        📝 PAN {panVerified ? '✓' : panMismatched ? '⚠️' : '✗'}
+                      </div>
+                    </div>
+
+                    {/* KYC Details */}
+                    {(isDigiLockerVerified || aadharVerified || aadharMismatched || panVerified || panMismatched) && (
+                      <div className="bg-gray-50 p-3 rounded-lg mb-3 text-xs space-y-2">
+                        {isDigiLockerVerified && (
+                          <div className="border-l-4 border-green-400 pl-2">
+                            <p className="font-semibold text-gray-700">🏛️ DigiLocker Verified</p>
+                            <p className="text-gray-600">Name: {profile.digiLockerName || 'N/A'}</p>
+                            <p className="text-gray-600">DOB: {profile.digiLockerDob || 'N/A'}</p>
+                            <p className="text-gray-600">Aadhaar: {profile.digiLockerAadhaarNumber ? `****${profile.digiLockerAadhaarNumber.slice(-4)}` : 'N/A'}</p>
+                          </div>
+                        )}
+
+                        {(aadharVerified || aadharMismatched) && (
+                          <div className={`border-l-4 ${aadharMismatched ? 'border-orange-400' : 'border-blue-400'} pl-2`}>
+                            <p className="font-semibold text-gray-700">
+                              📋 Aadhar {aadharMismatched ? '⚠️ Mismatch' : 'Verified'}
+                            </p>
+                            <p className="text-gray-600">Number: {profile.aadharExtractedNumber ? `****${profile.aadharExtractedNumber.slice(-4)}` : 'N/A'}</p>
+                            {aadharMismatched && profile.aadharDocReason && (
+                              <p className="text-orange-600 font-medium">⚠️ {profile.aadharDocReason}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {(panVerified || panMismatched) && (
+                          <div className={`border-l-4 ${panMismatched ? 'border-orange-400' : 'border-purple-400'} pl-2`}>
+                            <p className="font-semibold text-gray-700">
+                              📝 PAN {panMismatched ? '⚠️ Mismatch' : 'Verified'}
+                            </p>
+                            <p className="text-gray-600">Number: {profile.panNumber || 'N/A'}</p>
+                            {panMismatched && profile.panDocReason && (
+                              <p className="text-orange-600 font-medium">⚠️ {profile.panDocReason}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {app.notes && (
-                      <div className="text-xs text-gray-700 bg-gray-50 p-2 rounded border border-gray-200 mb-2">
-                        <span className="text-gray-500">Notes: </span>{app.notes}
+                      <div className="text-xs text-gray-700 bg-yellow-50 p-2 rounded border border-yellow-200 mb-2">
+                        <span className="text-gray-600 font-medium">📌 Notes: </span>{app.notes}
                       </div>
                     )}
 
@@ -370,7 +462,8 @@ function KYCDocumentManager() {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
