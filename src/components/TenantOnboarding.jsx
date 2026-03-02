@@ -48,6 +48,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   const [qrData, setQrData] = useState(null);
   const [qrError, setQrError] = useState('');
   const [qrDisplayData, setQrDisplayData] = useState(null);
+  const [flashlightOn, setFlashlightOn] = useState(false);
   const qrScannerRef = useRef(null);
   const scannerInitializing = useRef(false); // Prevent double-initialization
   const frameCountIntervalRef = useRef(null); // Track frame processing
@@ -342,19 +343,18 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       console.log(`📐 QR Box Size: ${qrboxSize}x${qrboxSize}px (Viewport: ${viewportWidth}x${viewportHeight})`);
 
       const scanConfig = {
-        fps: 15, // Increased to 15 FPS for faster detection
+        fps: 10, // Stable 10 FPS for better accuracy
         qrbox: { width: qrboxSize, height: qrboxSize }, // Larger detection area
-        aspectRatio: 1.0,
-        disableFlip: false,
+        disableFlip: false, // Try both normal and mirrored
         rememberLastUsedCamera: true,
-        showTorchButtonIfSupported: true, // Show flashlight button if available
-        showZoomSliderIfSupported: true, // Show zoom slider if available
-        defaultZoomValueIfSupported: 1.5, // Reduced zoom for wider view
-        formatsToSupport: [0], // 0 = QR_CODE only
-        videoConstraints: {
-          facingMode: 'environment',
-          focusMode: 'continuous',
-          advanced: [{ torch: true }]
+        showTorchButtonIfSupported: true,
+        showZoomSliderIfSupported: true,
+        defaultZoomValueIfSupported: 1.5,
+        // IMPORTANT: Enable ALL barcode formats for Aadhaar QR compatibility
+        // Some Aadhaar QRs may need multiple format decoders
+        // Leave formatsToSupport undefined to enable all formats
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true // Use native browser barcode API if available
         }
       };
 
@@ -409,14 +409,26 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
         },
         (errorMessage) => {
           // Scan failed (no QR in frame) — this fires continuously
-          // Log first 10 errors to understand what's happening
-          if (frameCount <= 10) {
+          // These are NORMAL errors while scanning - only log unusual ones
+          
+          // Ignore common scanning errors
+          if (errorMessage && (
+            errorMessage.includes('NotFoundException') ||
+            errorMessage.includes('No MultiFormat Readers') ||
+            errorMessage.includes('error = B:')
+          )) {
+            // Silent - these are expected during active scanning
+            return;
+          }
+          
+          // Log first 5 attempts for debugging
+          if (frameCount <= 5) {
             console.log(`🔍 Scan attempt ${frameCount}: ${errorMessage}`);
           }
           
-          // Log non-NotFoundException errors
-          if (errorMessage && !errorMessage.includes('NotFoundException')) {
-            console.warn('⚠️ Scan error:', errorMessage);
+          // Log only unusual errors
+          if (errorMessage && errorMessage.trim()) {
+            console.warn('⚠️ Unusual scan error:', errorMessage);
           }
         }
       );
@@ -474,8 +486,58 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
     }
   };
 
+  // Toggle flashlight/torch
+  const toggleFlashlight = async () => {
+    try {
+      const scannerDiv = document.getElementById('qr-reader-region');
+      if (!scannerDiv) {
+        console.warn('Scanner div not found');
+        return;
+      }
+
+      const video = scannerDiv.querySelector('video');
+      if (!video || !video.srcObject) {
+        console.warn('Video element or stream not found');
+        showToast('⚠️ Camera not active', 'error');
+        return;
+      }
+
+      const stream = video.srcObject;
+      const track = stream.getVideoTracks()[0];
+      
+      if (!track) {
+        console.warn('Video track not found');
+        return;
+      }
+
+      // Check if torch is supported
+      const capabilities = track.getCapabilities();
+      if (!capabilities.torch) {
+        console.warn('Flashlight not supported on this device');
+        showToast('⚠️ Flashlight not supported on your device', 'error');
+        return;
+      }
+
+      // Toggle torch
+      const newState = !flashlightOn;
+      await track.applyConstraints({
+        advanced: [{ torch: newState }]
+      });
+      
+      setFlashlightOn(newState);
+      console.log(`💡 Flashlight ${newState ? 'ON' : 'OFF'}`);
+      showToast(`💡 Flashlight ${newState ? 'ON' : 'OFF'}`, 'success');
+    } catch (err) {
+      console.error('Flashlight toggle error:', err);
+      showToast('⚠️ Could not toggle flashlight', 'error');
+    }
+  };
+
   const stopQrScanner = async () => {
     console.log('🛑 Stopping QR scanner...');
+    
+    // Reset flashlight state
+    setFlashlightOn(false);
     
     // Clear frame counting interval
     if (frameCountIntervalRef.current) {
@@ -1557,12 +1619,13 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                         )}
                       </div>
                       <ul className="text-xs space-y-1.5">
-                        <li>✓ Aadhaar card ko camera ke samne <strong>straight</strong> pakdein</li>
-                        <li>✓ QR code ko <strong>green box</strong> ke andar laayein</li>
-                        <li>✓ Good lighting chahiye - <strong>💡 Flashlight button</strong> use karein agar dikhe</li>
-                        <li>✓ Camera se <strong>10-15cm door</strong> rakhein (6 inch)</li>
-                        <li>✓ QR code <strong>blur na ho</strong> - focus hone tak wait karein</li>
-                        <li>✓ Dhire-dhire move karein, <strong>automatic scan</strong> hoga</li>
+                        <li>✓ <strong>💡 Top-left button</strong> se flashlight ON/OFF karein</li>
+                        <li>✓ <strong>Flashlight ON karke</strong> scan karein - better results milenge</li>
+                        <li>✓ Card ko <strong>flat & straight</strong> pakdein - tilted nahi</li>
+                        <li>✓ QR code ko <strong>green box ke center</strong> mein align karein</li>
+                        <li>✓ Distance: <strong>10-15cm</strong> (6 inches) - bahut paas ya door nahi</li>
+                        <li>✓ <strong>2-3 seconds steady</strong> rakhen - camera focus hone do</li>
+                        <li>✓ Agar scanning nahi ho rahi, card ko <strong>thoda move</strong> karein</li>
                       </ul>
                     </div>
                     <div 
@@ -1621,6 +1684,20 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                             ></div>
                           </div>
                         </div>
+                      )}
+                      
+                      {/* Flashlight Toggle Button - Top Left */}
+                      {!scannerLoading && qrScanning && (
+                        <button
+                          onClick={toggleFlashlight}
+                          className={`absolute top-4 left-4 z-30 px-4 py-2 rounded-full shadow-lg font-bold text-sm transition-all pointer-events-auto ${
+                            flashlightOn 
+                              ? 'bg-yellow-400 text-gray-900 animate-pulse' 
+                              : 'bg-gray-800 text-white border-2 border-gray-600'
+                          }`}
+                        >
+                          {flashlightOn ? '💡 ON' : '💡 OFF'}
+                        </button>
                       )}
                       
                       {/* Scanning Active Indicator */}
