@@ -376,6 +376,55 @@ const TenantHistory = () => {
     return grouped;
   };
 
+  // Merge records by month (combine multiple rooms into one record)
+  const mergeRecordsByMonth = (records) => {
+    const grouped = {};
+    
+    records.forEach(record => {
+      const monthKey = `${record.year}-${String(record.month).padStart(2, '0')}`;
+      
+      if (!grouped[monthKey]) {
+        grouped[monthKey] = {
+          year: record.year,
+          month: record.month,
+          monthKey,
+          rooms: [],
+          totalRent: 0,
+          totalElectricity: 0,
+          totalPaid: 0,
+          totalUnits: 0,
+          statuses: new Set(),
+          records: [] // Keep original records for reference
+        };
+      }
+      
+      const rent = Number(record.rent) || 0;
+      const electricity = Number(record.electricity) || 0;
+      const paid = Number(record.paidAmount) || 0;
+      const units = Number(record.units) || 0;
+      
+      grouped[monthKey].rooms.push({
+        roomNumber: record.roomNumber,
+        rent,
+        electricity,
+        paid,
+        units,
+        status: record.status
+      });
+      grouped[monthKey].totalRent += rent;
+      grouped[monthKey].totalElectricity += electricity;
+      grouped[monthKey].totalPaid += paid;
+      grouped[monthKey].totalUnits += units;
+      grouped[monthKey].statuses.add(record.status);
+      grouped[monthKey].records.push(record);
+    });
+    
+    return Object.values(grouped).sort((a, b) => {
+      if (b.year !== a.year) return b.year - a.year;
+      return b.month - a.month;
+    });
+  };
+
   const floorOptions = [...new Set(
     tenants
       .map((tenant) => getFloorFromRoom(tenant.roomNumber))
@@ -680,53 +729,56 @@ const TenantHistory = () => {
 
                     {isMobileViewport ? (
                       <div className="space-y-3">
-                        {records.map((record) => {
-                          const rent = Number(record.rent) || 0;
-                          const electricity = Number(record.electricity) || 0;
-                          const total = rent + electricity;
-                          const paid = Number(record.paidAmount) || 0;
-                          const units = record.units || 0;
-                          const oldReading = record.oldReading || 0;
-                          const currentReading = record.currentReading || 0;
-                          const ratePerUnit = record.ratePerUnit || 0;
+                        {mergeRecordsByMonth(records).map((merged) => {
+                          const total = merged.totalRent + merged.totalElectricity;
+                          const balance = merged.totalRent + merged.totalElectricity - merged.totalPaid;
+                          const roomList = merged.rooms.map(r => r.roomNumber).sort((a, b) => a - b);
+                          
+                          // Determine status
+                          let statusColor = 'bg-green-100 text-green-800';
+                          let statusText = 'Paid';
+                          if (merged.statuses.has('unpaid')) {
+                            statusColor = 'bg-red-100 text-red-800';
+                            statusText = 'Unpaid';
+                          } else if (merged.statuses.has('partial')) {
+                            statusColor = 'bg-yellow-100 text-yellow-800';
+                            statusText = merged.statuses.size > 1 ? 'Mixed' : 'Partial';
+                          }
 
                           return (
-                            <div key={record.id} className="rounded-lg border border-gray-200 p-3 bg-white">
+                            <div key={merged.monthKey} className="rounded-lg border border-gray-200 p-3 bg-white">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
                                   <p className="text-xs text-gray-500">Month</p>
-                                  <p className="font-semibold text-gray-900">{MONTHS[record.month - 1]?.name} {record.year}</p>
+                                  <p className="font-semibold text-gray-900">{MONTHS[merged.month - 1]?.name} {merged.year}</p>
                                 </div>
-                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                  record.status === 'paid'
-                                    ? 'bg-green-100 text-green-800'
-                                    : record.status === 'partial'
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {record.status || 'unpaid'}
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
+                                  {statusText}
                                 </span>
                               </div>
 
-                              <div className="mt-2">
-                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                  record.roomNumber < 200
-                                    ? 'bg-green-100 text-green-700'
-                                    : 'bg-purple-100 text-purple-700'
-                                }`}>
-                                  Room {record.roomNumber}
-                                </span>
+                              <div className="mt-2 flex gap-1 flex-wrap">
+                                {roomList.map((room) => (
+                                  <span 
+                                    key={room}
+                                    className={`px-2 py-1 rounded text-xs font-semibold ${
+                                      room < 200
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-purple-100 text-purple-700'
+                                    }`}
+                                  >
+                                    Room {room}
+                                  </span>
+                                ))}
                               </div>
 
                               <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                                <p>Rent: <span className="font-semibold">₹{rent.toLocaleString('en-IN')}</span></p>
-                                <p>Paid: <span className="font-semibold">₹{paid.toLocaleString('en-IN')}</span></p>
-                                <p>Old: <span className="font-semibold">{oldReading}</span></p>
-                                <p>Current: <span className="font-semibold">{currentReading}</span></p>
-                                <p>Units: <span className="font-semibold text-blue-600">{units}</span></p>
-                                <p>Rate: <span className="font-semibold">₹{ratePerUnit.toFixed(2)}</span></p>
-                                <p>Electricity: <span className="font-semibold">₹{electricity.toLocaleString('en-IN')}</span></p>
+                                <p>Rent: <span className="font-semibold">₹{merged.totalRent.toLocaleString('en-IN')}</span></p>
+                                <p>Paid: <span className="font-semibold">₹{merged.totalPaid.toLocaleString('en-IN')}</span></p>
+                                <p>Units: <span className="font-semibold text-blue-600">{merged.totalUnits}</span></p>
+                                <p>Electricity: <span className="font-semibold">₹{merged.totalElectricity.toLocaleString('en-IN')}</span></p>
                                 <p>Total: <span className="font-semibold">₹{total.toLocaleString('en-IN')}</span></p>
+                                <p>Balance: <span className={`font-semibold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>₹{Math.abs(balance).toLocaleString('en-IN')}</span></p>
                               </div>
                             </div>
                           );
@@ -738,68 +790,77 @@ const TenantHistory = () => {
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Rent</th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Old Reading</th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Current Reading</th>
+                              <th className="px-3 py-2 text-left font-semibold text-gray-700">Rooms</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Total Rent</th>
                               <th className="px-3 py-2 text-right font-semibold text-gray-700">Units</th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Rate</th>
                               <th className="px-3 py-2 text-right font-semibold text-gray-700">Electricity</th>
                               <th className="px-3 py-2 text-right font-semibold text-gray-700">Total</th>
                               <th className="px-3 py-2 text-right font-semibold text-gray-700">Paid</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Balance</th>
                               <th className="px-3 py-2 text-center font-semibold text-gray-700">Status</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
-                            {records.map((record) => {
-                              const rent = Number(record.rent) || 0;
-                              const electricity = Number(record.electricity) || 0;
-                              const total = rent + electricity;
-                              const paid = Number(record.paidAmount) || 0;
-                              const units = record.units || 0;
-                              const oldReading = record.oldReading || 0;
-                              const currentReading = record.currentReading || 0;
-                              const ratePerUnit = record.ratePerUnit || 0;
+                            {mergeRecordsByMonth(records).map((merged) => {
+                              const total = merged.totalRent + merged.totalElectricity;
+                              const balance = merged.totalRent + merged.totalElectricity - merged.totalPaid;
+                              const roomList = merged.rooms.map(r => r.roomNumber).sort((a, b) => a - b);
+                              
+                              // Determine status based on all room statuses
+                              let statusColor = 'bg-green-100 text-green-800';
+                              let statusText = 'Paid';
+                              if (merged.statuses.has('unpaid')) {
+                                statusColor = 'bg-red-100 text-red-800';
+                                statusText = 'Unpaid';
+                              } else if (merged.statuses.has('partial')) {
+                                statusColor = 'bg-yellow-100 text-yellow-800';
+                                statusText = merged.statuses.size > 1 ? 'Mixed' : 'Partial';
+                              }
 
                               return (
-                                <tr key={record.id} className="hover:bg-gray-50">
+                                <tr key={merged.monthKey} className="hover:bg-gray-50">
                                   <td className="px-3 py-2 font-semibold">
-                                    {MONTHS[record.month - 1]?.name}
+                                    {MONTHS[merged.month - 1]?.name} {merged.year}
                                   </td>
                                   <td className="px-3 py-2">
-                                    <span className={`px-2 py-1 rounded ${
-                                      record.roomNumber < 200
-                                        ? 'bg-green-100 text-green-700'
-                                        : 'bg-purple-100 text-purple-700'
-                                    } font-semibold`}>
-                                      {record.roomNumber}
-                                    </span>
+                                    <div className="flex gap-1 flex-wrap">
+                                      {roomList.map((room) => (
+                                        <span 
+                                          key={room}
+                                          className={`px-2 py-1 rounded text-xs font-semibold ${
+                                            room < 200
+                                              ? 'bg-green-100 text-green-700'
+                                              : 'bg-purple-100 text-purple-700'
+                                          }`}
+                                        >
+                                          {room}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-semibold">
+                                    ₹{merged.totalRent.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-semibold text-blue-600">
+                                    {merged.totalUnits}
                                   </td>
                                   <td className="px-3 py-2 text-right">
-                                    ₹{rent.toLocaleString('en-IN')}
-                                  </td>
-                                  <td className="px-3 py-2 text-right">{oldReading}</td>
-                                  <td className="px-3 py-2 text-right">{currentReading}</td>
-                                  <td className="px-3 py-2 text-right font-semibold text-blue-600">{units}</td>
-                                  <td className="px-3 py-2 text-right">₹{ratePerUnit.toFixed(2)}</td>
-                                  <td className="px-3 py-2 text-right">
-                                    ₹{electricity.toLocaleString('en-IN')}
+                                    ₹{merged.totalElectricity.toLocaleString('en-IN')}
                                   </td>
                                   <td className="px-3 py-2 text-right font-semibold">
                                     ₹{total.toLocaleString('en-IN')}
                                   </td>
-                                  <td className="px-3 py-2 text-right">
-                                    ₹{paid.toLocaleString('en-IN')}
+                                  <td className="px-3 py-2 text-right text-green-600 font-semibold">
+                                    ₹{merged.totalPaid.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-semibold">
+                                    <span className={balance > 0 ? 'text-red-600' : 'text-green-600'}>
+                                      ₹{Math.abs(balance).toLocaleString('en-IN')}
+                                    </span>
                                   </td>
                                   <td className="px-3 py-2 text-center">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                      record.status === 'paid'
-                                        ? 'bg-green-100 text-green-800'
-                                        : record.status === 'partial'
-                                        ? 'bg-yellow-100 text-yellow-800'
-                                        : 'bg-red-100 text-red-800'
-                                    }`}>
-                                      {record.status || 'unpaid'}
+                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
+                                      {statusText}
                                     </span>
                                   </td>
                                 </tr>
