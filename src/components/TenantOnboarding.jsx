@@ -49,6 +49,9 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   const [qrDisplayData, setQrDisplayData] = useState(null);
   const qrScannerRef = useRef(null);
   const qrRegionRef = useRef(null);
+  const qrCameraInputRef = useRef(null);
+  const [qrCameraOpen, setQrCameraOpen] = useState(false);
+  const [qrCameraProcessing, setQrCameraProcessing] = useState(false);
 
   // Step 3: Documents
   const [documents, setDocuments] = useState({
@@ -357,6 +360,38 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
     } catch (err) {
       console.error('❌ Image QR scan failed:', err);
       setQrError('❌ Could not read QR code from image. Make sure the QR code is clearly visible.');
+    }
+  };
+
+  const handleQrCameraCapture = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setQrError('');
+    setQrCameraProcessing(true);
+    console.log('📷 Processing QR code photo from camera:', file.name);
+    try {
+      const regionId = 'qr-reader-region-camera';
+      const scanner = new Html5Qrcode(regionId);
+      const result = await scanner.scanFile(file, true);
+      scanner.clear();
+      console.log('✅ QR decoded from camera photo! Length:', result.length);
+      handleQrResult(result);
+      setQrCameraOpen(false);
+    } catch (err) {
+      console.error('❌ Camera QR scan failed:', err);
+      setQrError('❌ Could not read QR code from photo. Make sure QR code is clearly visible and well-lit.');
+    } finally {
+      setQrCameraProcessing(false);
+    }
+  };
+
+  const openQrCamera = () => {
+    setQrError('');
+    setQrCameraOpen(true);
+    // Trigger camera input
+    if (qrCameraInputRef.current) {
+      qrCameraInputRef.current.click();
     }
   };
 
@@ -1344,8 +1379,9 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                     </div>
                   )}
 
-                  {/* Hidden div for image-based scan */}
+                  {/* Hidden divs for image-based scan */}
                   <div id="qr-reader-region-upload" className="hidden" />
+                  <div id="qr-reader-region-camera" className="hidden" />
 
                   {!qrScanning && !scannerLoading && (
                     <div className="space-y-3">
@@ -1355,6 +1391,25 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                       >
                         📷 Open Camera & Scan Aadhaar
                       </button>
+
+                      <div className="text-center text-xs text-gray-400">— OR —</div>
+
+                      <button
+                        onClick={openQrCamera}
+                        disabled={qrCameraProcessing}
+                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+                      >
+                        {qrCameraProcessing ? '📷 Processing...' : '📸 Take QR Photo & Submit'}
+                      </button>
+
+                      <input
+                        ref={qrCameraInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={handleQrCameraCapture}
+                      />
 
                       <div className="text-center text-xs text-gray-400">— OR —</div>
 
