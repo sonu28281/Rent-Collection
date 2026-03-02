@@ -241,9 +241,9 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       const scanConfig = {
         fps: 20, // 20 FPS = more scan attempts per second for faster detection
         qrbox: function(viewfinderWidth, viewfinderHeight) {
-          // 75% - larger area for easier QR detection
+          // 45% - smaller, more focused area for accurate QR detection
           const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          const qrboxSize = Math.floor(minEdge * 0.75);
+          const qrboxSize = Math.floor(minEdge * 0.45);
           console.log('📐 QR Box Size:', qrboxSize, 'px');
           return {
             width: qrboxSize,
@@ -263,7 +263,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
       console.log('🚀 Starting scanner with config:', {
         fps: scanConfig.fps,
-        qrbox: '75%',
+        qrbox: '45%',
         zoom: '1.5x',
         experimentalFeatures: true
       });
@@ -314,7 +314,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       console.log('✅ SCANNER READY! Camera feed active.');
       console.log('💡 Hold Aadhaar QR code INSIDE the green box');
       console.log('📊 Scanning at 20 FPS (20 attempts per second)');
-      console.log('📦 QR Box: 75% viewport (larger detection area)');
+      console.log('📦 QR Box: 45% viewport (focused detection area)');
       console.log('🔍 Zoom: 1.5x (better focus)');
       console.log('⚡ experimentalFeatures: ON (native detector)');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -987,8 +987,22 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
         setCurrentStep(5); // Show success screen
       }
     } catch (err) {
-      console.error('Submit error:', err);
-      showToast('❌ Failed to submit. Please try again.', 'error');
+      console.error('❌ KYC SUBMIT FAILED:', {
+        error: err.message,
+        code: err.code,
+        fullError: err
+      });
+      console.error('Stack:', err.stack);
+      // Provide specific error messages
+      let errorMsg = 'Failed to submit KYC';
+      if (err.code === 'permission-denied') {
+        errorMsg = 'Permission denied. Please check Firestore rules.';
+      } else if (err.code === 'not-found') {
+        errorMsg = 'Database connection issue. Try again.';
+      } else if (err.message?.includes('Document')) {
+        errorMsg = 'Document upload incomplete.';
+      }
+      showToast(`❌ ${errorMsg}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -1362,11 +1376,11 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                           {/* Dark overlay around box */}
                           <div className="absolute inset-0 bg-black bg-opacity-30"></div>
                           
-                          {/* Green scanning box - 75% size matches scanner config */}
+                          {/* Green scanning box - 45% size, focused QR area */}
                           <div 
                             className="relative z-10 border-4 border-green-400 rounded-lg shadow-lg"
                             style={{ 
-                              width: '75%', 
+                              width: '45%', 
                               aspectRatio: '1/1',
                               boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.25)'
                             }}
@@ -1633,6 +1647,20 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
               <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-xl p-4">
                 <h2 className="text-lg font-bold text-emerald-900 mb-1">📄 Step 3: Upload Documents</h2>
                 <p className="text-sm text-emerald-700">Upload Aadhaar (front &amp; back), secondary ID, and selfie.</p>
+              </div>
+
+              {/* Document Capture Tips */}
+              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                <p className="text-sm font-bold text-blue-900 mb-2">📸 How to Capture Documents (Like a Scanner):</p>
+                <ul className="text-xs text-blue-800 space-y-1.5">
+                  <li>✓ <strong>Fill the frame</strong> - Document should take up 70-80% of the photo</li>
+                  <li>✓ <strong>Center the document</strong> - Keep it straight & centered in view</li>
+                  <li>✓ <strong>Minimize background</strong> - Crop out extra walls/surfaces</li>
+                  <li>✓ <strong>Bright, even lighting</strong> - No shadows or glare on document</li>
+                  <li>✓ <strong>Flat & straight</strong> - Document edges parallel to frame edges</li>
+                  <li>✓ <strong>Sharp & clear</strong> - All text readable (not blurry)</li>
+                </ul>
+                <p className="text-xs text-blue-700 mt-2 pt-2 border-t border-blue-200">💡 Tip: We'll automatically enhance your photo to look like a scanned document.</p>
               </div>
 
               {/* Cross-Verification Status */}
