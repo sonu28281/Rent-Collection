@@ -213,22 +213,49 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
         throw new Error('Camera not supported by this browser. Please use Chrome, Firefox, or Safari.');
       }
 
-      // Request camera permission explicitly
+      // Check if running as installed PWA
+      const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                    window.navigator.standalone === true ||
+                    document.referrer.includes('android-app://');
+
+      // Request camera permission explicitly with better error handling for PWA
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: 'environment' } 
-        });
+        // Try with more basic constraints first for PWA compatibility
+        const constraints = isPWA 
+          ? { video: true } // Basic constraint for PWA
+          : { video: { facingMode: { ideal: 'environment' } } }; // Advanced for browser
+        
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
         // Stop the test stream immediately
         stream.getTracks().forEach(track => track.stop());
+        
+        // Small delay to ensure camera is fully released
+        await new Promise(resolve => setTimeout(resolve, 100));
       } catch (permErr) {
+        console.error('Camera permission error:', permErr);
+        
         if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+          if (isPWA) {
+            throw new Error('Camera permission denied. For installed app: Go to your phone Settings → Apps → This App → Permissions → Enable Camera.');
+          }
           throw new Error('Camera permission denied. Please allow camera access in browser settings.');
         } else if (permErr.name === 'NotFoundError') {
-          throw new Error('No camera found. Please connect a camera and try again.');
+          throw new Error('No camera found. Please make sure your device has a camera.');
         } else if (permErr.name === 'NotReadableError') {
-          throw new Error('Camera is already in use by another application.');
+          throw new Error('Camera is already in use by another application. Please close other apps and try again.');
+        } else if (permErr.name === 'OverconstrainedError') {
+          // Try again with basic constraints
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            stream.getTracks().forEach(track => track.stop());
+            await new Promise(resolve => setTimeout(resolve, 100));
+          } catch {
+            throw new Error('Camera access failed. Please check camera permissions in device settings.');
+          }
+        } else {
+          throw new Error(`Camera access failed: ${permErr.message || 'Unknown error'}`);
         }
-        throw new Error(`Camera access failed: ${permErr.message}`);
       }
 
       const regionId = 'qr-reader-region';
@@ -1252,6 +1279,12 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                       <div className="text-xs text-red-700 space-y-1.5 mt-3">
                         <p className="font-semibold">💡 Troubleshooting Tips:</p>
                         <ul className="ml-4 space-y-1">
+                          {(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) && (
+                            <>
+                              <li>• <strong>Installed App:</strong> Go to Phone Settings → Apps → Find this app → Permissions → Enable Camera</li>
+                              <li>• Uninstall and reinstall the app to reset permissions</li>
+                            </>
+                          )}
                           <li>• Check browser camera permissions in settings</li>
                           <li>• Make sure no other app is using the camera</li>
                           <li>• Try closing other tabs/apps that might be using camera</li>

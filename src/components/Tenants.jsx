@@ -702,84 +702,88 @@ const Tenants = () => {
 
       {/* Filters Section - Compact Single Row */}
       <div className="card mb-4">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          {/* All Filters in One Row */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        <div className="flex flex-col gap-4">
+          {/* All Filters in One Row - Wraps on Mobile */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 text-sm">
             {/* Status Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">Status:</span>
-              <button
-                onClick={() => setFilter('all')}
-                className={`font-semibold transition ${
-                  filter === 'all'
-                    ? 'text-primary underline underline-offset-4'
-                    : 'text-gray-600 hover:text-primary'
-                }`}
-              >
-                All ({stats.total})
-              </button>
-              <span className="text-gray-400">|</span>
-              <button
-                onClick={() => setFilter('active')}
-                className={`font-semibold transition ${
-                  filter === 'active'
-                    ? 'text-green-600 underline underline-offset-4'
-                    : 'text-gray-600 hover:text-green-600'
-                }`}
-              >
-                Active ({stats.active})
-              </button>
-              <span className="text-gray-400">|</span>
-              <button
-                onClick={() => setFilter('inactive')}
-                className={`font-semibold transition ${
-                  filter === 'inactive'
-                    ? 'text-gray-600 underline underline-offset-4'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                Inactive ({stats.inactive})
-              </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Status:</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setFilter('all')}
+                  className={`font-semibold transition ${
+                    filter === 'all'
+                      ? 'text-primary underline underline-offset-4'
+                      : 'text-gray-600 hover:text-primary'
+                  }`}
+                >
+                  All ({stats.total})
+                </button>
+                <span className="text-gray-400">|</span>
+                <button
+                  onClick={() => setFilter('active')}
+                  className={`font-semibold transition ${
+                    filter === 'active'
+                      ? 'text-green-600 underline underline-offset-4'
+                      : 'text-gray-600 hover:text-green-600'
+                  }`}
+                >
+                  Active ({stats.active})
+                </button>
+                <span className="text-gray-400">|</span>
+                <button
+                  onClick={() => setFilter('inactive')}
+                  className={`font-semibold transition ${
+                    filter === 'inactive'
+                      ? 'text-gray-600 underline underline-offset-4'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Inactive ({stats.inactive})
+                </button>
+              </div>
             </div>
 
             {/* Divider */}
             <div className="hidden lg:block h-6 w-px bg-gray-300"></div>
 
             {/* KYC Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">KYC:</span>
-              <button
-                onClick={() => setKycFilter('all')}
-                className={`font-semibold transition ${
-                  kycFilter === 'all'
-                    ? 'text-emerald-600 underline underline-offset-4'
-                    : 'text-gray-600 hover:text-emerald-600'
-                }`}
-              >
-                All ({stats.total})
-              </button>
-              <span className="text-gray-400">|</span>
-              <button
-                onClick={() => setKycFilter('verified')}
-                className={`font-semibold transition ${
-                  kycFilter === 'verified'
-                    ? 'text-green-600 underline underline-offset-4'
-                    : 'text-gray-600 hover:text-green-600'
-                }`}
-              >
-                ✅ Verified ({stats.kycVerified})
-              </button>
-              <span className="text-gray-400">|</span>
-              <button
-                onClick={() => setKycFilter('not_verified')}
-                className={`font-semibold transition ${
-                  kycFilter === 'not_verified'
-                    ? 'text-amber-600 underline underline-offset-4'
-                    : 'text-gray-600 hover:text-amber-600'
-                }`}
-              >
-                ⏳ Not Verified ({stats.kycNotVerified})
-              </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">KYC:</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setKycFilter('all')}
+                  className={`font-semibold transition ${
+                    kycFilter === 'all'
+                      ? 'text-emerald-600 underline underline-offset-4'
+                      : 'text-gray-600 hover:text-emerald-600'
+                  }`}
+                >
+                  All ({stats.total})
+                </button>
+                <span className="text-gray-400">|</span>
+                <button
+                  onClick={() => setKycFilter('verified')}
+                  className={`font-semibold transition ${
+                    kycFilter === 'verified'
+                      ? 'text-green-600 underline underline-offset-4'
+                      : 'text-gray-600 hover:text-green-600'
+                  }`}
+                >
+                  ✅ Verified ({stats.kycVerified})
+                </button>
+                <span className="text-gray-400">|</span>
+                <button
+                  onClick={() => setKycFilter('not_verified')}
+                  className={`font-semibold transition ${
+                    kycFilter === 'not_verified'
+                      ? 'text-amber-600 underline underline-offset-4'
+                      : 'text-gray-600 hover:text-amber-600'
+                  }`}
+                >
+                  ⏳ Not Verified ({stats.kycNotVerified})
+                </button>
+              </div>
             </div>
 
             {/* Divider */}
@@ -787,68 +791,72 @@ const Tenants = () => {
 
             {/* View Mode */}
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">View:</span>
-              <button
-                onClick={() => setViewMode('card')}
-                className={`font-semibold transition flex items-center gap-1 ${
-                  viewMode === 'card'
-                    ? 'text-orange-600 underline underline-offset-4'
-                    : 'text-gray-600 hover:text-orange-600'
-                }`}
-              >
-                <span>🎴</span> Cards
-              </button>
-              <span className="text-gray-400">|</span>
-              <button
-                onClick={() => setViewMode('table')}
-                className={`font-semibold transition flex items-center gap-1 ${
-                  viewMode === 'table'
-                    ? 'text-orange-600 underline underline-offset-4'
-                    : 'text-gray-600 hover:text-orange-600'
-                }`}
-              >
-                <span>📋</span> Table
-              </button>
+              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">View:</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setViewMode('card')}
+                  className={`font-semibold transition flex items-center gap-1 ${
+                    viewMode === 'card'
+                      ? 'text-orange-600 underline underline-offset-4'
+                      : 'text-gray-600 hover:text-orange-600'
+                  }`}
+                >
+                  <span>🎴</span> Cards
+                </button>
+                <span className="text-gray-400">|</span>
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`font-semibold transition flex items-center gap-1 ${
+                    viewMode === 'table'
+                      ? 'text-orange-600 underline underline-offset-4'
+                      : 'text-gray-600 hover:text-orange-600'
+                  }`}
+                >
+                  <span>📋</span> Table
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Merge Section - Horizontal on Desktop */}
-          <div className="flex items-center gap-2 border-l-2 lg:border-l-2 border-amber-300 lg:pl-4">
+          {/* Merge Section - Better Mobile Layout */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 pt-3 border-t border-gray-200 lg:border-t-0 lg:pt-0 lg:border-l-2 lg:border-amber-300 lg:pl-4">
             <span className="text-xs font-bold text-amber-900 whitespace-nowrap">🧩 Merge:</span>
-            <select
-              value={mergeTargetTenantId}
-              onChange={(event) => setMergeTargetTenantId(event.target.value)}
-              disabled={mergingTenants}
-              className="px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white max-w-[120px]"
-            >
-              <option value="">Target</option>
-              {tenants.map((tenant) => (
-                <option key={`target_${tenant.id}`} value={tenant.id}>
-                  {tenant.name}
-                </option>
-              ))}
-            </select>
-            <span className="text-gray-400">→</span>
-            <select
-              value={mergeSourceTenantId}
-              onChange={(event) => setMergeSourceTenantId(event.target.value)}
-              disabled={mergingTenants}
-              className="px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white max-w-[120px]"
-            >
-              <option value="">Source</option>
-              {tenants.map((tenant) => (
-                <option key={`source_${tenant.id}`} value={tenant.id}>
-                  {tenant.name}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={mergeTenantAccounts}
-              disabled={mergingTenants}
-              className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 text-xs whitespace-nowrap"
-            >
-              {mergingTenants ? '...' : 'Merge'}
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+              <select
+                value={mergeTargetTenantId}
+                onChange={(event) => setMergeTargetTenantId(event.target.value)}
+                disabled={mergingTenants}
+                className="px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white w-28 sm:max-w-[120px]"
+              >
+                <option value="">Target</option>
+                {tenants.map((tenant) => (
+                  <option key={`target_${tenant.id}`} value={tenant.id}>
+                    {tenant.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-gray-400">→</span>
+              <select
+                value={mergeSourceTenantId}
+                onChange={(event) => setMergeSourceTenantId(event.target.value)}
+                disabled={mergingTenants}
+                className="px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white w-28 sm:max-w-[120px]"
+              >
+                <option value="">Source</option>
+                {tenants.map((tenant) => (
+                  <option key={`source_${tenant.id}`} value={tenant.id}>
+                    {tenant.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={mergeTenantAccounts}
+                disabled={mergingTenants}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 text-xs whitespace-nowrap"
+              >
+                {mergingTenants ? '...' : 'Merge'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

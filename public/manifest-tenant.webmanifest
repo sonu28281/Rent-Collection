@@ -20,5 +20,10 @@
       "type": "image/svg+xml",
       "purpose": "any"
     }
-  ]
+  ],
+  "permissions": [
+    "camera"
+  ],
+  "categories": ["business", "finance", "utilities"],
+  "orientation": "portrait-primary"
 }
