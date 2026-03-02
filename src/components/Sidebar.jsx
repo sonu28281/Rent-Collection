@@ -27,7 +27,8 @@ const Sidebar = () => {
   // Settings submenu items
   const tenantItems = [
     { icon: '🏘️', label: 'Occupancy', path: '/tenants' },
-    { icon: '🪪', label: 'Tenants KYC Details', path: '/tenants-kyc' }
+    { icon: '🪪', label: 'Tenants KYC Details', path: '/tenants-kyc' },
+    { icon: '🚪', label: 'Checkout Requests', path: '/checkout' }
   ];
 
   // Settings submenu items

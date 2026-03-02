@@ -24,6 +24,7 @@ import PaymentsReset from './components/PaymentsReset';
 import DatabaseCleanup from './components/DatabaseCleanup';
 import VacancyReport from './components/VacancyReport';
 import TenantOnboarding from './components/TenantOnboarding';
+import AdminCheckoutPanel from './components/AdminCheckoutPanel';
 import DialogProvider from './components/ui/DialogProvider';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -84,6 +85,10 @@ function App() {
           <Route 
             path="/tenants-kyc" 
             element={adminRouteElement(<TenantsKYCDetails />)} 
+          />
+          <Route 
+            path="/checkout" 
+            element={adminRouteElement(<AdminCheckoutPanel />)} 
           />
           <Route 
             path="/electricity" 

@@ -3,6 +3,7 @@ import { collection, query, where, getDocs, limit, doc, getDoc, setDoc } from 'f
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import SubmitPayment from './SubmitPayment';
+import TenantCheckoutRequest from './TenantCheckoutRequest';
 import googlePayLogo from '../assets/payment-icons/google-pay.svg';
 import phonePeLogo from '../assets/payment-icons/phonepe.svg';
 import Tesseract from 'tesseract.js';
@@ -76,6 +77,7 @@ const TenantPortal = () => {
   const [kycCallbackMessage, setKycCallbackMessage] = useState('');
   const [hiddenRejectedSubmissionIds, setHiddenRejectedSubmissionIds] = useState(new Set());
   const [currentKycStep, setCurrentKycStep] = useState(1); // Track current active KYC step (1, 2, or 3)
+  const [showCheckoutRequest, setShowCheckoutRequest] = useState(false);
   const [tenantProfile, setTenantProfile] = useState({
     firstName: '',
     lastName: '',
@@ -2745,6 +2747,42 @@ const TenantPortal = () => {
 
             {/* DigiLocker KYC section removed - now integrated into Tenant KYC Profile below */}
 
+            {/* Checkout Request Button - Show if tenant is active and hasn't requested checkout */}
+            {tenant?.status !== 'checkout_requested' && tenant?.status !== 'inactive' && tenant?.isActive !== false && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-1">Planning to Move Out?</h3>
+                    <p className="text-sm text-gray-600">Submit a checkout request to start the settlement process</p>
+                  </div>
+                  <button
+                    onClick={() => setShowCheckoutRequest(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 transition-colors font-medium whitespace-nowrap"
+                  >
+                    Request Checkout
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Checkout Request Pending Notice */}
+            {tenant?.status === 'checkout_requested' && (
+              <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <div className="text-3xl">⏳</div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-orange-900 mb-1">Checkout Request Pending</h3>
+                    <p className="text-sm text-orange-800">Your checkout request has been submitted and is awaiting admin approval.</p>
+                    {tenant.proposedCheckoutDate && (
+                      <p className="text-sm text-orange-700 mt-2">
+                        <strong>Proposed Date:</strong> {new Date(tenant.proposedCheckoutDate).toLocaleDateString('en-IN')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Due Date Alert - Mobile Optimized with Smart Logic */}
             {(() => {
               const dueInfo = getNextDueDate();
@@ -3551,6 +3589,27 @@ const TenantPortal = () => {
               // Reload tenant data after successful submission
               setShowSubmitPayment(false);
               // Optionally refresh data here
+            }}
+          />
+        )}
+
+        {/* Checkout Request Modal */}
+        {showCheckoutRequest && (
+          <TenantCheckoutRequest
+            tenant={tenant}
+            room={room}
+            onClose={() => setShowCheckoutRequest(false)}
+            onSuccess={() => {
+              setShowCheckoutRequest(false);
+              setToast({ type: 'success', message: '✅ Checkout request submitted successfully! Admin will review it soon.' });
+              // Reload tenant data to update checkout status
+              if (tenant?.id) {
+                getDoc(doc(db, 'tenants', tenant.id)).then(docSnap => {
+                  if (docSnap.exists()) {
+                    setTenant({ id: docSnap.id, ...docSnap.data() });
+                  }
+                });
+              }
             }}
           />
         )}
