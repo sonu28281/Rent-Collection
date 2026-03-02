@@ -119,14 +119,16 @@ const Tenants = () => {
         console.warn('Could not fetch tenantApplications:', appErr.message);
       }
 
-      // Fetch checkout requests
+      // Fetch checkout requests (all statuses for admin management)
       const checkoutRequestsRef = collection(db, 'checkoutRequests');
-      const checkoutRequestsQuery = query(checkoutRequestsRef, where('status', '==', 'pending'), orderBy('requestedAt', 'desc'));
+      const checkoutRequestsQuery = query(checkoutRequestsRef, orderBy('requestedAt', 'desc'));
       let checkoutRequestsData = [];
       try {
         const checkoutSnapshot = await getDocs(checkoutRequestsQuery);
+        console.log('📋 Total checkout requests in database:', checkoutSnapshot.size);
         for (const docSnap of checkoutSnapshot.docs) {
           const request = { id: docSnap.id, ...docSnap.data() };
+          console.log(`  🚪 Request: ${request.tenantName} (Room: ${request.roomNumber}, Status: ${request.status || 'NO STATUS'})`);
           
           // Fetch tenant details
           if (request.tenantId) {
@@ -1562,14 +1564,41 @@ const Tenants = () => {
       /* ════════ CHECKOUT REQUESTS VIEW ════════ */
       <>
       {/* Checkout Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="card bg-gradient-to-br from-yellow-500 to-yellow-600 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-yellow-100 text-sm">Pending</p>
+              <p className="text-3xl font-bold mt-1">{checkoutRequests.filter(r => r.status === 'pending').length}</p>
+            </div>
+            <div className="text-4xl">⏳</div>
+          </div>
+        </div>
         <div className="card bg-gradient-to-br from-red-500 to-red-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-red-100 text-sm">Pending Checkouts</p>
-              <p className="text-3xl font-bold mt-1">{stats.checkoutRequests}</p>
+              <p className="text-red-100 text-sm">Rejected</p>
+              <p className="text-3xl font-bold mt-1">{checkoutRequests.filter(r => r.status === 'rejected').length}</p>
             </div>
-            <div className="text-4xl">🚪</div>
+            <div className="text-4xl">❌</div>
+          </div>
+        </div>
+        <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm">Completed</p>
+              <p className="text-3xl font-bold mt-1">{checkoutRequests.filter(r => r.status === 'completed').length}</p>
+            </div>
+            <div className="text-4xl">✅</div>
+          </div>
+        </div>
+        <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm">Total</p>
+              <p className="text-3xl font-bold mt-1">{checkoutRequests.length}</p>
+            </div>
+            <div className="text-4xl">📊</div>
           </div>
         </div>
       </div>
@@ -1578,86 +1607,151 @@ const Tenants = () => {
       {checkoutRequests.length === 0 ? (
         <div className="card text-center py-12">
           <div className="text-6xl mb-4">🚪</div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">No Pending Checkout Requests</h3>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">No Checkout Requests</h3>
           <p className="text-gray-600">When tenants request checkout, they will appear here for approval.</p>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {checkoutRequests.map((request) => (
-            <div key={request.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <h3 className="text-lg font-semibold text-gray-900">{request.tenantName}</h3>
-                    <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded">
-                      Room {request.roomNumber}
-                    </span>
-                  </div>
+        <div className="space-y-4">
+          {/* Pending Requests */}
+          {checkoutRequests.filter(r => !r.status || r.status === 'pending').length > 0 && (
+            <>
+              <h4 className="text-sm font-semibold text-gray-700 text-yellow-700">⏳ PENDING REQUESTS</h4>
+              <div className="grid gap-4">
+                {checkoutRequests.filter(r => !r.status || r.status === 'pending').map((request) => (
+                  <div key={request.id} className="bg-white rounded-lg shadow-sm border-l-4 border-l-yellow-400 border border-gray-200 p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-3 flex-wrap">
+                          <h3 className="text-lg font-semibold text-gray-900">{request.tenantName}</h3>
+                          <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded">
+                            Room {request.roomNumber}
+                          </span>
+                          <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded">
+                            {request.status ? request.status.charAt(0).toUpperCase() + request.status.slice(1) : 'Pending'}
+                          </span>
+                        </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-600">Proposed Checkout:</span>
-                      <p className="font-medium text-gray-900">
-                        {new Date(request.proposedCheckoutDate).toLocaleDateString('en-IN')}
-                      </p>
-                    </div>
-                    {request.finalMeterReadingDraft && (
-                      <div>
-                        <span className="text-gray-600">Meter Reading:</span>
-                        <p className="font-medium text-gray-900">{request.finalMeterReadingDraft}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Proposed Checkout:</span>
+                            <p className="font-medium text-gray-900">
+                              {new Date(request.proposedCheckoutDate).toLocaleDateString('en-IN')}
+                            </p>
+                          </div>
+                          {request.finalMeterReadingDraft && (
+                            <div>
+                              <span className="text-gray-600">Meter Reading:</span>
+                              <p className="font-medium text-gray-900">{request.finalMeterReadingDraft}</p>
+                            </div>
+                          )}
+                          <div>
+                            <span className="text-gray-600">Requested On:</span>
+                            <p className="font-medium text-gray-900">
+                              {request.requestedAt ? new Date(request.requestedAt.toDate()).toLocaleDateString('en-IN') : '-'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {request.remarks && (
+                          <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                            <span className="text-xs text-gray-600 font-medium">Remarks:</span>
+                            <p className="text-sm text-gray-900 mt-1">{request.remarks}</p>
+                          </div>
+                        )}
+
+                        {request.tenant && (
+                          <div className="mt-3 flex gap-4 text-xs text-gray-600">
+                            {request.tenant.checkInDate && (
+                              <span>Check-in: {new Date(request.tenant.checkInDate).toLocaleDateString('en-IN')}</span>
+                            )}
+                            {request.tenant.securityDeposit > 0 && (
+                              <span>Security Deposit: ₹{request.tenant.securityDeposit.toLocaleString('en-IN')}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    <div>
-                      <span className="text-gray-600">Requested On:</span>
-                      <p className="font-medium text-gray-900">
-                        {request.requestedAt ? new Date(request.requestedAt.toDate()).toLocaleDateString('en-IN') : '-'}
-                      </p>
+
+                      <div className="flex flex-col gap-2 ml-4">
+                        <button
+                          onClick={() => handleApproveCheckout(request)}
+                          disabled={processingRequest === request}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium whitespace-nowrap"
+                        >
+                          {processingRequest === request ? 'Processing...' : 'Approve & Settle'}
+                        </button>
+                        <button
+                          onClick={() => handleRejectCheckout(request)}
+                          className="px-4 py-2 border-2 border-orange-400 text-orange-700 rounded-lg hover:bg-orange-50 transition-colors text-sm font-medium whitespace-nowrap"
+                        >
+                          ❌ Cancel Request
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCheckoutRequest(request)}
+                          className="px-4 py-2 border-2 border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium whitespace-nowrap"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                  {request.remarks && (
-                    <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                      <span className="text-xs text-gray-600 font-medium">Remarks:</span>
-                      <p className="text-sm text-gray-900 mt-1">{request.remarks}</p>
-                    </div>
-                  )}
-
-                  {request.tenant && (
-                    <div className="mt-3 flex gap-4 text-xs text-gray-600">
-                      {request.tenant.checkInDate && (
-                        <span>Check-in: {new Date(request.tenant.checkInDate).toLocaleDateString('en-IN')}</span>
-                      )}
-                      {request.tenant.securityDeposit > 0 && (
-                        <span>Security Deposit: ₹{request.tenant.securityDeposit.toLocaleString('en-IN')}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-2 ml-4">
-                  <button
-                    onClick={() => handleApproveCheckout(request)}
-                    disabled={processingRequest === request}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium whitespace-nowrap"
-                  >
-                    {processingRequest === request ? 'Processing...' : 'Approve & Settle'}
-                  </button>
-                  <button
-                    onClick={() => handleRejectCheckout(request)}
-                    className="px-4 py-2 border-2 border-orange-400 text-orange-700 rounded-lg hover:bg-orange-50 transition-colors text-sm font-medium whitespace-nowrap"
-                  >
-                    ❌ Cancel Request
-                  </button>
-                  <button
-                    onClick={() => handleDeleteCheckoutRequest(request)}
-                    className="px-4 py-2 border-2 border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium whitespace-nowrap"
-                  >
-                    🗑️ Delete
-                  </button>
-                </div>
+                ))}
               </div>
-            </div>
-          ))}
+            </>
+          )}
+
+          {/* Other Requests (Rejected/Completed) */}
+          {checkoutRequests.filter(r => r.status && r.status !== 'pending').length > 0 && (
+            <>
+              <h4 className="text-sm font-semibold text-gray-700 mt-6">📋 OTHER REQUESTS</h4>
+              <div className="grid gap-4">
+                {checkoutRequests.filter(r => r.status !== 'pending').map((request) => (
+                  <div key={request.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 opacity-75">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-3 flex-wrap">
+                          <h3 className="text-lg font-semibold text-gray-900">{request.tenantName}</h3>
+                          <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded">
+                            Room {request.roomNumber}
+                          </span>
+                          <span className={`px-2 py-1 text-xs font-medium rounded ${
+                            request.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                            request.status === 'completed' ? 'bg-green-100 text-green-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {request.status?.charAt(0).toUpperCase() + request.status?.slice(1) || 'Unknown'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Proposed Checkout:</span>
+                            <p className="font-medium text-gray-900">
+                              {new Date(request.proposedCheckoutDate).toLocaleDateString('en-IN')}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Requested On:</span>
+                            <p className="font-medium text-gray-900">
+                              {request.requestedAt ? new Date(request.requestedAt.toDate()).toLocaleDateString('en-IN') : '-'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 ml-4">
+                        <button
+                          onClick={() => handleDeleteCheckoutRequest(request)}
+                          className="px-4 py-2 border-2 border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium whitespace-nowrap"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
       </>
