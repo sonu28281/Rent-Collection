@@ -382,26 +382,10 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
           console.log('🎉 QR CODE DETECTED! Scanner success callback fired!');
           console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           
-          // IMPORTANT: Stop scanner IMMEDIATELY to prevent multiple scans
-          console.log('🛑 Stopping scanner immediately...');
           if (frameCountIntervalRef.current) {
             clearInterval(frameCountIntervalRef.current);
             frameCountIntervalRef.current = null;
           }
-          
-          // Stop camera right away (sync operation)
-          if (qrScannerRef.current) {
-            try {
-              qrScannerRef.current.stop().catch(() => {});
-            } catch (err) {
-              console.warn('Scanner stop error (ignored):', err);
-            }
-          }
-          
-          // Hide scanner UI immediately
-          setQrScanning(false);
-          setScannerLoading(false);
-          setFlashlightOn(false);
           
           console.log('📊 QR Data Stats:');
           console.log('  - Length:', decodedText.length);
@@ -411,11 +395,15 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
           console.log('  - Has XML?', decodedText.includes('<'));
           
           try {
-            console.log('🔄 Processing QR result...');
+            console.log('🔄 Calling handleQrResult...');
             handleQrResult(decodedText);
-            console.log('✅ QR result processed successfully');
+            console.log('✅ handleQrResult completed');
+            
+            console.log('🛑 Stopping scanner...');
+            stopQrScanner();
+            console.log('✅ Scanner stopped');
           } catch (err) {
-            console.error('❌ ERROR processing QR:', err);
+            console.error('❌ ERROR in success callback:', err);
             console.error('Stack:', err.stack);
           }
         },
@@ -1861,7 +1849,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                       </div>
                     </div>
                     
-                    {/* Verified Badge - Static (no animation) */}
+                    {/* Verified Badge */}
                     <div className="bg-green-50 border-b border-green-200 px-3 py-1.5 flex items-center gap-1.5">
                       <span className="text-green-600 text-sm">✅</span>
                       <span className="text-[11px] font-semibold text-green-700">QR Verified — Data from UIDAI Signed QR Code</span>
