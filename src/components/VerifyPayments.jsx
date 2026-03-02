@@ -18,6 +18,9 @@ const VerifyPayments = () => {
   const [notificationPermission, setNotificationPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
   );
+  const [expandedCards, setExpandedCards] = useState(new Set());
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const ADMIN_NOTIFIED_KEY = 'admin_notified_submission_ids_v1';
 
@@ -360,48 +363,7 @@ const VerifyPayments = () => {
 
         const alreadyListedIds = new Set(data.map((item) => item.id));
 
-        activeTenants.forEach((tenant) => {
-          const hasPaidRecord = currentMonthPayments.some((payment) => {
-            const roomMatches = String(payment.roomNumber) === String(tenant.roomNumber);
-            const tenantMatches = payment.tenantId === tenant.id || (payment.tenantNameSnapshot === tenant.name);
-            return roomMatches && tenantMatches && payment.status === 'paid';
-          });
-
-          if (hasPaidRecord) {
-            return;
-          }
-
-          const tenantSubmission = currentMonthSubmissions.find((submission) => submission.tenantId === tenant.id);
-          if (tenantSubmission) {
-            if (tenantSubmission.status === 'pending' && !alreadyListedIds.has(tenantSubmission.id)) {
-              data.push(tenantSubmission);
-            }
-            return;
-          }
-
-          const placeholderId = `placeholder_${tenant.id}_${currentYear}_${currentMonth}`;
-          if (alreadyListedIds.has(placeholderId)) {
-            return;
-          }
-
-          data.push({
-            id: placeholderId,
-            isPlaceholder: true,
-            awaitingSubmission: true,
-            status: 'pending',
-            tenantId: tenant.id,
-            tenantName: tenant.name,
-            roomNumber: tenant.roomNumber,
-            year: currentYear,
-            month: currentMonth,
-            paidAmount: 0,
-            rentAmount: Number(tenant.currentRent || 0),
-            electricityAmount: 0,
-            paidDate: '',
-            submittedAt: null,
-            notes: 'Waiting for tenant to submit payment proof.'
-          });
-        });
+        // Only show actual submitted payments (no placeholders)
       }
 
       data.sort((a, b) => {
@@ -418,6 +380,29 @@ const VerifyPayments = () => {
       setLoading(false);
     }
   }, [filter, showAlert]);
+
+  const toggleExpanded = (submissionId) => {
+    const newExpanded = new Set(expandedCards);
+    if (newExpanded.has(submissionId)) {
+      newExpanded.delete(submissionId);
+    } else {
+      newExpanded.add(submissionId);
+    }
+    setExpandedCards(newExpanded);
+  };
+
+  const filteredSubmissions = submissions.filter(submission => {
+    if (!startDate || !endDate) {
+      return true;
+    }
+
+    const submissionDate = new Date(submission.paidDate || submission.submittedAt);
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    return submissionDate >= start && submissionDate <= end;
+  });
 
   useEffect(() => {
     fetchSubmissions();
@@ -782,7 +767,7 @@ const VerifyPayments = () => {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto">
+      <div className="flex gap-2 mb-6 overflow-x-auto flex-wrap">
         {['pending', 'verified', 'rejected', 'all'].map((filterType) => (
           <button
             key={filterType}
@@ -801,6 +786,39 @@ const VerifyPayments = () => {
             )}
           </button>
         ))}
+      </div>
+
+      <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200 space-y-3">
+        <div className="flex flex-wrap gap-4 items-end">
+          <div>
+            <label className="text-xs text-gray-600 font-semibold block mb-1">Start Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-600 font-semibold block mb-1">End Date</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setStartDate('');
+              setEndDate('');
+            }}
+            className="bg-gray-400 hover:bg-gray-500 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+          >
+            Clear Filter
+          </button>
+        </div>
       </div>
 
       <div className="mb-4">
@@ -837,7 +855,7 @@ const VerifyPayments = () => {
       </div>
 
       {/* Submissions List */}
-      {submissions.length === 0 ? (
+      {filteredSubmissions.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-8 text-center">
           <div className="text-6xl mb-4">📭</div>
           <h3 className="text-xl font-semibold text-gray-700 mb-2">No submissions found</h3>
@@ -846,8 +864,8 @@ const VerifyPayments = () => {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {submissions.map((submission) => (
+        <div className="space-y-3">
+          {filteredSubmissions.map((submission) => (
             (() => {
               const safeUtr = getSubmissionUtr(submission);
               const screenshotProof = getSubmissionScreenshot(submission);
@@ -858,24 +876,31 @@ const VerifyPayments = () => {
 
               return (
             <div key={submission.id} className="bg-white rounded-lg shadow-md border-2 border-gray-200 overflow-hidden">
-              {/* Header */}
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold">{submission.tenantName}</h3>
-                  <p className="text-sm text-white text-opacity-90">
-                    Room{Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 1 ? 's' : ''} {Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 0 ? submission.roomNumbers.join(', ') : submission.roomNumber}
-                  </p>
+              {/* Collapsible Header */}
+              <button
+                onClick={() => toggleExpanded(submission.id)}
+                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-4 flex items-center justify-between hover:from-blue-600 hover:to-indigo-700 transition"
+              >
+                <div className="flex items-center gap-4 flex-1 text-left">
+                  <div className="text-2xl">
+                    {expandedCards.has(submission.id) ? '▼' : '▶'}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold">{submission.tenantName}</h3>
+                    <p className="text-sm text-white text-opacity-90">
+                      Room{Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 1 ? 's' : ''} {Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 0 ? submission.roomNumbers.join(', ') : submission.roomNumber}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="mb-1">{getStatusBadge(submission.status)}</div>
+                    <span className="text-sm font-bold bg-white bg-opacity-20 px-3 py-1 rounded">₹{Number(submission.paidAmount || 0).toLocaleString('en-IN')}</span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  {getStatusBadge(submission.status)}
-                  <p className="text-xs text-white text-opacity-90 mt-1">
-                    {submission.submittedAt ? new Date(submission.submittedAt).toLocaleString() : 'Awaiting submission'}
-                  </p>
-                </div>
-              </div>
+              </button>
 
-              {/* Body */}
-              <div className="p-6">
+              {/* Collapsible Body */}
+              {expandedCards.has(submission.id) && (
+              <div className="p-6 bg-gray-50 border-t border-gray-200">
                 <div className="mb-3 flex items-center gap-2">
                   {(() => {
                     const badge = getOcrBadge(submission.id);
@@ -1103,6 +1128,7 @@ const VerifyPayments = () => {
                   </div>
                 )}
               </div>
+              )}
             </div>
               );
             })()
