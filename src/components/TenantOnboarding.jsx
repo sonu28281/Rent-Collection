@@ -197,6 +197,40 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
     setQrScanning(true);
 
     try {
+      // First, cleanup any existing scanner instance
+      if (qrScannerRef.current) {
+        try {
+          await qrScannerRef.current.stop();
+          qrScannerRef.current.clear();
+          qrScannerRef.current = null;
+        } catch (e) {
+          console.log('Cleaned up previous scanner');
+        }
+      }
+
+      // First check if camera permission is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera not supported by this browser. Please use Chrome, Firefox, or Safari.');
+      }
+
+      // Request camera permission explicitly
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment' } 
+        });
+        // Stop the test stream immediately
+        stream.getTracks().forEach(track => track.stop());
+      } catch (permErr) {
+        if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+          throw new Error('Camera permission denied. Please allow camera access in browser settings.');
+        } else if (permErr.name === 'NotFoundError') {
+          throw new Error('No camera found. Please connect a camera and try again.');
+        } else if (permErr.name === 'NotReadableError') {
+          throw new Error('Camera is already in use by another application.');
+        }
+        throw new Error(`Camera access failed: ${permErr.message}`);
+      }
+
       const regionId = 'qr-reader-region';
       // Small delay for DOM
       await new Promise((r) => setTimeout(r, 300));
@@ -244,9 +278,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
     } catch (err) {
       console.error('QR Scanner error:', err);
       setQrError(
-        err?.message?.includes('Permission')
-          ? '❌ Camera permission denied. Please allow camera access and try again.'
-          : `❌ Camera error: ${err?.message || 'Unknown error'}. Try uploading a QR image instead.`
+        `❌ ${err?.message || 'Unknown camera error. Try uploading QR image instead.'}`
       );
       setQrScanning(false);
     }
@@ -1215,8 +1247,37 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                   )}
 
                   {qrError && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <p className="text-xs text-red-700">{qrError}</p>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <p className="text-sm font-bold text-red-900 mb-2">{qrError}</p>
+                      <div className="text-xs text-red-700 space-y-1.5 mt-3">
+                        <p className="font-semibold">💡 Troubleshooting Tips:</p>
+                        <ul className="ml-4 space-y-1">
+                          <li>• Check browser camera permissions in settings</li>
+                          <li>• Make sure no other app is using the camera</li>
+                          <li>• Try closing other tabs/apps that might be using camera</li>
+                          <li>• Use the <strong>"Upload Image"</strong> option instead</li>
+                          <li>• Try using Chrome browser if using another browser</li>
+                          <li>• Refresh the page and try again</li>
+                        </ul>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setQrError('');
+                          // Clear any existing scanner
+                          if (qrScannerRef.current) {
+                            try {
+                              qrScannerRef.current.stop();
+                              qrScannerRef.current.clear();
+                              qrScannerRef.current = null;
+                            } catch (e) {
+                              console.error('Error clearing scanner:', e);
+                            }
+                          }
+                        }}
+                        className="mt-3 w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-xs transition-colors"
+                      >
+                        🔄 Clear Error & Try Again
+                      </button>
                     </div>
                   )}
                 </>
