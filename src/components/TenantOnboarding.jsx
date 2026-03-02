@@ -49,7 +49,6 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   const [qrError, setQrError] = useState('');
   const [qrDisplayData, setQrDisplayData] = useState(null);
   const [flashlightOn, setFlashlightOn] = useState(false);
-  const [scanAttempts, setScanAttempts] = useState(0); // Track scan attempts for UI
   const qrScannerRef = useRef(null);
   const scannerInitializing = useRef(false); // Prevent double-initialization
   const frameCountIntervalRef = useRef(null); // Track frame processing
@@ -215,7 +214,6 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
     setQrScanning(true);
     setScannerLoading(true);
     setShowPermissionHelp(false);
-    setScanAttempts(0); // Reset scan attempts counter
 
     console.log('🎥 Starting QR scanner...');
 
@@ -341,33 +339,29 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
       const minEdge = Math.min(viewportWidth, viewportHeight);
-      const qrboxSize = Math.floor(minEdge * 0.75); // 75% - WORKING SIZE
+      const qrboxSize = Math.floor(minEdge * 0.75); // 75% of viewport for better detection
       console.log(`📐 QR Box Size: ${qrboxSize}x${qrboxSize}px (Viewport: ${viewportWidth}x${viewportHeight})`);
 
       const scanConfig = {
-        fps: 10, // Stable 10 FPS for better accuracy - WORKING SETTING
-        qrbox: { width: qrboxSize, height: qrboxSize },
+        fps: 10, // Stable 10 FPS for better accuracy
+        qrbox: { width: qrboxSize, height: qrboxSize }, // Larger detection area
         disableFlip: false, // Try both normal and mirrored
         rememberLastUsedCamera: true,
         showTorchButtonIfSupported: true,
         showZoomSliderIfSupported: true,
-        defaultZoomValueIfSupported: 1.5, // WORKING ZOOM VALUE
+        defaultZoomValueIfSupported: 1.5,
         // IMPORTANT: Enable ALL barcode formats for Aadhaar QR compatibility
         // Some Aadhaar QRs may need multiple format decoders
         // Leave formatsToSupport undefined to enable all formats
         experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true // Use native browser barcode API if available - CRITICAL!
+          useBarCodeDetectorIfSupported: true // Use native browser barcode API if available
         }
       };
 
       console.log('📷 Starting scanner with config:', scanConfig);
-      console.log('⚠️ Config check: formatsToSupport =', scanConfig.formatsToSupport);
-      console.log('⚠️ Config check: experimentalFeatures =', scanConfig.experimentalFeatures);
 
       let frameCount = 0;
       let lastLogTime = Date.now();
-      let scanAttempts = 0; // Track scan attempts for debugging
-      
       frameCountIntervalRef.current = setInterval(() => {
         frameCount++;
         const now = Date.now();
@@ -401,16 +395,15 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
           console.log('  - Has XML?', decodedText.includes('<'));
           
           try {
-            console.log('🔄 Processing QR result...');
+            console.log('🔄 Calling handleQrResult...');
             handleQrResult(decodedText);
-            console.log('✅ QR result processed successfully');
+            console.log('✅ handleQrResult completed');
             
-            console.log('🛑 Stopping scanner after processing...');
-            // Stop scanner after successful processing
+            console.log('🛑 Stopping scanner...');
             stopQrScanner();
             console.log('✅ Scanner stopped');
           } catch (err) {
-            console.error('❌ ERROR processing QR:', err);
+            console.error('❌ ERROR in success callback:', err);
             console.error('Stack:', err.stack);
           }
         },
@@ -418,26 +411,22 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
           // Scan failed (no QR in frame) — this fires continuously
           // These are NORMAL errors while scanning - only log unusual ones
           
-          // Update scan attempts in state for UI display
-          setScanAttempts(prev => prev + 1);
-          
-          // Log first 10 scan attempts to verify scanner is trying
-          const currentAttempt = scanAttempts + 1;
-          if (currentAttempt <= 10) {
-            console.log(`🔍 Scan attempt ${currentAttempt}: ${errorMessage || 'Unknown error'}`);
-          }
-          
-          // Ignore common scanning errors (after logging first 10)
+          // Ignore common scanning errors
           if (errorMessage && (
             errorMessage.includes('NotFoundException') ||
             errorMessage.includes('No MultiFormat Readers') ||
             errorMessage.includes('error = B:')
           )) {
-            // Silent after first 10 - these are expected during active scanning
+            // Silent - these are expected during active scanning
             return;
           }
           
-          // Log unusual errors always
+          // Log first 5 attempts for debugging
+          if (frameCount <= 5) {
+            console.log(`🔍 Scan attempt ${frameCount}: ${errorMessage}`);
+          }
+          
+          // Log only unusual errors
           if (errorMessage && errorMessage.trim()) {
             console.warn('⚠️ Unusual scan error:', errorMessage);
           }
@@ -683,18 +672,8 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.error('Error:', parsed.error);
         console.log('Raw data preview:', rawText.substring(0, 100));
-        
-        // Detailed error with raw data preview for debugging
-        const debugInfo = `
-Error: ${parsed.error}
-Data Length: ${rawText?.length || 0} characters
-First 100 chars: ${rawText?.substring(0, 100) || 'N/A'}
-Is Numeric: ${/^\d+$/.test(rawText?.trim() || '')}
-Has Spaces: ${/\s/.test(rawText || '')}
-        `.trim();
-        
-        setQrError(debugInfo);
-        showToast('❌ QR parse failed - Check error details below', 'error');
+        setQrError(parsed.error || '❌ Failed to parse QR code data.');
+        showToast('❌ This is not an Aadhaar QR code', 'error');
         setQrScanned(false);
       }
     } catch (error) {
@@ -1640,13 +1619,13 @@ Has Spaces: ${/\s/.test(rawText || '')}
                         )}
                       </div>
                       <ul className="text-xs space-y-1.5">
-                        <li>✓ <strong>💡 FLASHLIGHT ON करें</strong> (top-left button) - Most Important!</li>
-                        <li>✓ <strong>10-15cm distance</strong> रखें (6 inches) - न बहुत पास, न बहुत दूर</li>
-                        <li>✓ Card को <strong>बिल्कुल flat</strong> पकड़ें - tilted बिल्कुल नहीं</li>
-                        <li>✓ QR को <strong>green box के exact center</strong> में रखें</li>
-                        <li>✓ <strong>3-5 seconds STEADY</strong> hold करें - हिलाएं नहीं!</li>
-                        <li>✓ अगर scan नहीं हो रहा: card को <strong>धीरे-धीरे</strong> आगे-पीछे move करें</li>
-                        <li>✓ QR clean हो - <strong>damaged/scratched QR</strong> scan नहीं होगा</li>
+                        <li>✓ <strong>💡 Top-left button</strong> se flashlight ON/OFF karein</li>
+                        <li>✓ <strong>Flashlight ON karke</strong> scan karein - better results milenge</li>
+                        <li>✓ Card ko <strong>flat & straight</strong> pakdein - tilted nahi</li>
+                        <li>✓ QR code ko <strong>green box ke center</strong> mein align karein</li>
+                        <li>✓ Distance: <strong>10-15cm</strong> (6 inches) - bahut paas ya door nahi</li>
+                        <li>✓ <strong>2-3 seconds steady</strong> rakhen - camera focus hone do</li>
+                        <li>✓ Agar scanning nahi ho rahi, card ko <strong>thoda move</strong> karein</li>
                       </ul>
                     </div>
                     <div 
@@ -1721,46 +1700,22 @@ Has Spaces: ${/\s/.test(rawText || '')}
                         </button>
                       )}
                       
-                      {/* Scanning Active Indicator with Attempts Counter */}
+                      {/* Scanning Active Indicator */}
                       {!scannerLoading && qrScanning && (
                         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20">
                           <div className="bg-green-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-pulse">
                             <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
-                            <span className="text-xs font-bold">
-                              🔍 Scanning {scanAttempts > 0 ? `(${scanAttempts} attempts)` : 'Active'}
-                            </span>
+                            <span className="text-xs font-bold">🔍 Scanning Active</span>
                           </div>
                         </div>
                       )}
                       
-                      {/* Instructions Overlay with Scan Status and Tips */}
+                      {/* Instructions Overlay */}
                       {!scannerLoading && qrScanning && (
                         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 max-w-xs">
                           <div className="bg-black bg-opacity-70 text-white px-4 py-2 rounded-lg text-center">
-                            {scanAttempts > 100 ? (
-                              <>
-                                <p className="text-xs font-semibold text-yellow-300">⚠️ Taking too long?</p>
-                                <p className="text-[10px] text-gray-300 mt-1">
-                                  💡 Turn ON flashlight | 📏 Distance 10-15cm | 🎯 Hold steady
-                                </p>
-                              </>
-                            ) : scanAttempts > 50 ? (
-                              <>
-                                <p className="text-xs font-semibold">📱 Still scanning...</p>
-                                <p className="text-[10px] text-gray-300 mt-1">
-                                  Try: Move card closer or use flashlight
-                                </p>
-                              </>
-                            ) : (
-                              <>
-                                <p className="text-xs font-semibold">📱 QR code ko GREEN BOX ke andar align karein</p>
-                                <p className="text-[10px] text-gray-300 mt-1">
-                                  {scanAttempts === 0 ? 'Starting scanner...' : 
-                                   scanAttempts < 5 ? 'Initializing...' : 
-                                   `Scanning... ${scanAttempts} attempts`}
-                                </p>
-                              </>
-                            )}
+                            <p className="text-xs font-semibold">📱 QR code ko GREEN BOX ke andar align karein</p>
+                            <p className="text-[10px] text-gray-300 mt-1">Auto-detect hoga jab focus hoga</p>
                           </div>
                         </div>
                       )}
@@ -1894,7 +1849,7 @@ Has Spaces: ${/\s/.test(rawText || '')}
                       </div>
                     </div>
                     
-                    {/* Verified Badge - Static (no animation) */}
+                    {/* Verified Badge */}
                     <div className="bg-green-50 border-b border-green-200 px-3 py-1.5 flex items-center gap-1.5">
                       <span className="text-green-600 text-sm">✅</span>
                       <span className="text-[11px] font-semibold text-green-700">QR Verified — Data from UIDAI Signed QR Code</span>
