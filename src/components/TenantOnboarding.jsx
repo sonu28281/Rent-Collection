@@ -43,11 +43,14 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
   // Step 2: Aadhaar QR
   const [qrScanning, setQrScanning] = useState(false);
+  const [scannerLoading, setScannerLoading] = useState(false);
   const [qrScanned, setQrScanned] = useState(false);
   const [qrData, setQrData] = useState(null);
   const [qrError, setQrError] = useState('');
   const [qrDisplayData, setQrDisplayData] = useState(null);
   const qrScannerRef = useRef(null);
+  const scannerInitializing = useRef(false); // Prevent double-initialization
+  const frameCountIntervalRef = useRef(null); // Track frame processing
   const qrRegionRef = useRef(null);
   
   // Device detection and camera permission
@@ -199,19 +202,32 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   // ─── QR SCANNER ─────────────────────────────────────────────────────────
 
   const startQrScanner = async () => {
+    // Prevent double-initialization (React StrictMode can cause double-mounting)
+    if (scannerInitializing.current) {
+      console.log('⚠️ Scanner already initializing, skipping...');
+      return;
+    }
+
+    scannerInitializing.current = true;
     setQrError('');
     setQrScanning(true);
+    setScannerLoading(true);
     setShowPermissionHelp(false);
+
+    console.log('🎥 Starting QR scanner...');
 
     try {
       // First, cleanup any existing scanner instance
       if (qrScannerRef.current) {
         try {
+          console.log('Cleaning up existing scanner...');
           await qrScannerRef.current.stop();
           qrScannerRef.current.clear();
           qrScannerRef.current = null;
+          // Small delay to ensure cleanup completes
+          await new Promise(r => setTimeout(r, 100));
         } catch (e) {
-          console.log('Cleaned up previous scanner');
+          console.log('Previous scanner cleanup error (ignored):', e.message);
         }
       }
 
@@ -280,69 +296,243 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       }
 
       const regionId = 'qr-reader-region';
-      // Small delay for DOM
+      
+      // Verify DOM element exists
+      const scannerDiv = document.getElementById(regionId);
+      if (!scannerDiv) {
+        throw new Error('Scanner container not found in DOM. Please refresh and try again.');
+      }
+      
+      // Clear any existing content in scanner div (prevents conflicts)
+      scannerDiv.innerHTML = '';
+      console.log('✅ Scanner div found and cleared:', scannerDiv);
+      
+      // Small delay for DOM to be ready
       await new Promise((r) => setTimeout(r, 300));
       
       const scanner = new Html5Qrcode(regionId);
       qrScannerRef.current = scanner;
+      console.log('✅ Html5Qrcode scanner object created');
 
-      // Better camera configuration for Aadhaar QR scanning
-      const cameraConfig = {
-        facingMode: 'environment',
-        // Request higher resolution for better QR detection
-        aspectRatio: 1.0,
-      };
+      // Get available cameras
+      const devices = await Html5Qrcode.getCameras();
+      if (!devices || devices.length === 0) {
+        throw new Error('No camera found on this device.');
+      }
+
+      console.log(`Found ${devices.length} camera(s)`);
+
+      // Select back camera if available (for mobile), otherwise use first camera
+      let selectedCamera = devices[0].id;
+      for (const device of devices) {
+        if (device.label.toLowerCase().includes('back') || 
+            device.label.toLowerCase().includes('rear') ||
+            device.label.toLowerCase().includes('environment')) {
+          selectedCamera = device.id;
+          console.log('Selected back camera:', device.label);
+          break;
+        }
+      }
+
+      // Calculate responsive QR box size - larger for better detection
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const minEdge = Math.min(viewportWidth, viewportHeight);
+      const qrboxSize = Math.floor(minEdge * 0.75); // 75% of viewport for better detection
+      console.log(`📐 QR Box Size: ${qrboxSize}x${qrboxSize}px (Viewport: ${viewportWidth}x${viewportHeight})`);
 
       const scanConfig = {
-        fps: 30, // Increased from 10 to 30 for faster scanning
-        qrbox: function(viewfinderWidth, viewfinderHeight) {
-          // Use 90% of viewfinder area for better QR code capture
-          // Aadhaar QR codes are large, need bigger scanning area
-          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          const qrboxSize = Math.floor(minEdge * 0.9);
-          return {
-            width: qrboxSize,
-            height: qrboxSize
-          };
-        },
-        // Enable more formats for better compatibility
-        supportedScanTypes: [0], // 0 = QR_CODE
+        fps: 15, // Increased to 15 FPS for faster detection
+        qrbox: { width: qrboxSize, height: qrboxSize }, // Larger detection area
         aspectRatio: 1.0,
-        disableFlip: false, // Try flipped image if needed
+        disableFlip: false,
+        rememberLastUsedCamera: true,
+        showTorchButtonIfSupported: true, // Show flashlight button if available
+        showZoomSliderIfSupported: true, // Show zoom slider if available
+        defaultZoomValueIfSupported: 1.5, // Reduced zoom for wider view
+        formatsToSupport: [0], // 0 = QR_CODE only
+        videoConstraints: {
+          facingMode: 'environment',
+          focusMode: 'continuous',
+          advanced: [{ torch: true }]
+        }
       };
 
+      console.log('📷 Starting scanner with config:', scanConfig);
+
+      let frameCount = 0;
+      let lastLogTime = Date.now();
+      frameCountIntervalRef.current = setInterval(() => {
+        frameCount++;
+        const now = Date.now();
+        if (frameCount % 50 === 0) { // Log every 5 seconds (50 frames at 10 FPS)
+          const elapsed = (now - lastLogTime) / 1000;
+          const actualFps = 50 / elapsed;
+          console.log(`📊 Scanner active - ${frameCount} frames (${Math.round(frameCount/10)}s) | FPS: ${actualFps.toFixed(1)}`);
+          lastLogTime = now;
+        }
+      }, 100);
+
       await scanner.start(
-        cameraConfig,
+        selectedCamera, // Use camera ID instead of constraints object
         scanConfig,
         (decodedText) => {
           // QR code scanned successfully
-          handleQrResult(decodedText);
-          stopQrScanner();
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.log('🎉 QR CODE DETECTED! Scanner success callback fired!');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          
+          if (frameCountIntervalRef.current) {
+            clearInterval(frameCountIntervalRef.current);
+            frameCountIntervalRef.current = null;
+          }
+          
+          console.log('📊 QR Data Stats:');
+          console.log('  - Length:', decodedText.length);
+          console.log('  - Type:', typeof decodedText);
+          console.log('  - First 200 chars:', decodedText.substring(0, 200));
+          console.log('  - Is Numeric?', /^\d+$/.test(decodedText));
+          console.log('  - Has XML?', decodedText.includes('<'));
+          
+          try {
+            console.log('🔄 Calling handleQrResult...');
+            handleQrResult(decodedText);
+            console.log('✅ handleQrResult completed');
+            
+            console.log('🛑 Stopping scanner...');
+            stopQrScanner();
+            console.log('✅ Scanner stopped');
+          } catch (err) {
+            console.error('❌ ERROR in success callback:', err);
+            console.error('Stack:', err.stack);
+          }
         },
-        () => {
-          // Scan failed (no QR in frame) — ignore, keep scanning
+        (errorMessage) => {
+          // Scan failed (no QR in frame) — this fires continuously
+          // Log first 10 errors to understand what's happening
+          if (frameCount <= 10) {
+            console.log(`🔍 Scan attempt ${frameCount}: ${errorMessage}`);
+          }
+          
+          // Log non-NotFoundException errors
+          if (errorMessage && !errorMessage.includes('NotFoundException')) {
+            console.warn('⚠️ Scan error:', errorMessage);
+          }
         }
       );
+      
+      console.log('✅ QR scanner started successfully with camera:', selectedCamera);
+      
+      // Check if video element is created and displaying
+      setTimeout(() => {
+        const scannerDiv = document.getElementById('qr-reader-region');
+        if (scannerDiv) {
+          const video = scannerDiv.querySelector('video');
+          if (video) {
+            console.log('📹 Video element found:', {
+              width: video.videoWidth,
+              height: video.videoHeight,
+              playing: !video.paused,
+              currentTime: video.currentTime,
+              readyState: video.readyState
+            });
+          } else {
+            console.error('❌ No video element found in scanner div!');
+          }
+          
+          const qrShadedRegion = scannerDiv.querySelector('#qr-shaded-region');
+          if (qrShadedRegion) {
+            console.log('✅ QR shaded region (green box) found');
+          } else {
+            console.warn('⚠️ QR shaded region (green box) NOT found - may not be visible');
+          }
+        }
+      }, 500);
+      
+      // Wait for video to stabilize before hiding loading overlay
+      // Reduced delay to 1 second for better UX
+      setTimeout(() => {
+        // Double-check scanner still exists before updating state
+        if (qrScannerRef.current && document.getElementById('qr-reader-region')) {
+          setScannerLoading(false);
+          scannerInitializing.current = false; // Scanner fully initialized
+          console.log('✅ Scanner ready - Point QR code at camera now!');
+          console.log('📱 Green box should be visible for QR alignment');
+        } else {
+          console.warn('⚠️ Scanner was stopped before initialization completed');
+        }
+      }, 1000); // 1 second delay to let video fully initialize
+      
     } catch (err) {
       console.error('QR Scanner error:', err);
+      scannerInitializing.current = false; // Reset flag on error
       setQrError(
         `❌ ${err?.message || 'Unknown camera error. Try uploading QR image instead.'}`
       );
       setQrScanning(false);
+      setScannerLoading(false);
     }
   };
 
   const stopQrScanner = async () => {
+    console.log('🛑 Stopping QR scanner...');
+    
+    // Clear frame counting interval
+    if (frameCountIntervalRef.current) {
+      clearInterval(frameCountIntervalRef.current);
+      frameCountIntervalRef.current = null;
+    }
+    
+    // Set states first to hide UI elements
+    setQrScanning(false);
+    setScannerLoading(false);
+    scannerInitializing.current = false;
+    
+    // Small delay to allow React to update DOM
+    await new Promise(r => setTimeout(r, 100));
+    
     try {
       if (qrScannerRef.current) {
-        await qrScannerRef.current.stop();
-        qrScannerRef.current.clear();
+        const scannerElement = document.getElementById('qr-reader-region');
+        
+        // Only proceed if scanner element still exists in DOM
+        if (!scannerElement) {
+          console.warn('⚠️ Scanner element not found in DOM, skipping cleanup');
+          qrScannerRef.current = null;
+          return;
+        }
+
+        // Try to stop scanner (this releases camera)
+        try {
+          await qrScannerRef.current.stop();
+          console.log('✅ Scanner stopped successfully');
+        } catch (stopErr) {
+          console.log('⚠️ Stop error (ignored):', stopErr.message);
+        }
+        
+        // DO NOT call clear() - it causes removeChild errors
+        // Instead, manually clean up the div content after a delay
+        setTimeout(() => {
+          const scannerDiv = document.getElementById('qr-reader-region');
+          if (scannerDiv && scannerDiv.parentNode) {
+            // Safely remove all child nodes
+            while (scannerDiv.firstChild) {
+              try {
+                scannerDiv.removeChild(scannerDiv.firstChild);
+              } catch (e) {
+                console.log('Child removal skipped');
+                break;
+              }
+            }
+          }
+        }, 500);
+        
         qrScannerRef.current = null;
+        console.log('✅ Scanner reference cleared');
       }
-    } catch {
-      // Ignore stop errors
+    } catch (err) {
+      console.log('Scanner cleanup error (ignored):', err.message);
     }
-    setQrScanning(false);
   };
 
   const handleQrImageUpload = async (e) => {
@@ -362,25 +552,75 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   };
 
   const handleQrResult = (rawText) => {
-    const parsed = parseAadhaarQr(rawText);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 handleQrResult() called');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('Raw text length:', rawText?.length);
+    
+    try {
+      console.log('📝 Calling parseAadhaarQr()...');
+      const parsed = parseAadhaarQr(rawText);
+      console.log('✅ parseAadhaarQr() returned:', parsed);
 
-    if (parsed.success) {
-      setQrData(parsed);
-      setQrScanned(true);
-      setQrDisplayData(formatQrDataForDisplay(parsed));
-      showToast('✅ Aadhaar QR scanned successfully!', 'success');
+      if (parsed.success) {
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('✅ AADHAAR QR PARSED SUCCESSFULLY!');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📋 Parsed Data:');
+        console.log('  - QR Type:', parsed.qrType);
+        console.log('  - Name:', parsed.name);
+        console.log('  - DOB/YOB:', parsed.dob);
+        console.log('  - Gender:', parsed.gender);
+        console.log('  - UID/Last4:', parsed.uid);
+        
+        console.log('🔄 Setting state: setQrData...');
+        setQrData(parsed);
+        console.log('✅ setQrData done');
+        
+        console.log('🔄 Setting state: setQrScanned(true)...');
+        setQrScanned(true);
+        console.log('✅ setQrScanned done');
+        
+        console.log('🔄 Setting state: setQrDisplayData...');
+        setQrDisplayData(formatQrDataForDisplay(parsed));
+        console.log('✅ setQrDisplayData done');
+        
+        console.log('🔔 Showing success toast...');
+        showToast('✅ Aadhaar QR scanned successfully!', 'success');
+        console.log('✅ Toast shown');
 
-      // Auto-fill form if name is from QR
-      if (parsed.name) {
-        const parts = parsed.name.split(/\s+/);
-        setFormData((prev) => ({
-          ...prev,
-          firstName: prev.firstName || parts[0] || '',
-          lastName: prev.lastName || parts.slice(1).join(' ') || '',
-        }));
+        // Auto-fill form if name is from QR
+        if (parsed.name) {
+          console.log('📝 Auto-filling name from QR...');
+          const parts = parsed.name.split(/\s+/);
+          setFormData((prev) => ({
+            ...prev,
+            firstName: prev.firstName || parts[0] || '',
+            lastName: prev.lastName || parts.slice(1).join(' ') || '',
+          }));
+          console.log('✅ Name auto-filled');
+        }
+        
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('✅ ALL DONE - QR PROCESSING COMPLETE!');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      } else {
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.error('❌ QR PARSING FAILED!');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.error('Error:', parsed.error);
+        console.log('Raw data preview:', rawText.substring(0, 100));
+        setQrError(parsed.error || '❌ Failed to parse QR code data.');
+        showToast('❌ This is not an Aadhaar QR code', 'error');
+        setQrScanned(false);
       }
-    } else {
-      setQrError(parsed.error || '❌ Failed to parse QR code data.');
+    } catch (error) {
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('❌ EXCEPTION IN handleQrResult()!');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('Error:', error);
+      console.error('Stack:', error.stack);
+      showToast('❌ Error processing QR code', 'error');
       setQrScanned(false);
     }
   };
@@ -396,13 +636,73 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
   // Cleanup scanner on unmount
   useEffect(() => {
-    return () => {
+    // Global error handler for unhandled promise rejections from scanner
+    const handleUnhandledRejection = (event) => {
+      if (event.reason?.message?.includes('AbortError') || 
+          event.reason?.message?.includes('play()') ||
+          event.reason?.name === 'AbortError') {
+        console.warn('⚠️ Caught AbortError from scanner (ignored):', event.reason);
+        event.preventDefault(); // Prevent error from crashing the app
+      }
+    };
+
+    // Global error handler for removeChild errors
+    const handleError = (event) => {
+      if (event.error?.message?.includes('removeChild') ||
+          event.message?.includes('removeChild')) {
+        console.warn('⚠️ Caught removeChild error (ignored):', event.error || event.message);
+        event.preventDefault(); // Prevent error from crashing the app
+        return true;
+      }
+    };
+
+    // Handle visibility change (tab switch, minimize, etc)
+    const handleVisibilityChange = () => {
+      if (document.hidden && qrScannerRef.current) {
+        console.log('⚠️ Page hidden while scanner active');
+      } else if (!document.hidden && qrScannerRef.current) {
+        console.log('✅ Page visible again');
+      }
+    };
+
+    // Handle page unload/navigation
+    const handleBeforeUnload = () => {
       if (qrScannerRef.current) {
+        console.log('⚠️ Page unloading - cleaning up scanner');
         try {
-          qrScannerRef.current.stop();
-          qrScannerRef.current.clear();
+          // Only stop, don't call clear()
+          qrScannerRef.current.stop().catch(() => {});
         } catch { /* ignore */ }
       }
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('error', handleError);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener('error', handleError);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      
+      // Clear frame count interval
+      if (frameCountIntervalRef.current) {
+        clearInterval(frameCountIntervalRef.current);
+        frameCountIntervalRef.current = null;
+      }
+      
+      // Cleanup scanner on unmount - only stop, never clear
+      if (qrScannerRef.current) {
+        try {
+          qrScannerRef.current.stop().catch(() => {});
+        } catch (err) {
+          console.log('Unmount cleanup error (ignored):', err.message);
+        }
+        qrScannerRef.current = null;
+      }
+      scannerInitializing.current = false;
     };
   }, []);
 
@@ -1241,36 +1541,120 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
               {!qrScanned ? (
                 <>
-                  {/* QR Scanner Region */}
-                  {qrScanning && (
-                    <div className="relative">
-                      {/* Scanning Tips */}
-                      <div className="bg-blue-600 text-white p-3 rounded-t-lg">
-                        <p className="text-sm font-bold mb-2">📱 Scanning Tips:</p>
-                        <ul className="text-xs space-y-1.5">
-                          <li>✓ Aadhaar card ko camera ke samne <strong>straight</strong> pakdein</li>
-                          <li>✓ QR code ko <strong>green box</strong> ke andar laayein</li>
-                          <li>✓ Good lighting chahiye - <strong>bright area</strong> mein scan karein</li>
-                          <li>✓ Camera se <strong>10-15cm door</strong> rakhein (6 inch)</li>
-                          <li>✓ QR code <strong>blur na ho</strong> - focus hone tak wait karein</li>
-                          <li>✓ Dhire-dhire move karein, jaldi mat hilayein</li>
-                        </ul>
+                  {/* QR Scanner Region - Keep in DOM always to prevent unmount issues */}
+                  <div 
+                    className={`relative ${qrScanning ? 'block' : 'hidden'}`} 
+                    key="qr-scanner-container"
+                  >
+                    {/* Scanning Tips */}
+                    <div className="bg-blue-600 text-white p-3 rounded-t-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-bold">📱 Scanning Instructions:</p>
+                        {!scannerLoading && (
+                          <span className="text-xs bg-green-400 text-green-900 px-2 py-0.5 rounded-full font-semibold animate-pulse">
+                            ● LIVE
+                          </span>
+                        )}
                       </div>
-                      <div id="qr-reader-region" className="rounded-b-lg overflow-hidden" />
-                      <button
-                        onClick={stopQrScanner}
-                        className="mt-2 w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded-lg text-sm"
-                      >
-                        ✕ Stop Scanner
-                      </button>
+                      <ul className="text-xs space-y-1.5">
+                        <li>✓ Aadhaar card ko camera ke samne <strong>straight</strong> pakdein</li>
+                        <li>✓ QR code ko <strong>green box</strong> ke andar laayein</li>
+                        <li>✓ Good lighting chahiye - <strong>💡 Flashlight button</strong> use karein agar dikhe</li>
+                        <li>✓ Camera se <strong>10-15cm door</strong> rakhein (6 inch)</li>
+                        <li>✓ QR code <strong>blur na ho</strong> - focus hone tak wait karein</li>
+                        <li>✓ Dhire-dhire move karein, <strong>automatic scan</strong> hoga</li>
+                      </ul>
                     </div>
-                  )}
+                    <div 
+                      id="qr-reader-region" 
+                      key="qr-reader-region-div"
+                      className="rounded-b-lg overflow-hidden bg-black relative"
+                      style={{ 
+                        width: '100%', 
+                        minHeight: '400px',
+                        maxHeight: '600px'
+                      }}
+                    >
+                      {scannerLoading && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-70 z-10">
+                          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-white mb-4"></div>
+                          <p className="text-white text-sm font-semibold">📷 Initializing camera...</p>
+                          <p className="text-gray-300 text-xs mt-2">Please wait a moment</p>
+                        </div>
+                      )}
+                      
+                      {/* Custom Green Box Overlay - Always visible when scanning */}
+                      {!scannerLoading && qrScanning && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-15">
+                          {/* Light overlay with transparent center - reduced darkness */}
+                          <div className="absolute inset-0 bg-black bg-opacity-20"></div>
+                          
+                          {/* Green scanning box */}
+                          <div 
+                            className="relative border-4 border-green-500 rounded-lg shadow-2xl"
+                            style={{
+                              width: '75vw',
+                              height: '75vw',
+                              maxWidth: '380px',
+                              maxHeight: '380px',
+                              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.25), 0 0 15px rgba(34, 197, 94, 0.6)'
+                            }}
+                          >
+                            {/* Corner markers */}
+                            <div className="absolute -top-2 -left-2 w-8 h-8 border-t-4 border-l-4 border-green-400"></div>
+                            <div className="absolute -top-2 -right-2 w-8 h-8 border-t-4 border-r-4 border-green-400"></div>
+                            <div className="absolute -bottom-2 -left-2 w-8 h-8 border-b-4 border-l-4 border-green-400"></div>
+                            <div className="absolute -bottom-2 -right-2 w-8 h-8 border-b-4 border-r-4 border-green-400"></div>
+                            
+                            {/* Center crosshair */}
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="text-green-400 text-4xl font-bold opacity-30">+</div>
+                            </div>
+                            
+                            {/* Scanning animation line */}
+                            <div 
+                              className="absolute left-0 right-0 h-0.5 bg-green-400 opacity-75"
+                              style={{
+                                animation: 'scan-line 2s linear infinite',
+                                boxShadow: '0 0 10px rgba(34, 197, 94, 0.8)'
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Scanning Active Indicator */}
+                      {!scannerLoading && qrScanning && (
+                        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20">
+                          <div className="bg-green-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-pulse">
+                            <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                            <span className="text-xs font-bold">🔍 Scanning Active</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Instructions Overlay */}
+                      {!scannerLoading && qrScanning && (
+                        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 max-w-xs">
+                          <div className="bg-black bg-opacity-70 text-white px-4 py-2 rounded-lg text-center">
+                            <p className="text-xs font-semibold">📱 QR code ko GREEN BOX ke andar align karein</p>
+                            <p className="text-[10px] text-gray-300 mt-1">Auto-detect hoga jab focus hoga</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={stopQrScanner}
+                      className="mt-2 w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded-lg text-sm"
+                    >
+                      ✕ Stop Scanner
+                    </button>
+                  </div>
 
                   {/* Hidden div for image-based scan */}
                   <div id="qr-reader-region-upload" className="hidden" />
 
-                  {!qrScanning && (
-                    <div className="space-y-3">
+                  <div className={`space-y-3 ${qrScanning ? 'hidden' : 'block'}`}>
                       <button
                         onClick={startQrScanner}
                         className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 rounded-xl text-base transition-colors flex items-center justify-center gap-2"
@@ -1292,7 +1676,6 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                         />
                       </label>
                     </div>
-                  )}
 
                   {qrError && (
                     <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 space-y-3">

@@ -25,6 +25,7 @@ import DatabaseCleanup from './components/DatabaseCleanup';
 import VacancyReport from './components/VacancyReport';
 import TenantOnboarding from './components/TenantOnboarding';
 import DialogProvider from './components/ui/DialogProvider';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   const hostname = window.location.hostname.toLowerCase();
@@ -44,19 +45,28 @@ function App() {
   );
 
   return (
-    <AuthProvider>
-      <DialogProvider>
-        <Router>
-          <Routes>
-          
-          {/* Public Tenant Portal Routes */}
-          <Route path="/tenant-portal" element={<TenantPortal />} />
-          <Route path="/kyc/callback" element={<TenantPortal />} />
-          <Route path="/t/:token" element={<TenantPortal />} />
-          
-          {/* Public Onboarding & KYC Routes */}
-          <Route path="/onboarding" element={<TenantOnboarding mode="standalone" />} />
-          <Route path="/kyc" element={<TenantOnboarding mode="tenant" />} />
+    <ErrorBoundary>
+      <AuthProvider>
+        <DialogProvider>
+          <Router>
+            <Routes>
+            
+            {/* Public Tenant Portal Routes */}
+            <Route path="/tenant-portal" element={<TenantPortal />} />
+            <Route path="/kyc/callback" element={<TenantPortal />} />
+            <Route path="/t/:token" element={<TenantPortal />} />
+            
+            {/* Public Onboarding & KYC Routes - Wrapped in ErrorBoundary */}
+            <Route path="/onboarding" element={
+              <ErrorBoundary>
+                <TenantOnboarding mode="standalone" />
+              </ErrorBoundary>
+            } />
+            <Route path="/kyc" element={
+              <ErrorBoundary>
+                <TenantOnboarding mode="tenant" />
+              </ErrorBoundary>
+            } />
           
           <Route path="/login" element={isTenantPortalDomain ? tenantPortalRedirect : <Login />} />
           <Route 
@@ -141,6 +151,7 @@ function App() {
         </Router>
       </DialogProvider>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

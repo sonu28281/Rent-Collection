@@ -277,43 +277,44 @@ const Settings = () => {
 
           {/* History Control Card */}
           <div className="card">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="text-2xl">🛡️</div>
-            <h3 className="text-base font-bold text-gray-800">History Control</h3>
-          </div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="text-2xl">🛡️</div>
+              <h3 className="text-base font-bold text-gray-800">History Control</h3>
+            </div>
 
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={historyEditDeleteEnabled}
-              onChange={(e) => setHistoryEditDeleteEnabled(e.target.checked)}
-              className="w-4 h-4 mt-1"
-            />
-            <span className="text-sm text-gray-800 font-medium">
-              Enable Edit/Delete actions on History page
-            </span>
-          </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={historyEditDeleteEnabled}
+                onChange={(e) => setHistoryEditDeleteEnabled(e.target.checked)}
+                className="w-4 h-4 mt-1"
+              />
+              <span className="text-sm text-gray-800 font-medium">
+                Enable Edit/Delete actions on History page
+              </span>
+            </label>
 
-          <p className="text-xs text-gray-600 mt-3">
-            Keep this off for view-only protection. Turn on only when records must be corrected.
-          </p>
+            <p className="text-xs text-gray-600 mt-3">
+              Keep this off for view-only protection. Turn on only when records must be corrected.
+            </p>
 
-          <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
-            <button
-              type="submit"
-              className="btn-primary w-full"
-              disabled={saving}
-            >
-              {saving ? '💾 Saving...' : '💾 Save Settings'}
-            </button>
-            <button
-              type="button"
-              onClick={fetchSettings}
-              className="btn-secondary w-full"
-              disabled={saving}
-            >
-              🔄 Reset
-            </button>
+            <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+              <button
+                type="submit"
+                className="btn-primary w-full"
+                disabled={saving}
+              >
+                {saving ? '💾 Saving...' : '💾 Save Settings'}
+              </button>
+              <button
+                type="button"
+                onClick={fetchSettings}
+                className="btn-secondary w-full"
+                disabled={saving}
+              >
+                🔄 Reset
+              </button>
+            </div>
           </div>
         </div>
       </form>
