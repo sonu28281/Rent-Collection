@@ -341,19 +341,19 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
       const minEdge = Math.min(viewportWidth, viewportHeight);
-      const qrboxSize = Math.floor(minEdge * 0.75); // 75% of viewport for better detection
+      const qrboxSize = Math.floor(minEdge * 0.70); // 70% for optimal balance
       console.log(`📐 QR Box Size: ${qrboxSize}x${qrboxSize}px (Viewport: ${viewportWidth}x${viewportHeight})`);
 
       const scanConfig = {
-        fps: 10, // Stable 10 FPS for better accuracy
-        qrbox: { width: qrboxSize, height: qrboxSize }, // Larger detection area
-        disableFlip: false, // Try both normal and mirrored
+        fps: 20, // Increased to 20 FPS for more scan attempts per second
+        qrbox: { width: qrboxSize, height: qrboxSize },
+        disableFlip: false, // Try both orientations
         rememberLastUsedCamera: true,
         showTorchButtonIfSupported: true,
         showZoomSliderIfSupported: true,
-        defaultZoomValueIfSupported: 1.5
-        // NO formatsToSupport restriction - allow ALL formats for maximum compatibility
-        // NO experimentalFeatures - keep it simple and stable
+        defaultZoomValueIfSupported: 2 // Increased zoom for better focus on QR
+        // Note: No formatsToSupport restriction - library will try ALL formats
+        // This gives maximum compatibility with different QR code types
       };
 
       console.log('📷 Starting scanner with config:', scanConfig);
@@ -1636,13 +1636,13 @@ Has Spaces: ${/\s/.test(rawText || '')}
                         )}
                       </div>
                       <ul className="text-xs space-y-1.5">
-                        <li>✓ <strong>💡 Top-left button</strong> se flashlight ON/OFF karein</li>
-                        <li>✓ <strong>Flashlight ON karke</strong> scan karein - better results milenge</li>
-                        <li>✓ Card ko <strong>flat & straight</strong> pakdein - tilted nahi</li>
-                        <li>✓ QR code ko <strong>green box ke center</strong> mein align karein</li>
-                        <li>✓ Distance: <strong>10-15cm</strong> (6 inches) - bahut paas ya door nahi</li>
-                        <li>✓ <strong>2-3 seconds steady</strong> rakhen - camera focus hone do</li>
-                        <li>✓ Agar scanning nahi ho rahi, card ko <strong>thoda move</strong> karein</li>
+                        <li>✓ <strong>💡 FLASHLIGHT ON करें</strong> (top-left button) - Most Important!</li>
+                        <li>✓ <strong>10-15cm distance</strong> रखें (6 inches) - न बहुत पास, न बहुत दूर</li>
+                        <li>✓ Card को <strong>बिल्कुल flat</strong> पकड़ें - tilted बिल्कुल नहीं</li>
+                        <li>✓ QR को <strong>green box के exact center</strong> में रखें</li>
+                        <li>✓ <strong>3-5 seconds STEADY</strong> hold करें - हिलाएं नहीं!</li>
+                        <li>✓ अगर scan नहीं हो रहा: card को <strong>धीरे-धीरे</strong> आगे-पीछे move करें</li>
+                        <li>✓ QR clean हो - <strong>damaged/scratched QR</strong> scan नहीं होगा</li>
                       </ul>
                     </div>
                     <div 
@@ -1729,16 +1729,34 @@ Has Spaces: ${/\s/.test(rawText || '')}
                         </div>
                       )}
                       
-                      {/* Instructions Overlay with Scan Status */}
+                      {/* Instructions Overlay with Scan Status and Tips */}
                       {!scannerLoading && qrScanning && (
                         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 max-w-xs">
                           <div className="bg-black bg-opacity-70 text-white px-4 py-2 rounded-lg text-center">
-                            <p className="text-xs font-semibold">📱 QR code ko GREEN BOX ke andar align karein</p>
-                            <p className="text-[10px] text-gray-300 mt-1">
-                              {scanAttempts === 0 ? 'Starting scanner...' : 
-                               scanAttempts < 5 ? 'Initializing...' : 
-                               `Scanning... ${scanAttempts} attempts`}
-                            </p>
+                            {scanAttempts > 100 ? (
+                              <>
+                                <p className="text-xs font-semibold text-yellow-300">⚠️ Taking too long?</p>
+                                <p className="text-[10px] text-gray-300 mt-1">
+                                  💡 Turn ON flashlight | 📏 Distance 10-15cm | 🎯 Hold steady
+                                </p>
+                              </>
+                            ) : scanAttempts > 50 ? (
+                              <>
+                                <p className="text-xs font-semibold">📱 Still scanning...</p>
+                                <p className="text-[10px] text-gray-300 mt-1">
+                                  Try: Move card closer or use flashlight
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-xs font-semibold">📱 QR code ko GREEN BOX ke andar align karein</p>
+                                <p className="text-[10px] text-gray-300 mt-1">
+                                  {scanAttempts === 0 ? 'Starting scanner...' : 
+                                   scanAttempts < 5 ? 'Initializing...' : 
+                                   `Scanning... ${scanAttempts} attempts`}
+                                </p>
+                              </>
+                            )}
                           </div>
                         </div>
                       )}
