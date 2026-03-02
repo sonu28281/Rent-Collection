@@ -197,13 +197,17 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
   const startQrScanner = async () => {
     setQrError('');
-    setQrScanning(true); // Set true FIRST so div renders
-    setScannerLoading(true); // Show loading UI
+    setScannerLoading(true); // Show loading overlay FIRST
+    
+    // Show loading modal for 1.5 seconds to let camera initialize
+    await new Promise((r) => setTimeout(r, 1500));
+    
+    setQrScanning(true); // NOW render the scanner div
 
     try {
       const regionId = 'qr-reader-region';
       // Wait for DOM to render the div
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 300));
       
       // Verify element exists
       const element = document.getElementById(regionId);
@@ -393,7 +397,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.capture = 'environment'; // Force back camera on mobile
+    input.setAttribute('capture', 'environment'); // Force back camera on mobile (use setAttribute for compatibility)
     
     input.onchange = (e) => {
       const file = e.target.files?.[0];
@@ -1310,6 +1314,15 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
               {!qrScanned ? (
                 <>
+                  {/* Loading Overlay - Show BEFORE scanner initializes */}
+                  {scannerLoading && !qrScanning && (
+                    <div className="fixed inset-0 z-50 bg-blue-600 bg-opacity-95 flex flex-col items-center justify-center rounded-lg" style={{ minHeight: '400px' }}>
+                      <div className="animate-spin h-20 w-20 border-4 border-white border-t-transparent rounded-full mb-6"></div>
+                      <p className="text-2xl font-bold text-white">📷 Opening Camera...</p>
+                      <p className="text-lg text-blue-100 mt-3">Please wait. Initializing scanner...</p>
+                    </div>
+                  )}
+
                   {/* QR Scanner Region - Shows when scanning active */}
                   {qrScanning && (
                     <div className="relative">
