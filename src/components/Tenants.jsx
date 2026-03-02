@@ -297,6 +297,7 @@ const Tenants = () => {
       // 4) Deactivate source tenant (keep audit/history)
       await updateDoc(doc(db, 'tenants', sourceTenant.id), {
         isActive: false,
+        status: 'inactive',
         assignedRooms: [],
         roomNumber: '',
         mergedIntoTenantId: targetTenant.id,
@@ -1004,6 +1005,11 @@ const Tenants = () => {
   };
 
   const filteredTenants = tenants.filter(tenant => {
+    // Don't show merged ghost records (inactive tenants with no assigned rooms and marked as merged)
+    if (tenant.mergedIntoTenantId && !tenant.isActive && (!tenant.assignedRooms || tenant.assignedRooms.length === 0)) {
+      return false;
+    }
+
     // Active/Inactive filter
     let matchesActiveFilter = true;
     if (filter === 'active') matchesActiveFilter = tenant.isActive;
