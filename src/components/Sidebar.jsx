@@ -21,7 +21,6 @@ const Sidebar = () => {
     { icon: '🔧', label: 'Maintenance', path: '/maintenance' },
     { icon: '📚', label: 'History Manager', path: '/history' },
     { icon: '📊', label: 'Vacancy Report', path: '/vacancy-report' },
-    { icon: '🕰️', label: 'Tenant History', path: '/tenant-history' },
   ];
 
   // Settings submenu items

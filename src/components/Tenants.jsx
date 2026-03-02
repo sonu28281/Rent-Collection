@@ -580,7 +580,7 @@ const Tenants = () => {
   const handleRejectCheckout = async (request) => {
     const confirmed = await showConfirm(
       `Are you sure you want to reject the checkout request from ${request.tenantName}?`,
-      { title: 'Reject Checkout Request', intent: 'warning' }
+      { title: 'Cancel Checkout Request', intent: 'warning' }
     );
 
     if (!confirmed) return;
@@ -606,12 +606,45 @@ const Tenants = () => {
         console.log('✅ Tenant status reset to active');
       }
 
-      await showAlert('Checkout request rejected', { intent: 'success' });
+      await showAlert('Checkout request cancelled', { intent: 'success' });
       fetchData();
     } catch (error) {
       console.error('❌ Error rejecting checkout request:', error);
       console.error('Error details:', error.code, error.message);
-      await showAlert(`Failed to reject request: ${error.message}`, { intent: 'error' });
+      await showAlert(`Failed to cancel request: ${error.message}`, { intent: 'error' });
+    }
+  };
+
+  const handleDeleteCheckoutRequest = async (request) => {
+    const confirmed = await showConfirm(
+      `Delete checkout request from ${request.tenantName}?\n\nThis will permanently remove the request.`,
+      { title: 'Delete Checkout Request', intent: 'danger', confirmLabel: 'Delete' }
+    );
+
+    if (!confirmed) return;
+
+    try {
+      console.log('🗑️ Deleting checkout request:', request.id);
+
+      // Delete the checkout request
+      await deleteDoc(doc(db, 'checkoutRequests', request.id));
+
+      // Reset tenant status if needed
+      if (request.tenantId) {
+        await setDoc(doc(db, 'tenants', request.tenantId), {
+          status: 'active',
+          checkoutRequestId: null,
+          proposedCheckoutDate: null,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        console.log('✅ Tenant status reset to active');
+      }
+
+      await showAlert('Checkout request deleted', { intent: 'success' });
+      fetchData();
+    } catch (error) {
+      console.error('❌ Error deleting checkout request:', error);
+      await showAlert(`Failed to delete request: ${error.message}`, { intent: 'error' });
     }
   };
 
@@ -1611,9 +1644,15 @@ const Tenants = () => {
                   </button>
                   <button
                     onClick={() => handleRejectCheckout(request)}
-                    className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium whitespace-nowrap"
+                    className="px-4 py-2 border-2 border-orange-400 text-orange-700 rounded-lg hover:bg-orange-50 transition-colors text-sm font-medium whitespace-nowrap"
                   >
-                    Reject
+                    ❌ Cancel Request
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCheckoutRequest(request)}
+                    className="px-4 py-2 border-2 border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium whitespace-nowrap"
+                  >
+                    🗑️ Delete
                   </button>
                 </div>
               </div>
