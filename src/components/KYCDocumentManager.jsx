@@ -12,6 +12,7 @@ function KYCDocumentManager() {
   const [error, setError] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all'); // all, pending_approval, rejected
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
   useEffect(() => {
     loadKycApplications();
@@ -121,6 +122,9 @@ function KYCDocumentManager() {
       console.log('✅ All KYC applications deleted');
       showAlert(`✅ ${applications.length} KYC applications deleted successfully`, { intent: 'success' });
       
+      // Clear selection
+      setSelectedIds(new Set());
+      
       // Reload list
       await loadKycApplications();
     } catch (err) {
@@ -129,6 +133,29 @@ function KYCDocumentManager() {
     } finally {
       setDeleting(false);
     }
+  };
+
+  const toggleSelection = (appId) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(appId)) {
+      newSelected.delete(appId);
+    } else {
+      newSelected.add(appId);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredApplications.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredApplications.map(app => app.id)));
+    }
+  };
+
+  const deleteSelected = async () => {
+    const selectedApps = kycApplications.filter(app => selectedIds.has(app.id));
+    await handleDeleteMultiple(selectedApps);
   };
 
   // Status badge colors
@@ -159,149 +186,200 @@ function KYCDocumentManager() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-6">
-        <h1 className="text-3xl font-bold text-blue-900 mb-2">🗑️ KYC Document Manager</h1>
-        <p className="text-sm text-blue-700">Delete old KYC applications and documents to keep your database clean and organized.</p>
-      </div>
-
-      {/* Stats */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-gray-600 text-sm">Total Applications</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
-          </div>
-          <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-4">
-            <p className="text-yellow-700 text-sm font-medium">⏳ Pending</p>
-            <p className="text-3xl font-bold text-yellow-900">{stats.pending}</p>
-          </div>
-          <div className="bg-red-50 rounded-lg border border-red-200 p-4">
-            <p className="text-red-700 text-sm font-medium">❌ Rejected</p>
-            <p className="text-3xl font-bold text-red-900">{stats.rejected}</p>
-          </div>
-          <div className="bg-green-50 rounded-lg border border-green-200 p-4">
-            <p className="text-green-700 text-sm font-medium">✅ Approved</p>
-            <p className="text-3xl font-bold text-green-900">{stats.approved}</p>
-          </div>
+    <div className="p-4 lg:p-8 min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-6">
+          <h1 className="text-3xl font-bold text-blue-900 mb-2">🗑️ KYC Document Manager</h1>
+          <p className="text-sm text-blue-700">Delete old KYC applications and documents to keep your database clean and organized.</p>
         </div>
-      )}
 
-      {/* Controls */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search */}
-          <input
-            type="text"
-            placeholder="Search by name, phone, or ID..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          />
+        {/* Stats */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-gray-600 text-sm">Total Applications</p>
+              <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
+            </div>
+            <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-4">
+              <p className="text-yellow-700 text-sm font-medium">⏳ Pending</p>
+              <p className="text-3xl font-bold text-yellow-900">{stats.pending}</p>
+            </div>
+            <div className="bg-red-50 rounded-lg border border-red-200 p-4">
+              <p className="text-red-700 text-sm font-medium">❌ Rejected</p>
+              <p className="text-3xl font-bold text-red-900">{stats.rejected}</p>
+            </div>
+            <div className="bg-green-50 rounded-lg border border-green-200 p-4">
+              <p className="text-green-700 text-sm font-medium">✅ Approved</p>
+              <p className="text-3xl font-bold text-green-900">{stats.approved}</p>
+            </div>
+          </div>
+        )}
 
-          {/* Filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          >
-            <option value="all">All Applications ({stats?.total || 0})</option>
-            <option value="pending_approval">Pending ({stats?.pending || 0})</option>
-            <option value="rejected">Rejected ({stats?.rejected || 0})</option>
-            <option value="approved">Approved ({stats?.approved || 0})</option>
-          </select>
+        {/* Controls */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Search */}
+            <input
+              type="text"
+              placeholder="Search by name, phone, or ID..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
 
-          {/* Bulk Delete Rejected */}
-          {stats?.rejected > 0 && (
-            <button
-              onClick={() => handleDeleteMultiple(kycApplications.filter(a => a.status === 'rejected'))}
-              disabled={deleting || loading}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm"
+            {/* Filter */}
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
-              {deleting ? '🗑️ Deleting...' : `🗑️ Delete All ${stats?.rejected} Rejected`}
+              <option value="all">All Applications ({stats?.total || 0})</option>
+              <option value="pending_approval">Pending ({stats?.pending || 0})</option>
+              <option value="rejected">Rejected ({stats?.rejected || 0})</option>
+              <option value="approved">Approved ({stats?.approved || 0})</option>
+            </select>
+
+            {/* Bulk Delete Rejected */}
+            {stats?.rejected > 0 && (
+              <button
+                onClick={() => handleDeleteMultiple(kycApplications.filter(a => a.status === 'rejected'))}
+                disabled={deleting || loading}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm"
+              >
+                {deleting ? '🗑️ Deleting...' : `🗑️ Delete All ${stats?.rejected} Rejected`}
+              </button>
+            )}
+
+            {/* Refresh Button */}
+            <button
+              onClick={loadKycApplications}
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm"
+            >
+              {loading ? '⏳ Refreshing...' : '🔄 Refresh'}
             </button>
+          </div>
+
+          {/* Selection Toolbar */}
+          {filteredApplications.length > 0 && (
+            <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size === filteredApplications.length && filteredApplications.length > 0}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    {selectedIds.size === 0 ? 'Select All' : `Select All (${filteredApplications.length})`}
+                  </span>
+                </label>
+              </div>
+
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">{selectedIds.size} selected</span>
+                  <button
+                    onClick={deleteSelected}
+                    disabled={deleting}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm"
+                  >
+                    {deleting ? '🗑️ Deleting...' : '🗑️ Delete Selected'}
+                  </button>
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    disabled={deleting}
+                    className="px-3 py-1 bg-gray-400 hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Refresh Button */}
-        <button
-          onClick={loadKycApplications}
-          disabled={loading}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm"
-        >
-          {loading ? '⏳ Refreshing...' : '🔄 Refresh'}
-        </button>
-      </div>
+        {/* List */}
+        {loading ? (
+          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+            <div className="inline-block animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div>
+            <p className="text-gray-600">Loading KYC applications...</p>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+            <p className="text-red-800">❌ Error: {error}</p>
+          </div>
+        ) : filteredApplications.length === 0 ? (
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-8 text-center">
+            <p className="text-gray-600">📭 No KYC applications found</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredApplications.map((app) => (
+              <div key={app.id} className={`bg-white rounded-lg border-2 p-4 hover:shadow-md transition-all ${selectedIds.has(app.id) ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                <div className="flex items-start justify-between gap-4">
+                  {/* Checkbox */}
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(app.id)}
+                    onChange={() => toggleSelection(app.id)}
+                    className="w-5 h-5 mt-1 rounded border-gray-300 cursor-pointer"
+                  />
 
-      {/* List */}
-      {loading ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-          <div className="inline-block animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div>
-          <p className="text-gray-600">Loading KYC applications...</p>
-        </div>
-      ) : error ? (
-        <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
-          <p className="text-red-800">❌ Error: {error}</p>
-        </div>
-      ) : filteredApplications.length === 0 ? (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 p-8 text-center">
-          <p className="text-gray-600">📭 No KYC applications found</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredApplications.map((app) => (
-            <div key={app.id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2 flex-wrap">
-                    <h3 className="font-semibold text-gray-900 truncate">{app.fullName}</h3>
-                    <span className={`px-2 py-1 text-xs font-medium rounded border ${getStatusColor(app.status)}`}>
-                      {getStatusLabel(app.status)}
-                    </span>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-2">
-                    <div>
-                      <span className="text-gray-500">Phone:</span> {app.phone}
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
+                      <h3 className="font-semibold text-gray-900 truncate">{app.fullName}</h3>
+                      <span className={`px-2 py-1 text-xs font-medium rounded border ${getStatusColor(app.status)}`}>
+                        {getStatusLabel(app.status)}
+                      </span>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Email:</span> {app.email || 'N/A'}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-2">
+                      <div>
+                        <span className="text-gray-500">Phone:</span> {app.phone}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Email:</span> {app.email || 'N/A'}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Submitted:</span> {app.submittedAt ? new Date(app.submittedAt).toLocaleDateString('en-IN') : 'N/A'}
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Submitted:</span> {app.submittedAt ? new Date(app.submittedAt).toLocaleDateString('en-IN') : 'N/A'}
+
+                    {app.notes && (
+                      <div className="text-xs text-gray-700 bg-gray-50 p-2 rounded border border-gray-200 mb-2">
+                        <span className="text-gray-500">Notes: </span>{app.notes}
+                      </div>
+                    )}
+
+                    <div className="text-xs text-gray-500">
+                      ID: {app.id}
                     </div>
                   </div>
 
-                  {app.notes && (
-                    <div className="text-xs text-gray-700 bg-gray-50 p-2 rounded border border-gray-200 mb-2">
-                      <span className="text-gray-500">Notes: </span>{app.notes}
-                    </div>
-                  )}
-
-                  <div className="text-xs text-gray-500">
-                    ID: {app.id}
-                  </div>
+                  {/* Delete Button */}
+                  <button
+                    onClick={() => handleDeleteApplication(app)}
+                    disabled={deleting}
+                    className="px-3 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm whitespace-nowrap"
+                  >
+                    {deleting ? '🗑️...' : '🗑️ Delete'}
+                  </button>
                 </div>
-
-                <button
-                  onClick={() => handleDeleteApplication(app)}
-                  disabled={deleting}
-                  className="px-3 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm whitespace-nowrap"
-                >
-                  {deleting ? '🗑️...' : '🗑️ Delete'}
-                </button>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {/* Info Box */}
-      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-blue-800">
-          <strong>💡 Tip:</strong> You can safely delete rejected applications and old pending applications to clean up your database. Approved applications linked to tenants should be kept.
-        </p>
+        {/* Info Box */}
+        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+          <p className="text-sm text-blue-800">
+            <strong>💡 Tip:</strong> You can safely delete rejected applications and old pending applications to clean up your database. Approved applications linked to tenants should be kept.
+          </p>
+        </div>
       </div>
     </div>
   );
