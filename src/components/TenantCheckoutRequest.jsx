@@ -52,6 +52,20 @@ const TenantCheckoutRequest = ({ tenant, room, onClose, onSuccess }) => {
       return;
     }
 
+    // Validate tenant ID exists
+    if (!tenant?.id) {
+      setError('Tenant information is missing. Please refresh and try again.');
+      console.error('Tenant ID is missing:', tenant);
+      return;
+    }
+
+    console.log('🚪 Submitting checkout request...', {
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      roomNumber: tenant.roomNumber || room?.roomNumber,
+      proposedCheckoutDate
+    });
+
     try {
       setSubmitting(true);
 
@@ -69,20 +83,38 @@ const TenantCheckoutRequest = ({ tenant, room, onClose, onSuccess }) => {
         requestedBy: 'tenant',
       });
 
-      // Update tenant status
-      await updateDoc(doc(db, 'tenants', tenant.id), {
+      console.log('✅ Checkout request created:', checkoutRequestRef.id);
+
+      // Update tenant status - use setDoc with merge to handle missing fields
+      const tenantRef = doc(db, 'tenants', tenant.id);
+      await setDoc(tenantRef, {
         status: 'checkout_requested',
         checkoutRequestId: checkoutRequestRef.id,
         proposedCheckoutDate,
         updatedAt: serverTimestamp()
-      });
+      }, { merge: true });
+
+      console.log('✅ Tenant status updated to checkout_requested');
 
       if (onSuccess) {
         onSuccess();
       }
     } catch (err) {
-      console.error('Error submitting checkout request:', err);
-      setError('Failed to submit request. Please try again.');
+      console.error('❌ Error submitting checkout request:', err);
+      console.error('Error details:', {
+        code: err.code,
+        message: err.message,
+        stack: err.stack
+      });
+      
+      // More specific error messages
+      if (err.code === 'permission-denied') {
+        setError('Permission denied. Please contact the administrator.');
+      } else if (err.code === 'not-found') {
+        setError('Tenant record not found. Please refresh and try again.');
+      } else {
+        setError(`Failed to submit request: ${err.message || 'Please try again.'}`);
+      }
     } finally {
       setSubmitting(false);
     }

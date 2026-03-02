@@ -86,28 +86,32 @@ const AdminCheckoutPanel = () => {
     if (!confirmed) return;
 
     try {
+      console.log('🚫 Rejecting checkout request:', request.id);
+
       // Update checkout request status
-      await updateDoc(doc(db, 'checkoutRequests', request.id), {
+      await setDoc(doc(db, 'checkoutRequests', request.id), {
         status: 'rejected',
         rejectedAt: serverTimestamp(),
         rejectedBy: 'admin'
-      });
+      }, { merge: true });
 
-      // Update tenant status back to active
+      // Update tenant status back to active - use setDoc with merge
       if (request.tenantId) {
-        await updateDoc(doc(db, 'tenants', request.tenantId), {
+        await setDoc(doc(db, 'tenants', request.tenantId), {
           status: 'active',
           checkoutRequestId: null,
           proposedCheckoutDate: null,
           updatedAt: serverTimestamp()
-        });
+        }, { merge: true });
+        console.log('✅ Tenant status reset to active');
       }
 
       await showAlert('Checkout request rejected', { intent: 'success' });
       fetchCheckoutRequests();
     } catch (error) {
-      console.error('Error rejecting checkout request:', error);
-      showAlert('Failed to reject request', { intent: 'error' });
+      console.error('❌ Error rejecting checkout request:', error);
+      console.error('Error details:', error.code, error.message);
+      showAlert(`Failed to reject request: ${error.message}`, { intent: 'error' });
     }
   };
 
@@ -275,9 +279,9 @@ const AdminCheckoutPanel = () => {
         createdBy: 'admin'
       });
 
-      // 2. Update tenant status
+      // 2. Update tenant status - use set with merge for new fields
       const tenantRef = doc(db, 'tenants', tenant.id);
-      batch.update(tenantRef, {
+      batch.set(tenantRef, {
         status: 'inactive',
         isActive: false,
         checkOutDate: request.proposedCheckoutDate,
@@ -285,26 +289,26 @@ const AdminCheckoutPanel = () => {
         depositReturned: true,
         checkoutSettlementId: settlementRef.id,
         updatedAt: serverTimestamp()
-      });
+      }, { merge: true });
 
-      // 3. Update room status if exists
+      // 3. Update room status if exists - use set with merge for new fields
       if (room) {
         const roomRef = doc(db, 'rooms', room.id);
-        batch.update(roomRef, {
+        batch.set(roomRef, {
           status: 'vacant',
           currentTenantId: null,
           lastStatusUpdatedAt: serverTimestamp()
-        });
+        }, { merge: true });
       }
 
       // 4. Update checkout request status
       const requestRef = doc(db, 'checkoutRequests', request.id);
-      batch.update(requestRef, {
+      batch.set(requestRef, {
         status: 'completed',
         completedAt: serverTimestamp(),
         completedBy: 'admin',
         settlementId: settlementRef.id
-      });
+      }, { merge: true });
 
       // Commit batch
       await batch.commit();
