@@ -234,6 +234,53 @@ const Dashboard = () => {
     return sorted;
   };
 
+  // Get row background color based on payment status
+  const getRowBgColor = (tenant) => {
+    const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
+    
+    if (isPaid) {
+      // Paid - always green
+      return 'bg-green-50 hover:bg-green-100';
+    }
+    
+    // Pending payments - color based on due status
+    switch (tenant.dueStatusColor) {
+      case 'red':
+        // Delayed/Overdue
+        return 'bg-red-50 hover:bg-red-100';
+      case 'orange':
+        // Due today
+        return 'bg-orange-50 hover:bg-orange-100';
+      case 'yellow':
+        // Due soon (1-3 days)
+        return 'bg-yellow-50 hover:bg-yellow-100';
+      default:
+        // Due later (>3 days) or no due date - light blue
+        return 'bg-blue-50 hover:bg-blue-100';
+    }
+  };
+
+  // Get status badge color
+  const getStatusBadgeColor = (tenant) => {
+    const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
+    
+    if (isPaid) {
+      return 'bg-green-200 text-green-900';
+    }
+    
+    // Pending payments
+    switch (tenant.dueStatusColor) {
+      case 'red':
+        return 'bg-red-200 text-red-900';
+      case 'orange':
+        return 'bg-orange-200 text-orange-900';
+      case 'yellow':
+        return 'bg-yellow-200 text-yellow-900';
+      default:
+        return 'bg-gray-200 text-gray-900';
+    }
+  };
+
   const sortYearlyRows = (rows) => {
     const sortConfig = tableSorts.yearly || { column: 'year', direction: 'desc' };
     const sorted = [...rows].sort((a, b) => {
@@ -460,7 +507,7 @@ const Dashboard = () => {
                             {floor1.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
-                                <div key={tenant.id} className={`rounded-lg border p-3 ${isPaid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                <div key={tenant.id} className={`rounded-lg border p-3 ${getRowBgColor(tenant).replace('hover:bg-', 'border-').replace('-100', '-200')}`}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
@@ -469,9 +516,7 @@ const Dashboard = () => {
                                         <p className="text-xs text-indigo-700 font-semibold mt-1">Multi-room tenant ({tenant.roomCount} rooms)</p>
                                       )}
                                     </div>
-                                    <span className={`text-xs px-2 py-1 rounded font-semibold ${
-                                      isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
-                                    }`}>
+                                    <span className={`text-xs px-2 py-1 rounded font-semibold ${getStatusBadgeColor(tenant)}`}>
                                       {isPaid ? '✅ Paid' : '❌ Pending'}
                                     </span>
                                   </div>
@@ -481,12 +526,25 @@ const Dashboard = () => {
                                     <p>Expected: <span className="font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</span></p>
                                     <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
                                   </div>
-                                  <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
-                                    <span>Payment: {tenant.paidDate || '-'}</span>
-                                    <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
-                                    {tenant.isDelayed && (
-                                      <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
-                                    )}
+                                  <div className="mt-2 text-sm text-gray-700">
+                                    <p className="mb-1">Payment: {tenant.paidDate || '-'}</p>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
+                                      {tenant.dueStatusText && (
+                                        <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{
+                                          backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' : 
+                                                         tenant.dueStatusColor === 'orange' ? '#fed7aa' : 
+                                                         tenant.dueStatusColor === 'yellow' ? '#fef08a' : 
+                                                         tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
+                                          color: tenant.dueStatusColor === 'red' ? '#991b1b' : 
+                                                 tenant.dueStatusColor === 'orange' ? '#c2410c' : 
+                                                 tenant.dueStatusColor === 'yellow' ? '#a16207' : 
+                                                 tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
+                                        }}>
+                                          {tenant.dueStatusText}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -516,11 +574,7 @@ const Dashboard = () => {
                                       <Fragment key={tenant.id}>
                                         <tr
                                           key={tenant.id}
-                                          className={`border-b transition-colors ${
-                                            isPaid
-                                              ? 'bg-green-50 hover:bg-green-100'
-                                              : 'bg-red-50 hover:bg-red-100'
-                                          }`}
+                                          className={`border-b transition-colors ${getRowBgColor(tenant)}`}
                                         >
                                           <td className="px-3 py-2 font-semibold whitespace-nowrap" title={getTenantRoomLabel(tenant)}>
                                             {getCompactRoomLabel(tenant)}
@@ -548,16 +602,21 @@ const Dashboard = () => {
                                           </td>
                                           <td className="px-3 py-2">
                                             <div className="flex items-center gap-2">
-                                              <span>{tenant.paidDate || '-'}</span>
-                                              {tenant.isDelayed && (
-                                                <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
+                                              <span className="text-sm whitespace-nowrap">{tenant.paidDate || '-'}</span>
+                                              {tenant.dueStatusText && (
+                                                <span className="text-xs font-semibold whitespace-nowrap" style={{
+                                                  color: tenant.dueStatusColor === 'red' ? '#991b1b' : 
+                                                         tenant.dueStatusColor === 'orange' ? '#c2410c' : 
+                                                         tenant.dueStatusColor === 'yellow' ? '#a16207' : 
+                                                         tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
+                                                }}>
+                                                  {tenant.dueStatusText}
+                                                </span>
                                               )}
                                             </div>
                                           </td>
                                           <td className="px-3 py-2 text-center">
-                                            <span className={`text-xs px-2 py-1 rounded font-semibold ${
-                                              isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
-                                            }`}>
+                                            <span className={`text-xs px-2 py-1 rounded font-semibold ${getStatusBadgeColor(tenant)}`}>
                                               {isPaid ? '✅ Paid' : '❌ Pending'}
                                             </span>
                                           </td>
@@ -625,7 +684,7 @@ const Dashboard = () => {
                             {floor2.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
-                                <div key={tenant.id} className={`rounded-lg border p-3 ${isPaid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                <div key={tenant.id} className={`rounded-lg border p-3 ${getRowBgColor(tenant).replace('hover:bg-', 'border-').replace('-100', '-200')}`}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
@@ -634,9 +693,7 @@ const Dashboard = () => {
                                         <p className="text-xs text-indigo-700 font-semibold mt-1">Multi-room tenant ({tenant.roomCount} rooms)</p>
                                       )}
                                     </div>
-                                    <span className={`text-xs px-2 py-1 rounded font-semibold ${
-                                      isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
-                                    }`}>
+                                    <span className={`text-xs px-2 py-1 rounded font-semibold ${getStatusBadgeColor(tenant)}`}>
                                       {isPaid ? '✅ Paid' : '❌ Pending'}
                                     </span>
                                   </div>
@@ -646,12 +703,25 @@ const Dashboard = () => {
                                     <p>Expected: <span className="font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</span></p>
                                     <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
                                   </div>
-                                  <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
-                                    <span>Payment: {tenant.paidDate || '-'}</span>
-                                    <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
-                                    {tenant.isDelayed && (
-                                      <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
-                                    )}
+                                  <div className="mt-2 text-sm text-gray-700">
+                                    <p className="mb-1">Payment: {tenant.paidDate || '-'}</p>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
+                                      {tenant.dueStatusText && (
+                                        <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{
+                                          backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' : 
+                                                         tenant.dueStatusColor === 'orange' ? '#fed7aa' : 
+                                                         tenant.dueStatusColor === 'yellow' ? '#fef08a' : 
+                                                         tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
+                                          color: tenant.dueStatusColor === 'red' ? '#991b1b' : 
+                                                 tenant.dueStatusColor === 'orange' ? '#c2410c' : 
+                                                 tenant.dueStatusColor === 'yellow' ? '#a16207' : 
+                                                 tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
+                                        }}>
+                                          {tenant.dueStatusText}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -681,11 +751,7 @@ const Dashboard = () => {
                                       <Fragment key={tenant.id}>
                                         <tr
                                           key={tenant.id}
-                                          className={`border-b transition-colors ${
-                                            isPaid
-                                              ? 'bg-green-50 hover:bg-green-100'
-                                              : 'bg-red-50 hover:bg-red-100'
-                                          }`}
+                                          className={`border-b transition-colors ${getRowBgColor(tenant)}`}
                                         >
                                           <td className="px-3 py-2 font-semibold whitespace-nowrap" title={getTenantRoomLabel(tenant)}>
                                             {getCompactRoomLabel(tenant)}
@@ -713,16 +779,21 @@ const Dashboard = () => {
                                           </td>
                                           <td className="px-3 py-2">
                                             <div className="flex items-center gap-2">
-                                              <span>{tenant.paidDate || '-'}</span>
-                                              {tenant.isDelayed && (
-                                                <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
+                                              <span className="text-sm whitespace-nowrap">{tenant.paidDate || '-'}</span>
+                                              {tenant.dueStatusText && (
+                                                <span className="text-xs font-semibold whitespace-nowrap" style={{
+                                                  color: tenant.dueStatusColor === 'red' ? '#991b1b' : 
+                                                         tenant.dueStatusColor === 'orange' ? '#c2410c' : 
+                                                         tenant.dueStatusColor === 'yellow' ? '#a16207' : 
+                                                         tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
+                                                }}>
+                                                  {tenant.dueStatusText}
+                                                </span>
                                               )}
                                             </div>
                                           </td>
                                           <td className="px-3 py-2 text-center">
-                                            <span className={`text-xs px-2 py-1 rounded font-semibold ${
-                                              isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
-                                            }`}>
+                                            <span className={`text-xs px-2 py-1 rounded font-semibold ${getStatusBadgeColor(tenant)}`}>
                                               {isPaid ? '✅ Paid' : '❌ Pending'}
                                             </span>
                                           </td>

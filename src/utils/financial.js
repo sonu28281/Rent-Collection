@@ -518,15 +518,50 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
       today.setHours(0, 0, 0, 0);
       dueDate.setHours(0, 0, 0, 0);
       
+      // Calculate days until/since due date
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const daysUntilDue = Math.round((dueDate - today) / msPerDay);
+      let dueStatusText = '';
+      let dueStatusColor = 'gray'; // gray, green, yellow, orange, red
+      
       if (status === 'paid') {
         // If paid, check if payment was made after due date
         if (paidDateObj) {
           paidDateObj.setHours(0, 0, 0, 0);
           isDelayed = paidDateObj > dueDate;
+          const daysLate = Math.round((paidDateObj - dueDate) / msPerDay);
+          if (isDelayed) {
+            dueStatusText = daysLate === 1 ? 'Paid 1 day late' : `Paid ${daysLate} days late`;
+            dueStatusColor = 'orange';
+          } else {
+            dueStatusText = 'Paid on time';
+            dueStatusColor = 'green';
+          }
+        } else {
+          dueStatusText = 'Paid';
+          dueStatusColor = 'green';
         }
       } else {
         // If pending, check if due date has passed
         isDelayed = today > dueDate;
+        
+        if (isDelayed) {
+          const daysOverdue = Math.abs(daysUntilDue);
+          dueStatusText = daysOverdue === 1 ? 'Delayed by 1 day' : `Delayed by ${daysOverdue} days`;
+          dueStatusColor = 'red';
+        } else if (daysUntilDue === 0) {
+          dueStatusText = 'Due today';
+          dueStatusColor = 'orange';
+        } else if (daysUntilDue === 1) {
+          dueStatusText = 'Due tomorrow';
+          dueStatusColor = 'yellow';
+        } else if (daysUntilDue > 0 && daysUntilDue <= 3) {
+          dueStatusText = `Due in ${daysUntilDue} days`;
+          dueStatusColor = 'yellow';
+        } else if (daysUntilDue > 3) {
+          dueStatusText = `Due in ${daysUntilDue} days`;
+          dueStatusColor = 'gray';
+        }
       }
       
       tenantList.push({
@@ -545,6 +580,9 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         paidDate,
         paidTimestamp: latestPaidRecord?.paidAt ? new Date(latestPaidRecord.paidAt).getTime() : 0,
         isDelayed,
+        daysUntilDue,
+        dueStatusText,
+        dueStatusColor,
         paymentMethod: latestPaidRecord ? latestPaidRecord.paymentMethod : null,
         paymentRecordsCount: uniqueTenantPayments.length,
         roomWiseSplit
