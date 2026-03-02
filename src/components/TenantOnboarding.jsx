@@ -6,6 +6,7 @@ import Tesseract from 'tesseract.js';
 import { Html5Qrcode } from 'html5-qrcode';
 import { parseAadhaarQr, crossVerify, formatQrDataForDisplay, maskAadhaar } from '../utils/aadhaarQrParser';
 import { scanDocument } from '../utils/documentScanner';
+import { detectDevice, getCameraPermissionInstructions, checkCameraPermission } from '../utils/deviceDetection';
 
 // ─── TENANT ONBOARDING / KYC PAGE ──────────────────────────────────────────
 // 
@@ -48,6 +49,11 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   const [qrDisplayData, setQrDisplayData] = useState(null);
   const qrScannerRef = useRef(null);
   const qrRegionRef = useRef(null);
+  
+  // Device detection and camera permission
+  const [deviceInfo, setDeviceInfo] = useState(() => detectDevice());
+  const [showPermissionHelp, setShowPermissionHelp] = useState(false);
+  const [cameraPermissionStatus, setCameraPermissionStatus] = useState('unknown');
 
   // Step 3: Documents
   const [documents, setDocuments] = useState({
@@ -195,6 +201,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   const startQrScanner = async () => {
     setQrError('');
     setQrScanning(true);
+    setShowPermissionHelp(false);
 
     try {
       // First, cleanup any existing scanner instance
@@ -208,52 +215,66 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
         }
       }
 
-      // First check if camera permission is available
+      // Check if camera API is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Camera not supported by this browser. Please use Chrome, Firefox, or Safari.');
       }
 
-      // Check if running as installed PWA
-      const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
-                    window.navigator.standalone === true ||
-                    document.referrer.includes('android-app://');
+      // Get device info
+      const device = detectDevice();
 
-      // Request camera permission explicitly with better error handling for PWA
+      // Request camera permission
       try {
-        // Try with more basic constraints first for PWA compatibility
-        const constraints = isPWA 
-          ? { video: true } // Basic constraint for PWA
-          : { video: { facingMode: { ideal: 'environment' } } }; // Advanced for browser
+        console.log(`Requesting camera permission on ${device.deviceName} (${device.browserName})`);
         
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        // Use basic constraints for better compatibility
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: {
+            facingMode: 'environment'
+          }
+        });
         
-        // Stop the test stream immediately
+        // Permission granted! Stop the test stream
         stream.getTracks().forEach(track => track.stop());
         
+        // Store permission status
+        localStorage.setItem('cameraPermissionGranted', 'true');
+        localStorage.setItem('cameraPermissionGrantedAt', new Date().toISOString());
+        setCameraPermissionStatus('granted');
+        
         // Small delay to ensure camera is fully released
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
       } catch (permErr) {
         console.error('Camera permission error:', permErr);
         
+        // Store denied status
+        localStorage.setItem('cameraPermissionGranted', 'false');
+        localStorage.setItem('cameraPermissionDeniedAt', new Date().toISOString());
+        setCameraPermissionStatus('denied');
+        
+        // Handle specific error types
         if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
-          if (isPWA) {
-            throw new Error('Camera permission denied. For installed app: Go to your phone Settings → Apps → This App → Permissions → Enable Camera.');
-          }
-          throw new Error('Camera permission denied. Please allow camera access in browser settings.');
+          setShowPermissionHelp(true);
+          throw new Error('Camera permission denied. Please see instructions below.');
         } else if (permErr.name === 'NotFoundError') {
           throw new Error('No camera found. Please make sure your device has a camera.');
         } else if (permErr.name === 'NotReadableError') {
           throw new Error('Camera is already in use by another application. Please close other apps and try again.');
         } else if (permErr.name === 'OverconstrainedError') {
-          // Try again with basic constraints
+          // Try again with most basic constraints
           try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             stream.getTracks().forEach(track => track.stop());
-            await new Promise(resolve => setTimeout(resolve, 100));
+            localStorage.setItem('cameraPermissionGranted', 'true');
+            setCameraPermissionStatus('granted');
+            await new Promise(resolve => setTimeout(resolve, 200));
           } catch {
-            throw new Error('Camera access failed. Please check camera permissions in device settings.');
+            setShowPermissionHelp(true);
+            throw new Error('Camera constraints not supported. Please see instructions below.');
           }
         } else {
+          setShowPermissionHelp(true);
           throw new Error(`Camera access failed: ${permErr.message || 'Unknown error'}`);
         }
       }
@@ -1274,28 +1295,62 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                   )}
 
                   {qrError && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 space-y-3">
                       <p className="text-sm font-bold text-red-900 mb-2">{qrError}</p>
-                      <div className="text-xs text-red-700 space-y-1.5 mt-3">
-                        <p className="font-semibold">💡 Troubleshooting Tips:</p>
-                        <ul className="ml-4 space-y-1">
-                          {(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) && (
-                            <>
-                              <li>• <strong>Installed App:</strong> Go to Phone Settings → Apps → Find this app → Permissions → Enable Camera</li>
-                              <li>• Uninstall and reinstall the app to reset permissions</li>
-                            </>
-                          )}
-                          <li>• Check browser camera permissions in settings</li>
-                          <li>• Make sure no other app is using the camera</li>
-                          <li>• Try closing other tabs/apps that might be using camera</li>
-                          <li>• Use the <strong>"Upload Image"</strong> option instead</li>
-                          <li>• Try using Chrome browser if using another browser</li>
-                          <li>• Refresh the page and try again</li>
-                        </ul>
-                      </div>
+                      
+                      {/* Device-Specific Instructions */}
+                      {showPermissionHelp && (() => {
+                        const instructions = getCameraPermissionInstructions();
+                        return (
+                          <div className="bg-white rounded-lg p-4 border border-red-200">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-2xl">{deviceInfo.isIOS ? '📱' : deviceInfo.isAndroid ? '🤖' : '💻'}</span>
+                              <h4 className="font-bold text-gray-900">{instructions.title}</h4>
+                            </div>
+                            
+                            <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-3">
+                              <p className="text-xs font-semibold text-blue-900 mb-2">
+                                🔍 Detected: {deviceInfo.deviceName} • {deviceInfo.browserName} {deviceInfo.isPWA ? '• Installed App' : ''}
+                              </p>
+                            </div>
+                            
+                            <div className="space-y-2 text-sm">
+                              <p className="font-semibold text-gray-800">Follow these steps:</p>
+                              <ol className="space-y-2 ml-4">
+                                {instructions.steps.map((step, index) => (
+                                  <li key={index} className="flex gap-2">
+                                    <span className="font-bold text-primary">{index + 1}.</span>
+                                    <span className="text-gray-700">{step}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                              <div className="bg-amber-50 border border-amber-200 rounded p-2 mt-3">
+                                <p className="text-xs text-amber-800">
+                                  <strong>📌 Note:</strong> {instructions.note}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      
+                      {/* General Troubleshooting */}
+                      {!showPermissionHelp && (
+                        <div className="text-xs text-red-700 space-y-1.5">
+                          <p className="font-semibold">💡 Troubleshooting Tips:</p>
+                          <ul className="ml-4 space-y-1">
+                            <li>• Make sure no other app is using the camera</li>
+                            <li>• Try closing other tabs/apps that might be using camera</li>
+                            <li>• Use the <strong>"Upload Image"</strong> option instead</li>
+                            <li>• Refresh the page and try again</li>
+                          </ul>
+                        </div>
+                      )}
+                      
                       <button
                         onClick={() => {
                           setQrError('');
+                          setShowPermissionHelp(false);
                           // Clear any existing scanner
                           if (qrScannerRef.current) {
                             try {
@@ -1307,7 +1362,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                             }
                           }
                         }}
-                        className="mt-3 w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-xs transition-colors"
+                        className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
                       >
                         🔄 Clear Error & Try Again
                       </button>
