@@ -112,7 +112,33 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
   const toDataUrl = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        // Compress image before using it
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        
+        // Limit to 1200px max to reduce file size
+        const MAX_DIM = 1200;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          const scale = MAX_DIM / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Use JPEG with 0.75 quality to reduce size
+        const compressed = canvas.toDataURL('image/jpeg', 0.75);
+        resolve(compressed);
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = String(reader.result || '');
+    };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });

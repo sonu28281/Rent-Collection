@@ -24,8 +24,9 @@ export const scanDocument = (dataUrl, options = {}) => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Limit max dimension for performance (keep aspect ratio)
-        const MAX_DIM = 1600;
+        // Limit max dimension for performance & file size (keep aspect ratio)
+        // Higher res causes "Exceed max size" errors - keep at 1024px
+        const MAX_DIM = 1024;
         let { width, height } = img;
         if (width > MAX_DIM || height > MAX_DIM) {
           const scale = MAX_DIM / Math.max(width, height);
@@ -116,7 +117,7 @@ export const scanDocument = (dataUrl, options = {}) => {
         const sharpened = applySharpen(ctx, canvas, width, height);
 
         // Output as JPEG with good quality
-        const result = sharpened.toDataURL('image/jpeg', 0.92);
+        const result = sharpened.toDataURL('image/jpeg', 0.65);
         resolve(result);
       } catch (err) {
         console.error('Document scan processing failed, returning original:', err);
