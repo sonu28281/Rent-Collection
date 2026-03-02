@@ -49,6 +49,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
   const [qrError, setQrError] = useState('');
   const [qrDisplayData, setQrDisplayData] = useState(null);
   const [flashlightOn, setFlashlightOn] = useState(false);
+  const [scanAttempts, setScanAttempts] = useState(0); // Track scan attempts for UI
   const qrScannerRef = useRef(null);
   const scannerInitializing = useRef(false); // Prevent double-initialization
   const frameCountIntervalRef = useRef(null); // Track frame processing
@@ -214,6 +215,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
     setQrScanning(true);
     setScannerLoading(true);
     setShowPermissionHelp(false);
+    setScanAttempts(0); // Reset scan attempts counter
 
     console.log('🎥 Starting QR scanner...');
 
@@ -412,11 +414,13 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
           // Scan failed (no QR in frame) — this fires continuously
           // These are NORMAL errors while scanning - only log unusual ones
           
-          scanAttempts++;
+          // Update scan attempts in state for UI display
+          setScanAttempts(prev => prev + 1);
           
           // Log first 10 scan attempts to verify scanner is trying
-          if (scanAttempts <= 10) {
-            console.log(`🔍 Scan attempt ${scanAttempts}: ${errorMessage || 'Unknown error'}`);
+          const currentAttempt = scanAttempts + 1;
+          if (currentAttempt <= 10) {
+            console.log(`🔍 Scan attempt ${currentAttempt}: ${errorMessage || 'Unknown error'}`);
           }
           
           // Ignore common scanning errors (after logging first 10)
@@ -675,8 +679,18 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.error('Error:', parsed.error);
         console.log('Raw data preview:', rawText.substring(0, 100));
-        setQrError(parsed.error || '❌ Failed to parse QR code data.');
-        showToast('❌ This is not an Aadhaar QR code', 'error');
+        
+        // Detailed error with raw data preview for debugging
+        const debugInfo = `
+Error: ${parsed.error}
+Data Length: ${rawText?.length || 0} characters
+First 100 chars: ${rawText?.substring(0, 100) || 'N/A'}
+Is Numeric: ${/^\d+$/.test(rawText?.trim() || '')}
+Has Spaces: ${/\s/.test(rawText || '')}
+        `.trim();
+        
+        setQrError(debugInfo);
+        showToast('❌ QR parse failed - Check error details below', 'error');
         setQrScanned(false);
       }
     } catch (error) {
@@ -1703,22 +1717,28 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                         </button>
                       )}
                       
-                      {/* Scanning Active Indicator */}
+                      {/* Scanning Active Indicator with Attempts Counter */}
                       {!scannerLoading && qrScanning && (
                         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20">
                           <div className="bg-green-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-pulse">
                             <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
-                            <span className="text-xs font-bold">🔍 Scanning Active</span>
+                            <span className="text-xs font-bold">
+                              🔍 Scanning {scanAttempts > 0 ? `(${scanAttempts} attempts)` : 'Active'}
+                            </span>
                           </div>
                         </div>
                       )}
                       
-                      {/* Instructions Overlay */}
+                      {/* Instructions Overlay with Scan Status */}
                       {!scannerLoading && qrScanning && (
                         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 max-w-xs">
                           <div className="bg-black bg-opacity-70 text-white px-4 py-2 rounded-lg text-center">
                             <p className="text-xs font-semibold">📱 QR code ko GREEN BOX ke andar align karein</p>
-                            <p className="text-[10px] text-gray-300 mt-1">Auto-detect hoga jab focus hoga</p>
+                            <p className="text-[10px] text-gray-300 mt-1">
+                              {scanAttempts === 0 ? 'Starting scanner...' : 
+                               scanAttempts < 5 ? 'Initializing...' : 
+                               `Scanning... ${scanAttempts} attempts`}
+                            </p>
                           </div>
                         </div>
                       )}
