@@ -993,9 +993,17 @@ const Tenants = () => {
   };
 
   // Available rooms for assignment (not occupied by active tenants)
+  // Helper function to check if a tenant is a merged ghost record
+  const isMergedGhost = (tenant) => {
+    return tenant.mergedIntoTenantId && !tenant.isActive && (!tenant.assignedRooms || tenant.assignedRooms.length === 0);
+  };
+
+  // Valid tenants (exclude merged ghost records)
+  const validTenants = tenants.filter(t => !isMergedGhost(t));
+
   const getAvailableRooms = () => {
     const occupiedRoomNumbers = new Set();
-    tenants.forEach(t => {
+    validTenants.forEach(t => {
       if (t.isActive) {
         const assigned = getAssignedRooms(t);
         assigned.forEach(r => occupiedRoomNumbers.add(r));
@@ -1004,12 +1012,7 @@ const Tenants = () => {
     return rooms.filter(r => !occupiedRoomNumbers.has(String(r.roomNumber)));
   };
 
-  const filteredTenants = tenants.filter(tenant => {
-    // Don't show merged ghost records (inactive tenants with no assigned rooms and marked as merged)
-    if (tenant.mergedIntoTenantId && !tenant.isActive && (!tenant.assignedRooms || tenant.assignedRooms.length === 0)) {
-      return false;
-    }
-
+  const filteredTenants = validTenants.filter(tenant => {
     // Active/Inactive filter
     let matchesActiveFilter = true;
     if (filter === 'active') matchesActiveFilter = tenant.isActive;
@@ -1049,16 +1052,16 @@ const Tenants = () => {
   });
 
   const stats = {
-    total: tenants.length,
-    active: tenants.filter(t => t.isActive).length,
-    inactive: tenants.filter(t => !t.isActive).length,
-    kycVerified: tenants.filter((t) => t?.kyc?.verified === true && t?.kyc?.verifiedBy === 'DigiLocker').length,
-    kycNotVerified: tenants.filter((t) => !(t?.kyc?.verified === true && t?.kyc?.verifiedBy === 'DigiLocker')).length,
-    floor1: tenants.filter(t => {
+    total: validTenants.length,
+    active: validTenants.filter(t => t.isActive).length,
+    inactive: validTenants.filter(t => !t.isActive).length,
+    kycVerified: validTenants.filter((t) => t?.kyc?.verified === true && t?.kyc?.verifiedBy === 'DigiLocker').length,
+    kycNotVerified: validTenants.filter((t) => !(t?.kyc?.verified === true && t?.kyc?.verifiedBy === 'DigiLocker')).length,
+    floor1: validTenants.filter(t => {
       const assignedRoomNumbers = getAssignedRooms(t).map((room) => Number.parseInt(room, 10));
       return assignedRoomNumbers.some((roomNum) => roomNum >= 101 && roomNum <= 106);
     }).length,
-    floor2: tenants.filter(t => {
+    floor2: validTenants.filter(t => {
       const assignedRoomNumbers = getAssignedRooms(t).map((room) => Number.parseInt(room, 10));
       return assignedRoomNumbers.some((roomNum) => roomNum >= 201 && roomNum <= 206);
     }).length,
