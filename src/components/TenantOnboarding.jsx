@@ -382,26 +382,10 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
           console.log('🎉 QR CODE DETECTED! Scanner success callback fired!');
           console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           
-          // IMPORTANT: Stop scanner IMMEDIATELY to prevent multiple scans
-          console.log('🛑 Stopping scanner immediately...');
           if (frameCountIntervalRef.current) {
             clearInterval(frameCountIntervalRef.current);
             frameCountIntervalRef.current = null;
           }
-          
-          // Stop camera right away (sync operation)
-          if (qrScannerRef.current) {
-            try {
-              qrScannerRef.current.stop().catch(() => {});
-            } catch (err) {
-              console.warn('Scanner stop error (ignored):', err);
-            }
-          }
-          
-          // Hide scanner UI immediately
-          setQrScanning(false);
-          setScannerLoading(false);
-          setFlashlightOn(false);
           
           console.log('📊 QR Data Stats:');
           console.log('  - Length:', decodedText.length);
@@ -414,6 +398,11 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
             console.log('🔄 Processing QR result...');
             handleQrResult(decodedText);
             console.log('✅ QR result processed successfully');
+            
+            console.log('🛑 Stopping scanner after processing...');
+            // Stop scanner after successful processing
+            stopQrScanner();
+            console.log('✅ Scanner stopped');
           } catch (err) {
             console.error('❌ ERROR processing QR:', err);
             console.error('Stack:', err.stack);
