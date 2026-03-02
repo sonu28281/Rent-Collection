@@ -346,24 +346,40 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
     if (!file) return;
 
     setQrError('');
+    console.log('📁 Processing uploaded QR image:', file.name);
     try {
       const regionId = 'qr-reader-region-upload';
       const scanner = new Html5Qrcode(regionId);
       const result = await scanner.scanFile(file, true);
       scanner.clear();
+      console.log('✅ QR decoded from image! Length:', result.length);
       handleQrResult(result);
     } catch (err) {
+      console.error('❌ Image QR scan failed:', err);
       setQrError('❌ Could not read QR code from image. Make sure the QR code is clearly visible.');
     }
   };
 
   const handleQrResult = (rawText) => {
+    console.log('🔄 Processing QR result...');
     const parsed = parseAadhaarQr(rawText);
 
     if (parsed.success) {
       setQrData(parsed);
       setQrScanned(true);
-      setQrDisplayData(formatQrDataForDisplay(parsed));
+      const displayData = formatQrDataForDisplay(parsed);
+      setQrDisplayData(displayData);
+      
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('✅ QR PARSED SUCCESSFULLY!');
+      console.log('📄 Name:', displayData.name);
+      console.log('🔢 Aadhaar Number:', displayData.aadhaarNumber);
+      console.log('🎯 Last 4 Digits:', displayData.aadhaarNumber.split(' ').pop());
+      console.log('📅 DOB:', displayData.dob);
+      console.log('👤 Gender:', displayData.gender);
+      console.log('💡 Display will show HIGHLIGHTED last 4 digits!');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
       showToast('✅ Aadhaar QR scanned successfully!', 'success');
 
       // Auto-fill form if name is from QR
@@ -376,6 +392,7 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
         }));
       }
     } else {
+      console.error('❌ QR Parse Failed:', parsed.error);
       setQrError(parsed.error || '❌ Failed to parse QR code data.');
       setQrScanned(false);
     }
