@@ -341,19 +341,23 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
       const minEdge = Math.min(viewportWidth, viewportHeight);
-      const qrboxSize = Math.floor(minEdge * 0.70); // 70% for optimal balance
+      const qrboxSize = Math.floor(minEdge * 0.75); // 75% - WORKING SIZE
       console.log(`📐 QR Box Size: ${qrboxSize}x${qrboxSize}px (Viewport: ${viewportWidth}x${viewportHeight})`);
 
       const scanConfig = {
-        fps: 20, // Increased to 20 FPS for more scan attempts per second
+        fps: 10, // Stable 10 FPS for better accuracy - WORKING SETTING
         qrbox: { width: qrboxSize, height: qrboxSize },
-        disableFlip: false, // Try both orientations
+        disableFlip: false, // Try both normal and mirrored
         rememberLastUsedCamera: true,
         showTorchButtonIfSupported: true,
         showZoomSliderIfSupported: true,
-        defaultZoomValueIfSupported: 2 // Increased zoom for better focus on QR
-        // Note: No formatsToSupport restriction - library will try ALL formats
-        // This gives maximum compatibility with different QR code types
+        defaultZoomValueIfSupported: 1.5, // WORKING ZOOM VALUE
+        // IMPORTANT: Enable ALL barcode formats for Aadhaar QR compatibility
+        // Some Aadhaar QRs may need multiple format decoders
+        // Leave formatsToSupport undefined to enable all formats
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true // Use native browser barcode API if available - CRITICAL!
+        }
       };
 
       console.log('📷 Starting scanner with config:', scanConfig);
