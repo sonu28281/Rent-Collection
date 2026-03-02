@@ -233,11 +233,11 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       console.log('✅ Selected camera:', backCamera.label || backCamera.id);
 
       const scanConfig = {
-        fps: 10, // 10 FPS = 10 scan attempts per second
+        fps: 20, // 20 FPS = more scan attempts per second for faster detection
         qrbox: function(viewfinderWidth, viewfinderHeight) {
-          // 60% - smaller, more focused area
+          // 75% - larger area for easier QR detection
           const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          const qrboxSize = Math.floor(minEdge * 0.6);
+          const qrboxSize = Math.floor(minEdge * 0.75);
           console.log('📐 QR Box Size:', qrboxSize, 'px');
           return {
             width: qrboxSize,
@@ -246,6 +246,9 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
         },
         aspectRatio: 1.0,
         disableFlip: false,
+        showTorchButtonIfSupported: true,
+        showZoomSliderIfSupported: true,
+        defaultZoomValueIfSupported: 1.5,
         // CRITICAL: Use native browser barcode detector if available
         experimentalFeatures: {
           useBarCodeDetectorIfSupported: true
@@ -254,7 +257,8 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
 
       console.log('🚀 Starting scanner with config:', {
         fps: scanConfig.fps,
-        qrbox: '60%',
+        qrbox: '75%',
+        zoom: '1.5x',
         experimentalFeatures: true
       });
 
@@ -282,12 +286,16 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
           const now = Date.now();
           if (now - lastLogTime > 5000) {
             console.log(`🔍 Scanner active: ${scanAttempts} attempts so far... (Still scanning)`);
+            console.log('💡 TIP: Make sure QR is INSIDE green box, good lighting, 10-15cm distance');
             lastLogTime = now;
           }
           
-          // Log first few attempts to verify it's working
-          if (scanAttempts <= 5) {
-            console.log(`Scan attempt ${scanAttempts}: ${errorMessage || 'No QR found'}`);
+          // Log first 10 attempts with error details to see what's failing
+          if (scanAttempts <= 10) {
+            const errorType = errorMessage.includes('NotFoundException') ? 'QR not found' :
+                             errorMessage.includes('No MultiFormat') ? 'Cannot decode QR' :
+                             'Other error';
+            console.log(`Scan #${scanAttempts}: ${errorType}`);
           }
         }
       );
@@ -298,8 +306,11 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
       
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('✅ SCANNER READY! Camera feed active.');
-      console.log('💡 Hold Aadhaar QR code in the green box');
-      console.log('📊 Scanning at 10 FPS (10 attempts per second)');
+      console.log('💡 Hold Aadhaar QR code INSIDE the green box');
+      console.log('📊 Scanning at 20 FPS (20 attempts per second)');
+      console.log('📦 QR Box: 75% viewport (larger detection area)');
+      console.log('🔍 Zoom: 1.5x (better focus)');
+      console.log('⚡ experimentalFeatures: ON (native detector)');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
     } catch (err) {
@@ -1265,13 +1276,13 @@ const TenantOnboarding = ({ mode = 'standalone', tenantData = null, onComplete =
                           {/* Dark overlay around box */}
                           <div className="absolute inset-0 bg-black bg-opacity-30"></div>
                           
-                          {/* Green scanning box - 60% size matches scanner config */}
+                          {/* Green scanning box - 75% size matches scanner config */}
                           <div 
                             className="relative z-10 border-4 border-green-400 rounded-lg shadow-lg"
                             style={{ 
-                              width: '60%', 
+                              width: '75%', 
                               aspectRatio: '1/1',
-                              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.3)'
+                              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.25)'
                             }}
                           >
                             {/* Corner markers */}
