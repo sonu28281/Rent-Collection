@@ -304,8 +304,8 @@ export const getTodaysCollection = async () => {
       // Check if payment was made today
       let isTodaysPayment = false;
       
-      // Check paymentDate field (format: 'YYYY-MM-DD')
-      if (data.paymentDate === today) {
+      // Check paidDate field (format: 'YYYY-MM-DD')
+      if (data.paidDate === today) {
         isTodaysPayment = true;
       }
       
