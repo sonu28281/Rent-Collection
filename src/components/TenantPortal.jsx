@@ -66,7 +66,7 @@ const TenantPortal = () => {
   const toastTimerRef = useRef(null);
   
   // Submit payment modal state
-  const [showSubmitPayment, setShowSubmitPayment] = useState(false);
+  const [submitPaymentData, setSubmitPaymentData] = useState(null);
   const [portalLanguage, setPortalLanguage] = useState(() => localStorage.getItem(TENANT_PORTAL_LANG_KEY) || 'en');
   const [notificationPermission, setNotificationPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
@@ -2958,9 +2958,10 @@ const TenantPortal = () => {
                         initialCurrent[roomKey] = '';
                       });
                       
-                      setPreviousMeterReadings(initialPrevious);
-                      setCurrentMeterReadings(initialCurrent);
-                      setShowSubmitPayment(true);
+                      setSubmitPaymentData({
+                        previousMeterReadings: initialPrevious,
+                        currentMeterReadings: initialCurrent
+                      });
                     }}
                     className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 touch-manipulation"
                   >
@@ -3589,19 +3590,19 @@ const TenantPortal = () => {
         )}
         
         {/* Submit Payment Modal */}
-        {showSubmitPayment && (
+        {submitPaymentData && (
           <SubmitPayment
             tenant={tenant}
             room={room}
             rooms={roomsData}
-            previousMeterReadings={previousMeterReadings}
-            currentMeterReadings={currentMeterReadings}
+            previousMeterReadings={submitPaymentData.previousMeterReadings}
+            currentMeterReadings={submitPaymentData.currentMeterReadings}
             electricityRate={globalElectricityRate}
             language={portalLanguage}
-            onClose={() => setShowSubmitPayment(false)}
+            onClose={() => setSubmitPaymentData(null)}
             onSuccess={() => {
               // Reload tenant data after successful submission
-              setShowSubmitPayment(false);
+              setSubmitPaymentData(null);
               // Optionally refresh data here
             }}
           />
