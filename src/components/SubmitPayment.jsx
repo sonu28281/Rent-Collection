@@ -2,19 +2,32 @@ import { useState } from 'react';
 import { collection, addDoc, getDocs, limit, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
-const SubmitPayment = ({ tenant, room, rooms = [], electricityRate = 9, language = 'en', onClose, onSuccess }) => {
+const SubmitPayment = ({ 
+  tenant, 
+  room, 
+  rooms = [], 
+  electricityRate = 9, 
+  language = 'en', 
+  previousMeterReadings = {},
+  currentMeterReadings = {},
+  onClose, 
+  onSuccess 
+}) => {
   const t = (en, hi) => (language === 'hi' ? hi : en);
   const effectiveRooms = Array.isArray(rooms) && rooms.length > 0
     ? rooms
     : (room ? [room] : []);
 
   const isMultiRoom = effectiveRooms.length > 1;
-  const initialRoomBreakdown = effectiveRooms.map((roomEntry) => ({
-    roomNumber: String(roomEntry.roomNumber),
-    previousReading: Number(roomEntry.currentReading || 0),
-    currentReading: Number(roomEntry.currentReading || 0),
-    rentAmount: Number(roomEntry.rent || 0)
-  }));
+  const initialRoomBreakdown = effectiveRooms.map((roomEntry) => {
+    const roomKey = String(roomEntry.roomNumber);
+    return {
+      roomNumber: roomKey,
+      previousReading: Number(previousMeterReadings[roomKey] || roomEntry.currentReading || 0),
+      currentReading: Number(currentMeterReadings[roomKey] || roomEntry.currentReading || 0),
+      rentAmount: Number(roomEntry.rent || 0)
+    };
+  });
 
   const initialRentAmount = initialRoomBreakdown.reduce((sum, entry) => sum + (Number(entry.rentAmount) || 0), 0);
 

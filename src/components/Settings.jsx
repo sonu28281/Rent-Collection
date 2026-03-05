@@ -7,6 +7,7 @@ const Settings = () => {
   const [settings, setSettings] = useState(null);
   const [electricityRate, setElectricityRate] = useState('');
   const [historyEditDeleteEnabled, setHistoryEditDeleteEnabled] = useState(false);
+  const [tenantDirectPayEnabled, setTenantDirectPayEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -52,10 +53,12 @@ const Settings = () => {
         setSettings(settingsData);
         setElectricityRate(settingsData.electricityRate || '9');
         setHistoryEditDeleteEnabled(settingsData.historyEditDeleteEnabled === true);
+        setTenantDirectPayEnabled(settingsData.tenantDirectPayEnabled === true);
       } else {
         // No settings exist yet, set defaults
         setElectricityRate('9');
         setHistoryEditDeleteEnabled(false);
+        setTenantDirectPayEnabled(false);
       }
       
       setLoading(false);
@@ -83,6 +86,7 @@ const Settings = () => {
       const settingsData = {
         electricityRate: rate,
         historyEditDeleteEnabled,
+        tenantDirectPayEnabled,
         updatedAt: new Date().toISOString()
       };
 
@@ -297,6 +301,29 @@ const Settings = () => {
             <p className="text-xs text-gray-600 mt-3">
               Keep this off for view-only protection. Turn on only when records must be corrected.
             </p>
+
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="text-2xl">💳</div>
+                <h4 className="text-base font-bold text-gray-800">Payment Control</h4>
+              </div>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={tenantDirectPayEnabled}
+                  onChange={(e) => setTenantDirectPayEnabled(e.target.checked)}
+                  className="w-4 h-4 mt-1"
+                />
+                <span className="text-sm text-gray-800 font-medium">
+                  Enable "Make Payment Now" button in Tenant Portal
+                </span>
+              </label>
+
+              <p className="text-xs text-gray-600 mt-2">
+                Allow tenants to make direct UPI payments from the portal. Turn off to disable payment button.
+              </p>
+            </div>
 
             <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
               <button

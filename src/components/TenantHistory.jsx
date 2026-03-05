@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const TenantHistory = () => {
   const [tenants, setTenants] = useState([]);
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [tenantHistory, setTenantHistory] = useState([]);
+  const [meterHistory, setMeterHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -312,6 +313,18 @@ const TenantHistory = () => {
       // Calculate statistics
       const stats = calculateStats(history);
       setStats(stats);
+
+      // Fetch meter history for this tenant
+      try {
+        const readingsRef = collection(db, 'electricityReadings');
+        const readingQuery = query(readingsRef, where('tenantId', '==', tenantId));
+        const readingsSnapshot = await getDocs(readingQuery);
+        const readings = readingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setMeterHistory(readings);
+      } catch (error) {
+        console.log('No meter history found for this tenant:', error.message);
+        setMeterHistory([]);
+      }
       
     } catch (error) {
       console.error('Error loading tenant history:', error);
@@ -482,6 +495,7 @@ const TenantHistory = () => {
     if (!stillVisible) {
       setSelectedTenant(null);
       setTenantHistory([]);
+      setMeterHistory([]);
       setStats(null);
       setTenantDetails(null);
     }
@@ -880,6 +894,86 @@ const TenantHistory = () => {
                 );
               })}
           </div>
+
+          {/* Meter History Section */}
+          {meterHistory.length > 0 && (
+            <div className="card bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200">
+              <h3 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-blue-200">⚡ Meter Reading History</h3>
+              
+              {isMobileViewport ? (
+                <div className="space-y-3">
+                  {meterHistory.sort((a, b) => new Date(b.readingDate || b.createdAt) - new Date(a.readingDate || a.createdAt)).map((reading) => {
+                    const readingDate = new Date(reading.readingDate || reading.createdAt);
+                    const monthLabel = readingDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+                    const unitsConsumed = Number(reading.unitsConsumed ?? 0);
+                    const totalCharge = Number(reading.totalCharge ?? 0);
+                    
+                    return (
+                      <div key={reading.id} className="bg-white rounded-lg border border-blue-200 p-4 space-y-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-gray-800">{monthLabel}</h4>
+                          <span className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700">Meter</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="bg-gray-50 p-2 rounded">
+                            <p className="text-xs text-gray-600">Previous Reading</p>
+                            <p className="font-mono font-bold text-gray-800">{reading.previousReading}</p>
+                          </div>
+                          <div className="bg-gray-50 p-2 rounded">
+                            <p className="text-xs text-gray-600">Current Reading</p>
+                            <p className="font-mono font-bold text-gray-800">{reading.currentReading}</p>
+                          </div>
+                          <div className="bg-blue-50 p-2 rounded">
+                            <p className="text-xs text-blue-600">Units Consumed</p>
+                            <p className="font-bold text-blue-800">{unitsConsumed} units</p>
+                          </div>
+                          <div className="bg-green-50 p-2 rounded">
+                            <p className="text-xs text-green-600">Charge</p>
+                            <p className="font-bold text-green-800">₹{totalCharge.toFixed(2)}</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 pt-1 border-t border-gray-200">
+                          {formatDate(reading.readingDate || reading.createdAt)}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-blue-200 rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead className="bg-blue-100 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Date</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Previous Reading</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Current Reading</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Units Consumed</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Charge</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-blue-100">
+                      {meterHistory.sort((a, b) => new Date(b.readingDate || b.createdAt) - new Date(a.readingDate || a.createdAt)).map((reading) => {
+                        const unitsConsumed = Number(reading.unitsConsumed ?? 0);
+                        const totalCharge = Number(reading.totalCharge ?? 0);
+                        
+                        return (
+                          <tr key={reading.id} className="hover:bg-blue-50">
+                            <td className="px-3 py-2 font-semibold">
+                              {formatDate(reading.readingDate || reading.createdAt)}
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono">{reading.previousReading}</td>
+                            <td className="px-3 py-2 text-right font-mono text-blue-600 font-semibold">{reading.currentReading}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-blue-600">{unitsConsumed}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-green-600">₹{totalCharge.toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 

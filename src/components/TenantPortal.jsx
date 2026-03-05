@@ -2947,7 +2947,21 @@ const TenantPortal = () => {
                   
                   {/* Submit Payment Proof Button - Always available */}
                   <button
-                    onClick={() => setShowSubmitPayment(true)}
+                    onClick={() => {
+                      // Auto-fill meter readings
+                      const initialPrevious = {};
+                      const initialCurrent = {};
+                      effectiveRooms.forEach((roomEntry) => {
+                        const roomKey = String(roomEntry.roomNumber);
+                        const oldReading = getLastMonthClosingReading(roomEntry.roomNumber);
+                        initialPrevious[roomKey] = String(oldReading);
+                        initialCurrent[roomKey] = '';
+                      });
+                      
+                      setPreviousMeterReadings(initialPrevious);
+                      setCurrentMeterReadings(initialCurrent);
+                      setShowSubmitPayment(true);
+                    }}
                     className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 touch-manipulation"
                   >
                     📝 Submit Payment for Verification
@@ -3296,7 +3310,6 @@ const TenantPortal = () => {
                   <table className="w-full text-xs sm:text-sm">
                     <thead className="bg-gray-50 sticky top-0">
                       <tr>
-                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-700">Old</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-700">Current</th>
@@ -3307,7 +3320,6 @@ const TenantPortal = () => {
                     <tbody>
                       {filteredTimeline.map((entry) => (
                         <tr key={entry.id} className="border-t border-gray-100">
-                          <td className="px-3 py-2 font-semibold text-gray-700">{entry.roomNumber || '-'}</td>
                           <td className="px-3 py-2">
                             <div className="font-semibold text-gray-800">{entry.monthLabel}</div>
                             <div className="text-[10px] text-gray-500">
@@ -3582,6 +3594,8 @@ const TenantPortal = () => {
             tenant={tenant}
             room={room}
             rooms={roomsData}
+            previousMeterReadings={previousMeterReadings}
+            currentMeterReadings={currentMeterReadings}
             electricityRate={globalElectricityRate}
             language={portalLanguage}
             onClose={() => setShowSubmitPayment(false)}

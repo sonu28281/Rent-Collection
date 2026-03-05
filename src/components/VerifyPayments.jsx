@@ -21,6 +21,7 @@ const VerifyPayments = () => {
   const [expandedCards, setExpandedCards] = useState(new Set());
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [viewingScreenshot, setViewingScreenshot] = useState(null);
 
   const ADMIN_NOTIFIED_KEY = 'admin_notified_submission_ids_v1';
 
@@ -1041,18 +1042,17 @@ const VerifyPayments = () => {
                   <div className="mb-4">
                     <label className="text-xs text-gray-500 font-semibold block mb-2">Screenshot</label>
                     {String(screenshotProof).startsWith('data:image') ? (
-                      <a
-                        href={screenshotProof}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block"
+                      <div
+                        onClick={() => setViewingScreenshot(screenshotProof)}
+                        className="inline-block cursor-pointer hover:opacity-80 transition-opacity"
                       >
                         <img
                           src={screenshotProof}
                           alt="Payment screenshot"
-                          className="max-h-56 w-auto rounded-lg border border-gray-300"
+                          className="max-h-56 w-auto rounded-lg border border-gray-300 cursor-pointer hover:border-blue-500 transition-colors"
                         />
-                      </a>
+                        <p className="text-xs text-gray-500 mt-1">Click to view full size</p>
+                      </div>
                     ) : (
                       <a 
                         href={screenshotProof} 
@@ -1159,9 +1159,14 @@ const VerifyPayments = () => {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Previous Reading</label>
                   <input
-                    type="number"
-                    value={editingSubmission.previousReading || 0}
-                    onChange={(e) => setEditingSubmission({ ...editingSubmission, previousReading: e.target.value })}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={editingSubmission.previousReading ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditingSubmission({ ...editingSubmission, previousReading: val === '' ? null : Number(val) });
+                    }}
                     className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg"
                   />
                 </div>
@@ -1237,6 +1242,38 @@ const VerifyPayments = () => {
                   {processing ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Screenshot Lightbox Modal */}
+      {viewingScreenshot && (
+        <div 
+          className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50"
+          onClick={() => setViewingScreenshot(null)}
+        >
+          <div 
+            className="relative max-w-4xl w-full bg-white rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setViewingScreenshot(null)}
+              className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/75 rounded-full w-10 h-10 flex items-center justify-center text-xl z-10 transition-colors"
+            >
+              ✕
+            </button>
+            
+            <div className="p-4">
+              <img
+                src={viewingScreenshot}
+                alt="Payment screenshot full view"
+                className="w-full h-auto rounded-lg"
+              />
+            </div>
+
+            <div className="bg-gray-100 px-4 py-3 rounded-b-lg text-center text-sm text-gray-600">
+              Click anywhere outside the image to close, or press ✕
             </div>
           </div>
         </div>
