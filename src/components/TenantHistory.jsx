@@ -15,6 +15,7 @@ const TenantHistory = () => {
   const [floorFilter, setFloorFilter] = useState('all');
   const [roomFilter, setRoomFilter] = useState('all');
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [historyViewMode, setHistoryViewMode] = useState('card'); // 'card' or 'table'
 
   const MONTHS = [
     { num: 1, name: 'Jan' }, { num: 2, name: 'Feb' }, { num: 3, name: 'Mar' },
@@ -805,18 +806,124 @@ const TenantHistory = () => {
                         })}
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-700">Rooms</th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Total Rent</th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Units</th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Electricity</th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Total</th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Paid</th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">Balance</th>
+                      <>
+                        {/* View Mode Toggle - Only on Desktop */}
+                        {!isMobileViewport && (
+                          <div className="mb-3 flex gap-2">
+                            <button
+                              onClick={() => setHistoryViewMode('card')}
+                              className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${
+                                historyViewMode === 'card'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              🃏 Card View
+                            </button>
+                            <button
+                              onClick={() => setHistoryViewMode('table')}
+                              className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${
+                                historyViewMode === 'table'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              📊 Table View
+                            </button>
+                          </div>
+                        )}
+
+                        {historyViewMode === 'card' || isMobileViewport ? (
+                          <div className="space-y-3">
+                            {mergeRecordsByMonth(records).map((merged) => {
+                              const total = merged.totalRent + merged.totalElectricity;
+                              const balance = merged.totalRent + merged.totalElectricity - merged.totalPaid;
+                              const roomList = merged.rooms.map(r => r.roomNumber).sort((a, b) => a - b);
+                              
+                              // Get meter readings for this month if available
+                              const monthMeterReadings = meterHistory.filter(m => {
+                                const mDate = new Date(m.readingDate || m.createdAt);
+                                return mDate.getMonth() + 1 === merged.month && mDate.getFullYear() === merged.year;
+                              });
+                              
+                              let statusColor = 'bg-green-100 text-green-800';
+                              let statusText = 'Paid';
+                              if (merged.statuses.has('unpaid')) {
+                                statusColor = 'bg-red-100 text-red-800';
+                                statusText = 'Unpaid';
+                              } else if (merged.statuses.has('partial')) {
+                                statusColor = 'bg-yellow-100 text-yellow-800';
+                                statusText = merged.statuses.size > 1 ? 'Mixed' : 'Partial';
+                              }
+
+                              return (
+                                <div key={merged.monthKey} className="rounded-lg border border-gray-200 p-3 bg-white">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-xs text-gray-500">Month</p>
+                                      <p className="font-semibold text-gray-900">{MONTHS[merged.month - 1]?.name} {merged.year}</p>
+                                    </div>
+                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
+                                      {statusText}
+                                    </span>
+                                  </div>
+
+                                  <div className="mt-2 flex gap-1 flex-wrap">
+                                    {roomList.map((room) => (
+                                      <span 
+                                        key={room}
+                                        className={`px-2 py-1 rounded text-xs font-semibold ${
+                                          room < 200
+                                            ? 'bg-green-100 text-green-700'
+                                            : 'bg-purple-100 text-purple-700'
+                                        }`}
+                                      >
+                                        Room {room}
+                                      </span>
+                                    ))}
+                                  </div>
+
+                                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                                    <p>Rent: <span className="font-semibold">₹{merged.totalRent.toLocaleString('en-IN')}</span></p>
+                                    <p>Paid: <span className="font-semibold">₹{merged.totalPaid.toLocaleString('en-IN')}</span></p>
+                                    <p>Units: <span className="font-semibold text-blue-600">{merged.totalUnits}</span></p>
+                                    <p>Electricity: <span className="font-semibold">₹{merged.totalElectricity.toLocaleString('en-IN')}</span></p>
+                                    <p>Total: <span className="font-semibold">₹{total.toLocaleString('en-IN')}</span></p>
+                                    <p>Balance: <span className={`font-semibold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>₹{Math.abs(balance).toLocaleString('en-IN')}</span></p>
+                                  </div>
+
+                                  {monthMeterReadings.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                      <p className="text-xs font-semibold text-gray-600 mb-2">⚡ Meter Readings:</p>
+                                      <div className="grid grid-cols-2 gap-2 text-xs">
+                                        {monthMeterReadings.map((reading, idx) => (
+                                          <div key={idx} className="bg-blue-50 p-2 rounded">
+                                            <p className="text-gray-600">Prev: <span className="font-semibold">{reading.previousReading}</span></p>
+                                            <p className="text-gray-600">Curr: <span className="font-semibold">{reading.currentReading}</span></p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
+                                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Rooms</th>
+                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Prev Rdg</th>
+                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Curr Rdg</th>
+                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Units</th>
+                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Total Rent</th>
+                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Electricity</th>
+                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Total</th>
+                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Paid</th>
+                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Balance</th>
                               <th className="px-3 py-2 text-center font-semibold text-gray-700">Status</th>
                             </tr>
                           </thead>
@@ -858,11 +965,29 @@ const TenantHistory = () => {
                                       ))}
                                     </div>
                                   </td>
-                                  <td className="px-3 py-2 text-right font-semibold">
-                                    ₹{merged.totalRent.toLocaleString('en-IN')}
+                                  <td className="px-3 py-2 text-right font-mono text-sm">
+                                    {(() => {
+                                      const monthMeter = meterHistory.find(m => {
+                                        const mDate = new Date(m.readingDate || m.createdAt);
+                                        return mDate.getMonth() + 1 === merged.month && mDate.getFullYear() === merged.year;
+                                      });
+                                      return monthMeter ? monthMeter.previousReading : '-';
+                                    })()}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-mono text-sm">
+                                    {(() => {
+                                      const monthMeter = meterHistory.find(m => {
+                                        const mDate = new Date(m.readingDate || m.createdAt);
+                                        return mDate.getMonth() + 1 === merged.month && mDate.getFullYear() === merged.year;
+                                      });
+                                      return monthMeter ? monthMeter.currentReading : '-';
+                                    })()}
                                   </td>
                                   <td className="px-3 py-2 text-right font-semibold text-blue-600">
                                     {merged.totalUnits}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-semibold">
+                                    ₹{merged.totalRent.toLocaleString('en-IN')}
                                   </td>
                                   <td className="px-3 py-2 text-right">
                                     ₹{merged.totalElectricity.toLocaleString('en-IN')}
@@ -887,8 +1012,10 @@ const TenantHistory = () => {
                               );
                             })}
                           </tbody>
-                        </table>
-                      </div>
+                            </table>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );
