@@ -521,6 +521,20 @@ const VerifyPayments = () => {
         }
       };
 
+      // Get OCR-extracted date if available
+      const ocrData = ocrChecks[submission.id];
+      const ocrExtractedDate = ocrData?.extractedDate; // From OCR verification
+      const actualPaymentDate = submission.paidDate || ocrExtractedDate || new Date().toISOString().split('T')[0];
+      
+      // Calculate payment delay
+      const dueDate = new Date(submissionYear, submissionMonth - 1, 5); // Default due date is 5th of month
+      const actualDate = new Date(actualPaymentDate);
+      const delayDays = Math.max(0, Math.floor((actualDate - dueDate) / (1000 * 60 * 60 * 24)));
+      const isOnTime = actualDate <= dueDate;
+      
+      // Submission date
+      const submissionDate = submission.submittedAt ? new Date(submission.submittedAt).toISOString().split('T')[0] : null;
+
       if (hasRoomBreakdown) {
         for (const roomEntry of submission.roomBreakdown) {
           const roomPrevious = Number(roomEntry.previousReading ?? 0);
@@ -548,7 +562,11 @@ const VerifyPayments = () => {
             meterReading: roomCurrent,
             units: roomUnits,
             unitsConsumed: roomUnits,
-            paidDate: submission.paidDate,
+            paidDate: actualPaymentDate,
+            submissionDate: submissionDate,
+            ocrExtractedDate: ocrExtractedDate,
+            paymentDelayDays: delayDays,
+            isPaymentOnTime: isOnTime,
             paymentMethod: 'UPI',
             utr: normalizedUtr || getSubmissionUtr(submission) || '',
             screenshot: screenshotProof,
@@ -589,7 +607,11 @@ const VerifyPayments = () => {
           meterReading: currentReading,
           units: unitsConsumed,
           unitsConsumed,
-          paidDate: submission.paidDate,
+          paidDate: actualPaymentDate,
+          submissionDate: submissionDate,
+          ocrExtractedDate: ocrExtractedDate,
+          paymentDelayDays: delayDays,
+          isPaymentOnTime: isOnTime,
           paymentMethod: 'UPI',
           utr: normalizedUtr || getSubmissionUtr(submission) || '',
           screenshot: screenshotProof,

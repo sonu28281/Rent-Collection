@@ -905,6 +905,39 @@ const TenantHistory = () => {
                                       </div>
                                     </div>
                                   )}
+
+                                  {(() => {
+                                    const record = merged.records[0];
+                                    const paymentDate = record?.paidDate || record?.paymentDate;
+                                    const submissionDate = record?.submissionDate;
+                                    const verifiedAt = record?.verifiedAt;
+                                    const delayDays = record?.paymentDelayDays;
+                                    const isOnTime = record?.isPaymentOnTime;
+                                    
+                                    if (!paymentDate && !submissionDate && !verifiedAt) return null;
+                                    
+                                    return (
+                                      <div className="mt-3 pt-3 border-t border-gray-200">
+                                        <p className="text-xs font-semibold text-gray-600 mb-2">📅 Payment Timeline:</p>
+                                        <div className="space-y-1 text-xs">
+                                          {paymentDate && (
+                                            <p>💳 Payment: <span className="font-semibold">{new Date(paymentDate).toLocaleDateString('en-IN')}</span></p>
+                                          )}
+                                          {submissionDate && (
+                                            <p>📝 Submitted: <span className="font-semibold">{new Date(submissionDate).toLocaleDateString('en-IN')}</span></p>
+                                          )}
+                                          {verifiedAt && (
+                                            <p>✅ Verified: <span className="font-semibold">{new Date(verifiedAt).toLocaleDateString('en-IN')}</span></p>
+                                          )}
+                                          {delayDays !== undefined && (
+                                            <p>⏱️ Delay: <span className={`font-semibold ${isOnTime ? 'text-green-600' : 'text-red-600'}`}>
+                                              {isOnTime ? 'On-Time' : `${delayDays} days`}
+                                            </span></p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               );
                             })}
@@ -924,7 +957,11 @@ const TenantHistory = () => {
                                   <th className="px-3 py-2 text-right font-semibold text-gray-700">Total</th>
                                   <th className="px-3 py-2 text-right font-semibold text-gray-700">Paid</th>
                                   <th className="px-3 py-2 text-right font-semibold text-gray-700">Balance</th>
-                              <th className="px-3 py-2 text-center font-semibold text-gray-700">Status</th>
+                                  <th className="px-3 py-2 text-center font-semibold text-gray-700">Status</th>
+                                  <th className="px-3 py-2 text-center font-semibold text-gray-700">💳 Payment Date</th>
+                                  <th className="px-3 py-2 text-center font-semibold text-gray-700">📝 Submitted</th>
+                                  <th className="px-3 py-2 text-center font-semibold text-gray-700">✅ Verified</th>
+                                  <th className="px-3 py-2 text-center font-semibold text-gray-700">⏱️ Delay</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
@@ -1007,6 +1044,37 @@ const TenantHistory = () => {
                                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
                                       {statusText}
                                     </span>
+                                  </td>
+                                  <td className="px-3 py-2 text-center text-xs">
+                                    {(() => {
+                                      const record = merged.records[0];
+                                      const paymentDate = record?.paidDate || record?.paymentDate;
+                                      return paymentDate ? new Date(paymentDate).toLocaleDateString('en-IN') : '-';
+                                    })()}
+                                  </td>
+                                  <td className="px-3 py-2 text-center text-xs">
+                                    {(() => {
+                                      const record = merged.records[0];
+                                      const submissionDate = record?.submissionDate;
+                                      return submissionDate ? new Date(submissionDate).toLocaleDateString('en-IN') : '-';
+                                    })()}
+                                  </td>
+                                  <td className="px-3 py-2 text-center text-xs">
+                                    {(() => {
+                                      const record = merged.records[0];
+                                      const verifiedAt = record?.verifiedAt;
+                                      return verifiedAt ? new Date(verifiedAt).toLocaleDateString('en-IN') : '-';
+                                    })()}
+                                  </td>
+                                  <td className="px-3 py-2 text-center text-xs font-semibold">
+                                    {(() => {
+                                      const record = merged.records[0];
+                                      const delayDays = record?.paymentDelayDays;
+                                      const isOnTime = record?.isPaymentOnTime;
+                                      if (delayDays === undefined) return '-';
+                                      if (isOnTime) return <span className="text-green-600">On-Time</span>;
+                                      return <span className="text-red-600">{delayDays} days</span>;
+                                    })()}
                                   </td>
                                 </tr>
                               );
