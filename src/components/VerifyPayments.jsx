@@ -21,6 +21,7 @@ const VerifyPayments = () => {
   const [expandedCards, setExpandedCards] = useState(new Set());
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [tenantMap, setTenantMap] = useState({});
   const [viewingScreenshot, setViewingScreenshot] = useState(null);
 
   const ADMIN_NOTIFIED_KEY = 'admin_notified_submission_ids_v1';
@@ -341,24 +342,33 @@ const VerifyPayments = () => {
         submissionsQuery = query(submissionsRef, where('status', '==', filter));
       }
       
-      const snapshot = await getDocs(submissionsQuery);
+      const [snapshot, allTenantsSnapshot] = await Promise.all([
+        getDocs(submissionsQuery),
+        getDocs(query(collection(db, 'tenants')))
+      ]);
       const data = [];
       snapshot.forEach((doc) => {
         data.push({ id: doc.id, ...doc.data() });
       });
+
+      // Build tenantId -> tenant map for dueDate lookups
+      const tMap = {};
+      allTenantsSnapshot.docs.forEach((tenantDoc) => {
+        tMap[tenantDoc.id] = { id: tenantDoc.id, ...tenantDoc.data() };
+      });
+      setTenantMap(tMap);
 
       if (filter === 'pending') {
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth() + 1;
 
-        const [tenantsSnapshot, currentMonthPaymentsSnapshot, currentMonthSubmissionsSnapshot] = await Promise.all([
-          getDocs(query(collection(db, 'tenants'), where('isActive', '==', true))),
+        const [currentMonthPaymentsSnapshot, currentMonthSubmissionsSnapshot] = await Promise.all([
           getDocs(query(collection(db, 'payments'), where('year', '==', currentYear), where('month', '==', currentMonth))),
           getDocs(query(collection(db, 'paymentSubmissions'), where('year', '==', currentYear), where('month', '==', currentMonth)))
         ]);
 
-        const activeTenants = tenantsSnapshot.docs.map((tenantDoc) => ({ id: tenantDoc.id, ...tenantDoc.data() }));
+        const activeTenants = Object.values(tMap).filter(t => t.isActive);
         const currentMonthPayments = currentMonthPaymentsSnapshot.docs.map((paymentDoc) => ({ id: paymentDoc.id, ...paymentDoc.data() }));
         const currentMonthSubmissions = currentMonthSubmissionsSnapshot.docs.map((submissionDoc) => ({ id: submissionDoc.id, ...submissionDoc.data() }));
 
@@ -526,8 +536,9 @@ const VerifyPayments = () => {
       const ocrExtractedDate = ocrData?.extractedDate; // From OCR verification
       const actualPaymentDate = submission.paidDate || ocrExtractedDate || new Date().toISOString().split('T')[0];
       
-      // Calculate payment delay
-      const dueDate = new Date(submissionYear, submissionMonth - 1, 5); // Default due date is 5th of month
+      // Calculate payment delay using tenant's own due date
+      const tenantDueDay = tenantMap[submission.tenantId]?.dueDate || 5;
+      const dueDate = new Date(submissionYear, submissionMonth - 1, tenantDueDay);
       const actualDate = new Date(actualPaymentDate);
       const delayDays = Math.max(0, Math.floor((actualDate - dueDate) / (1000 * 60 * 60 * 24)));
       const isOnTime = actualDate <= dueDate;
@@ -928,10 +939,11 @@ const VerifyPayments = () => {
                         const paidDateStr = submission.paidDate;
                         if (!paidDateStr) return null;
                         const paidDate = new Date(paidDateStr);
-                        const dueDate = new Date(submission.year, submission.month - 1, 5);
+                        const tDueDay = tenantMap[submission.tenantId]?.dueDate || 5;
+                        const dueDate = new Date(submission.year, submission.month - 1, tDueDay);
                         const diff = Math.floor((paidDate - dueDate) / (1000 * 60 * 60 * 24));
                         if (diff <= 0) return <span className="text-xs bg-green-400 bg-opacity-40 px-2 py-0.5 rounded font-semibold">⏱️ On Time</span>;
-                        return <span className="text-xs bg-orange-400 bg-opacity-40 px-2 py-0.5 rounded font-semibold">⏰ {diff}d late</span>;
+                        return <span className="text-xs bg-orange-400 bg-opacity-40 px-2 py-0.5 rounded font-semibold">⏰ {diff}d late (due {tDueDay}th)</span>;
                       })()}
                     </div>
                   </div>
@@ -978,9 +990,9 @@ const VerifyPayments = () => {
                     </p>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 font-semibold">⏰ Payment Delay</label>
+                    <label className="text-xs text-gray-500 font-semibold">⏰ Payment Delay (Due: {tenantMap[submission.tenantId]?.dueDate || 5}th)</label>
                     {(() => {
-                      const dueDay = 5;
+                      const dueDay = tenantMap[submission.tenantId]?.dueDate || 5;
                       const paidDateStr = submission.paidDate;
                       if (!paidDateStr) return <p className="text-sm font-bold text-gray-500">-</p>;
                       const paidDate = new Date(paidDateStr);
