@@ -2309,7 +2309,7 @@ const Tenants = () => {
 };
 
 const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
-  const [activeTab, setActiveTab] = React.useState('rent');
+  const [activeTab, setActiveTab] = useState('rent');
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
   // Calculate totals
