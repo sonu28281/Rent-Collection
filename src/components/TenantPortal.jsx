@@ -2304,9 +2304,16 @@ const TenantPortal = () => {
   };
 
   const getLastMonthClosingReading = (roomNumber = null) => {
+    // Find last record where electricity was paid (has electricity amount or meter reading)
     const roomMatch = roomNumber !== null
       ? paymentRecords
-          .filter((record) => String(record.roomNumber) === String(roomNumber))
+          .filter((record) => {
+            if (String(record.roomNumber) !== String(roomNumber)) return false;
+            // Only include records where electricity was billed (has currentReading or meterReading)
+            const hasElectricityBill = Number(record.electricity ?? record.electricityAmount ?? 0) > 0 
+              || Number(record.currentReading ?? record.meterReading ?? 0) > 0;
+            return hasElectricityBill;
+          })
           .sort((a, b) => getMonthIndex(Number(b.year), Number(b.month)) - getMonthIndex(Number(a.year), Number(a.month)))[0]
       : null;
 
