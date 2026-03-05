@@ -349,6 +349,31 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
     const currentMonth = month || (now.getMonth() + 1); // 1-12
     const currentYear = year || now.getFullYear();
 
+    // Fetch global electricity rate from settings
+    let globalElectricityRate = 9; // Default
+    try {
+      const settingsRef = collection(db, 'settings');
+      const settingsSnapshot = await getDocs(settingsRef);
+      if (!settingsSnapshot.empty) {
+        const settings = settingsSnapshot.docs[0].data();
+        globalElectricityRate = Number(settings.electricityRate) || 9;
+      }
+    } catch (settingsError) {
+      console.warn('Error fetching electricity rate:', settingsError);
+    }
+
+    // Fetch all meter readings
+    const meterReadingsData = [];
+    try {
+      const readingsRef = collection(db, 'electricityReadings');
+      const readingsSnapshot = await getDocs(readingsRef);
+      readingsSnapshot.forEach((doc) => {
+        meterReadingsData.push({ id: doc.id, ...doc.data() });
+      });
+    } catch (meterError) {
+      console.warn('Error fetching meter readings:', meterError);
+    }
+
     // Fetch all active tenants
     const tenantsRef = collection(db, 'tenants');
     const tenantsSnapshot = await getDocs(query(tenantsRef, where('isActive', '==', true)));
@@ -564,6 +589,48 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         }
       }
       
+      // Get meter readings for this tenant's rooms
+      const meterReadingsForTenant = [];
+      let totalPreviousReading = 0;
+      let totalCurrentReading = 0;
+      let totalUnitsConsumed = 0;
+      let totalMeterElectricity = 0;
+
+      // For each room of this tenant, calculate meter data
+      if (tenantRoomNumbers.length > 0) {
+        tenantRoomNumbers.forEach((roomNumber) => {
+          // Find meter reading for this room in this month
+          const roomMeterReading = meterReadingsData.find((meter) => {
+            const meterMonth = meter.month;
+            const meterYear = meter.year;
+            const meterRoom = String(meter.roomNumber || meter.room || '');
+            const matchRoom = meterRoom === String(roomNumber);
+            const matchMonth = Number(meterMonth) === currentMonth && Number(meterYear) === currentYear;
+            return matchRoom && matchMonth;
+          });
+
+          if (roomMeterReading) {
+            const prevReading = Number(roomMeterReading.previousReading || 0);
+            const currReading = Number(roomMeterReading.currentReading || 0);
+            const units = Math.max(0, currReading - prevReading);
+            const electricity = units * globalElectricityRate;
+
+            totalPreviousReading += prevReading;
+            totalCurrentReading += currReading;
+            totalUnitsConsumed += units;
+            totalMeterElectricity += electricity;
+
+            meterReadingsForTenant.push({
+              roomNumber,
+              previousReading: prevReading,
+              currentReading: currReading,
+              units,
+              electricity
+            });
+          }
+        });
+      }
+
       tenantList.push({
         id: doc.id,
         name: tenant.name,
@@ -585,7 +652,14 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         dueStatusColor,
         paymentMethod: latestPaidRecord ? latestPaidRecord.paymentMethod : null,
         paymentRecordsCount: uniqueTenantPayments.length,
-        roomWiseSplit
+        roomWiseSplit,
+        // Meter reading data
+        meterReadings: meterReadingsForTenant,
+        totalPreviousReading,
+        totalCurrentReading,
+        totalUnitsConsumed,
+        totalMeterElectricity,
+        globalElectricityRate
       });
       
       totalExpected += expectedTotal;

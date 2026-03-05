@@ -655,6 +655,18 @@ const Dashboard = () => {
                                     <p>Expected: <span className="font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</span></p>
                                     <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
                                   </div>
+                                  {isPaid && tenant.totalMeterElectricity > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-blue-200 bg-blue-50 rounded p-2">
+                                      <p className="text-xs font-semibold text-blue-900 mb-2">⚡ Meter Reading Details</p>
+                                      <div className="grid grid-cols-2 gap-2 text-xs">
+                                        <p>Previous: <span className="font-semibold">{tenant.totalPreviousReading}</span></p>
+                                        <p>Current: <span className="font-semibold">{tenant.totalCurrentReading}</span></p>
+                                        <p>Units: <span className="font-semibold text-blue-700">{tenant.totalUnitsConsumed}</span></p>
+                                        <p>Rate: <span className="font-semibold">₹{tenant.globalElectricityRate}/unit</span></p>
+                                      </div>
+                                      <p className="mt-2 font-semibold text-blue-900">Bill: ₹{tenant.totalMeterElectricity.toLocaleString('en-IN', {maximumFractionDigits: 2})}</p>
+                                    </div>
+                                  )}
                                   <div className="mt-2 text-sm text-gray-700">
                                     <p className="mb-1">Payment: {tenant.paidDate || '-'}</p>
                                     <div className="flex items-center gap-2 flex-wrap">
@@ -688,6 +700,8 @@ const Dashboard = () => {
                                     <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'room')}>Room{getSortIndicator('floor1', 'room')}</th>
                                     <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'tenant')}>Tenant{getSortIndicator('floor1', 'tenant')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'rent')}>Rent{getSortIndicator('floor1', 'rent')}</th>
+                                    <th className="px-3 py-2 text-right font-semibold text-blue-700">⚡ Meter</th>
+                                    <th className="px-3 py-2 text-right font-semibold text-blue-700">Units</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'electricity')}>Electricity{getSortIndicator('floor1', 'electricity')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'expected')}>Expected{getSortIndicator('floor1', 'expected')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'collected')}>Collected{getSortIndicator('floor1', 'collected')}</th>
@@ -724,7 +738,19 @@ const Dashboard = () => {
                                             )}
                                           </td>
                                           <td className="px-3 py-2 text-right text-gray-700">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
-                                          <td className="px-3 py-2 text-right text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</td>
+                                          <td className="px-3 py-2 text-right text-blue-700 text-xs">
+                                            {isPaid && tenant.totalMeterElectricity > 0 ? (
+                                              <div className="whitespace-nowrap">
+                                                <div>{tenant.totalPreviousReading} → {tenant.totalCurrentReading}</div>
+                                              </div>
+                                            ) : '-'}
+                                          </td>
+                                          <td className="px-3 py-2 text-right text-blue-700 font-semibold">
+                                            {isPaid && tenant.totalMeterElectricity > 0 ? `${tenant.totalUnitsConsumed} units` : '-'}
+                                          </td>
+                                          <td className="px-3 py-2 text-right text-blue-700">
+                                            {isPaid && tenant.totalMeterElectricity > 0 ? `₹${tenant.totalMeterElectricity.toLocaleString('en-IN', {maximumFractionDigits: 2})}` : '₹' + tenant.expectedElectricity.toLocaleString('en-IN')}
+                                          </td>
                                           <td className="px-3 py-2 text-right font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
                                           <td className={`px-3 py-2 text-right font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>
                                             ₹{tenant.collectedAmount.toLocaleString('en-IN')}
@@ -832,6 +858,18 @@ const Dashboard = () => {
                                     <p>Expected: <span className="font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</span></p>
                                     <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
                                   </div>
+                                  {isPaid && tenant.totalMeterElectricity > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-blue-200 bg-blue-50 rounded p-2">
+                                      <p className="text-xs font-semibold text-blue-900 mb-2">⚡ Meter Reading Details</p>
+                                      <div className="grid grid-cols-2 gap-2 text-xs">
+                                        <p>Previous: <span className="font-semibold">{tenant.totalPreviousReading}</span></p>
+                                        <p>Current: <span className="font-semibold">{tenant.totalCurrentReading}</span></p>
+                                        <p>Units: <span className="font-semibold text-blue-700">{tenant.totalUnitsConsumed}</span></p>
+                                        <p>Rate: <span className="font-semibold">₹{tenant.globalElectricityRate}/unit</span></p>
+                                      </div>
+                                      <p className="mt-2 font-semibold text-blue-900">Bill: ₹{tenant.totalMeterElectricity.toLocaleString('en-IN', {maximumFractionDigits: 2})}</p>
+                                    </div>
+                                  )}
                                   <div className="mt-2 text-sm text-gray-700">
                                     <p className="mb-1">Payment: {tenant.paidDate || '-'}</p>
                                     <div className="flex items-center gap-2 flex-wrap">
@@ -865,6 +903,8 @@ const Dashboard = () => {
                                     <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'room')}>Room{getSortIndicator('floor2', 'room')}</th>
                                     <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'tenant')}>Tenant{getSortIndicator('floor2', 'tenant')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'rent')}>Rent{getSortIndicator('floor2', 'rent')}</th>
+                                    <th className="px-3 py-2 text-right font-semibold text-blue-700">⚡ Meter</th>
+                                    <th className="px-3 py-2 text-right font-semibold text-blue-700">Units</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'electricity')}>Electricity{getSortIndicator('floor2', 'electricity')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'expected')}>Expected{getSortIndicator('floor2', 'expected')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'collected')}>Collected{getSortIndicator('floor2', 'collected')}</th>
@@ -901,7 +941,19 @@ const Dashboard = () => {
                                             )}
                                           </td>
                                           <td className="px-3 py-2 text-right text-gray-700">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
-                                          <td className="px-3 py-2 text-right text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</td>
+                                          <td className="px-3 py-2 text-right text-blue-700 text-xs">
+                                            {isPaid && tenant.totalMeterElectricity > 0 ? (
+                                              <div className="whitespace-nowrap">
+                                                <div>{tenant.totalPreviousReading} → {tenant.totalCurrentReading}</div>
+                                              </div>
+                                            ) : '-'}
+                                          </td>
+                                          <td className="px-3 py-2 text-right text-blue-700 font-semibold">
+                                            {isPaid && tenant.totalMeterElectricity > 0 ? `${tenant.totalUnitsConsumed} units` : '-'}
+                                          </td>
+                                          <td className="px-3 py-2 text-right text-blue-700">
+                                            {isPaid && tenant.totalMeterElectricity > 0 ? `₹${tenant.totalMeterElectricity.toLocaleString('en-IN', {maximumFractionDigits: 2})}` : '₹' + tenant.expectedElectricity.toLocaleString('en-IN')}
+                                          </td>
                                           <td className="px-3 py-2 text-right font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
                                           <td className={`px-3 py-2 text-right font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>
                                             ₹{tenant.collectedAmount.toLocaleString('en-IN')}
