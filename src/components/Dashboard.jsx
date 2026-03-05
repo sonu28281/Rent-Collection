@@ -700,8 +700,6 @@ const Dashboard = () => {
                                     <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'room')}>Room{getSortIndicator('floor1', 'room')}</th>
                                     <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'tenant')}>Tenant{getSortIndicator('floor1', 'tenant')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'rent')}>Rent{getSortIndicator('floor1', 'rent')}</th>
-                                    <th className="px-3 py-2 text-right font-semibold text-blue-700">⚡ Meter</th>
-                                    <th className="px-3 py-2 text-right font-semibold text-blue-700">Units</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'electricity')}>Electricity{getSortIndicator('floor1', 'electricity')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'expected')}>Expected{getSortIndicator('floor1', 'expected')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'collected')}>Collected{getSortIndicator('floor1', 'collected')}</th>
@@ -738,17 +736,12 @@ const Dashboard = () => {
                                             )}
                                           </td>
                                           <td className="px-3 py-2 text-right text-gray-700">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
-                                          <td className="px-3 py-2 text-right text-blue-700 text-xs">
-                                            {isPaid && tenant.totalMeterElectricity > 0 ? (
-                                              <div className="whitespace-nowrap">
-                                                <div>{tenant.totalPreviousReading} → {tenant.totalCurrentReading}</div>
-                                              </div>
-                                            ) : '-'}
-                                          </td>
-                                          <td className="px-3 py-2 text-right text-blue-700 font-semibold">
-                                            {isPaid && tenant.totalMeterElectricity > 0 ? `${tenant.totalUnitsConsumed} units` : '-'}
-                                          </td>
-                                          <td className="px-3 py-2 text-right text-blue-700">
+                                          <td
+                                            className="px-3 py-2 text-right text-blue-700 cursor-help"
+                                            title={isPaid && tenant.totalMeterElectricity > 0
+                                              ? `Prev: ${tenant.totalPreviousReading} → Curr: ${tenant.totalCurrentReading} = ${tenant.totalUnitsConsumed} units × ₹${tenant.globalElectricityRate}/unit = ₹${tenant.totalMeterElectricity.toFixed(2)}`
+                                              : ''}
+                                          >
                                             {isPaid && tenant.totalMeterElectricity > 0 ? `₹${tenant.totalMeterElectricity.toLocaleString('en-IN', {maximumFractionDigits: 2})}` : '₹' + tenant.expectedElectricity.toLocaleString('en-IN')}
                                           </td>
                                           <td className="px-3 py-2 text-right font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
@@ -778,7 +771,7 @@ const Dashboard = () => {
                                         </tr>
                                         {tenant.roomCount > 1 && expanded && (
                                           <tr className="bg-indigo-50 border-b">
-                                            <td className="px-3 py-2" colSpan={8}>
+                                            <td className="px-3 py-2" colSpan={6}>
                                               <div className="text-xs font-semibold text-indigo-900 mb-2">Room-wise collected split</div>
                                               <div className="overflow-x-auto">
                                                 <table className="w-full text-xs">
@@ -903,8 +896,6 @@ const Dashboard = () => {
                                     <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'room')}>Room{getSortIndicator('floor2', 'room')}</th>
                                     <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'tenant')}>Tenant{getSortIndicator('floor2', 'tenant')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'rent')}>Rent{getSortIndicator('floor2', 'rent')}</th>
-                                    <th className="px-3 py-2 text-right font-semibold text-blue-700">⚡ Meter</th>
-                                    <th className="px-3 py-2 text-right font-semibold text-blue-700">Units</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'electricity')}>Electricity{getSortIndicator('floor2', 'electricity')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'expected')}>Expected{getSortIndicator('floor2', 'expected')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'collected')}>Collected{getSortIndicator('floor2', 'collected')}</th>
@@ -941,17 +932,12 @@ const Dashboard = () => {
                                             )}
                                           </td>
                                           <td className="px-3 py-2 text-right text-gray-700">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
-                                          <td className="px-3 py-2 text-right text-blue-700 text-xs">
-                                            {isPaid && tenant.totalMeterElectricity > 0 ? (
-                                              <div className="whitespace-nowrap">
-                                                <div>{tenant.totalPreviousReading} → {tenant.totalCurrentReading}</div>
-                                              </div>
-                                            ) : '-'}
-                                          </td>
-                                          <td className="px-3 py-2 text-right text-blue-700 font-semibold">
-                                            {isPaid && tenant.totalMeterElectricity > 0 ? `${tenant.totalUnitsConsumed} units` : '-'}
-                                          </td>
-                                          <td className="px-3 py-2 text-right text-blue-700">
+                                          <td
+                                            className="px-3 py-2 text-right text-blue-700 cursor-help"
+                                            title={isPaid && tenant.totalMeterElectricity > 0
+                                              ? `Prev: ${tenant.totalPreviousReading} → Curr: ${tenant.totalCurrentReading} = ${tenant.totalUnitsConsumed} units × ₹${tenant.globalElectricityRate}/unit = ₹${tenant.totalMeterElectricity.toFixed(2)}`
+                                              : ''}
+                                          >
                                             {isPaid && tenant.totalMeterElectricity > 0 ? `₹${tenant.totalMeterElectricity.toLocaleString('en-IN', {maximumFractionDigits: 2})}` : '₹' + tenant.expectedElectricity.toLocaleString('en-IN')}
                                           </td>
                                           <td className="px-3 py-2 text-right font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
@@ -981,7 +967,7 @@ const Dashboard = () => {
                                         </tr>
                                         {tenant.roomCount > 1 && expanded && (
                                           <tr className="bg-indigo-50 border-b">
-                                            <td className="px-3 py-2" colSpan={8}>
+                                            <td className="px-3 py-2" colSpan={6}>
                                               <div className="text-xs font-semibold text-indigo-900 mb-2">Room-wise collected split</div>
                                               <div className="overflow-x-auto">
                                                 <table className="w-full text-xs">

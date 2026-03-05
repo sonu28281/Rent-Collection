@@ -2417,6 +2417,42 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
               </table>
             </div>
           )}
+
+          {/* Electricity Units History */}
+          {!loading && payments.some(p => Number(p.currentReading || p.meterReading || 0) > 0 || Number(p.units || p.unitsConsumed || 0) > 0) && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3">⚡ Electricity Units History</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-blue-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-semibold text-blue-900">Month</th>
+                      <th className="px-3 py-2 text-left font-semibold text-blue-900">Room</th>
+                      <th className="px-3 py-2 text-right font-semibold text-blue-900">Prev Reading</th>
+                      <th className="px-3 py-2 text-right font-semibold text-blue-900">Curr Reading</th>
+                      <th className="px-3 py-2 text-right font-semibold text-blue-900">Units</th>
+                      <th className="px-3 py-2 text-right font-semibold text-blue-900">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments
+                      .filter(p => Number(p.currentReading || p.meterReading || 0) > 0 || Number(p.units || p.unitsConsumed || 0) > 0)
+                      .map((p) => (
+                        <tr key={p.id} className="border-b hover:bg-blue-50">
+                          <td className="px-3 py-2 font-semibold">{monthNames[p.month - 1]} {p.year}</td>
+                          <td className="px-3 py-2 text-gray-700">{p.roomNumber || '-'}</td>
+                          <td className="px-3 py-2 text-right text-gray-700">{p.previousReading ?? p.oldReading ?? '-'}</td>
+                          <td className="px-3 py-2 text-right text-gray-700">{p.currentReading ?? p.meterReading ?? '-'}</td>
+                          <td className="px-3 py-2 text-right font-semibold text-blue-700">{p.units ?? p.unitsConsumed ?? '-'}</td>
+                          <td className="px-3 py-2 text-right font-semibold text-green-700">₹{Number(p.electricity || p.electricityAmount || 0).toLocaleString('en-IN')}</td>
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
