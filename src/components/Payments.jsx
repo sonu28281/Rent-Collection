@@ -162,8 +162,19 @@ const Payments = () => {
 
     const ocrExtractedDate = matchedPayments.find(p => p.ocrExtractedDate)?.ocrExtractedDate || null;
 
-    const maxDelay = matchedPayments.reduce((max, p) => Math.max(max, Number(p.paymentDelayDays || 0)), 0);
-    const isOnTime = matchedPayments.every(p => p.isPaymentOnTime !== false);
+    // Re-compute delay in real-time using tenant's own dueDate (avoids stale stored values)
+    const tenantDueDay = Number(tenant.dueDate) || 5;
+    let computedDelayDays = 0;
+    let computedIsOnTime = true;
+    if (latestPayment?.paidDate) {
+      const paidDate = new Date(latestPayment.paidDate);
+      const payYear  = latestPayment.year  || selectedYear;
+      const payMonth = latestPayment.month || selectedMonth;
+      const dueDate  = new Date(payYear, payMonth - 1, tenantDueDay);
+      const diff = Math.floor((paidDate - dueDate) / (1000 * 60 * 60 * 24));
+      computedDelayDays = Math.max(0, diff);
+      computedIsOnTime  = diff <= 0;
+    }
 
     return {
       isPaid: true,
@@ -172,8 +183,9 @@ const Payments = () => {
       submissionDate,
       verifiedAt,
       ocrExtractedDate,
-      paymentDelayDays: maxDelay,
-      isPaymentOnTime: isOnTime,
+      paymentDelayDays: computedDelayDays,
+      isPaymentOnTime: computedIsOnTime,
+      tenantDueDay,
       utrDisplay: utrValues.length > 0 ? Array.from(new Set(utrValues)).join(', ') : '-',
       paymentCount: matchedPayments.length
     };
@@ -748,23 +760,18 @@ const Payments = () => {
                           ✅ Paid
                         </span>
                         {paymentSummary.latestPaidDate && (
+                          <span className="text-xs text-gray-500">
+                            📅 Due: {tenant.dueDate || 5}th
+                          </span>
+                        )}
+                        {paymentSummary.latestPaidDate && (
                           <span className="text-xs font-semibold text-green-700">
                             💳 {new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')}
                           </span>
                         )}
-                        {paymentSummary.submissionDate && (
-                          <span className="text-xs text-indigo-700">
-                            📤 Submitted: {new Date(paymentSummary.submissionDate).toLocaleDateString('en-IN')}
-                          </span>
-                        )}
-                        {paymentSummary.verifiedAt && (
-                          <span className="text-xs text-emerald-700">
-                            ✅ Verified: {new Date(paymentSummary.verifiedAt).toLocaleDateString('en-IN')}
-                          </span>
-                        )}
                         {paymentSummary.paymentDelayDays > 0 ? (
                           <span className="text-xs font-semibold text-orange-700">
-                            ⏰ Delayed: {paymentSummary.paymentDelayDays}d late
+                            ⏰ {paymentSummary.paymentDelayDays}d late
                           </span>
                         ) : paymentSummary.latestPaidDate ? (
                           <span className="text-xs font-semibold text-green-700">⏱️ On Time</span>
@@ -842,19 +849,10 @@ const Payments = () => {
                       <td className="px-4 py-3 text-sm">
                         {paymentSummary.latestPaidDate ? (
                           <div className="space-y-0.5">
+                            <div className="text-xs text-gray-500">📅 Due: {tenant.dueDate || 5}th</div>
                             <div className="font-semibold text-green-700">
                               💳 {new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')}
                             </div>
-                            {paymentSummary.submissionDate && (
-                              <div className="text-xs text-indigo-700">
-                                📤 {new Date(paymentSummary.submissionDate).toLocaleDateString('en-IN')}
-                              </div>
-                            )}
-                            {paymentSummary.verifiedAt && (
-                              <div className="text-xs text-emerald-700">
-                                ✅ {new Date(paymentSummary.verifiedAt).toLocaleDateString('en-IN')}
-                              </div>
-                            )}
                             {paymentSummary.paymentDelayDays > 0 ? (
                               <div className="text-xs font-semibold text-orange-700">⏰ +{paymentSummary.paymentDelayDays}d late</div>
                             ) : (
