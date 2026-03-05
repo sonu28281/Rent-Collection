@@ -2309,6 +2309,7 @@ const Tenants = () => {
 };
 
 const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
+  const [activeTab, setActiveTab] = React.useState('rent');
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
   // Calculate totals
@@ -2348,7 +2349,7 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto flex flex-col">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
@@ -2363,95 +2364,129 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
               <p className="text-gray-600">This tenant has no payment records yet.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-100 sticky top-0">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Period</th>
-                    <th className="px-4 py-3 text-right font-semibold">Rent</th>
-                    <th className="px-4 py-3 text-right font-semibold">Electricity</th>
-                    <th className="px-4 py-3 text-right font-semibold">Total</th>
-                    <th className="px-4 py-3 text-right font-semibold">Paid</th>
-                    <th className="px-4 py-3 text-left font-semibold">Payment Date</th>
-                    <th className="px-4 py-3 text-center font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((payment) => {
-                    const rent = payment.rent || 0;
-                    const electricity = payment.electricity || 0;
-                    const total = rent + electricity;
-                    const paid = payment.paidAmount || 0;
-                    const isPaid = payment.status === 'paid';
-                    
-                    return (
-                      <tr key={payment.id} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3 font-semibold">
-                          {monthNames[payment.month - 1]} {payment.year}
-                        </td>
-                        <td className="px-4 py-3 text-right">₹{rent.toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-3 text-right">₹{electricity.toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-3 text-right font-semibold">₹{total.toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-3 text-right font-bold text-green-600">
-                          ₹{paid.toLocaleString('en-IN')}
-                        </td>
-                        <td className="px-4 py-3">
-                          {payment.paymentDate || payment.paidAt 
-                            ? new Date(payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
-                            : '-'
-                          }
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                            isPaid && paid > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {isPaid && paid > 0 ? '✅ Paid' : '❌ Pending'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Electricity Units History */}
-          {!loading && payments.some(p => Number(p.currentReading || p.meterReading || 0) > 0 || Number(p.units || p.unitsConsumed || 0) > 0) && (
-            <div className="mt-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-3">⚡ Electricity Units History</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-blue-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-blue-900">Month</th>
-                      <th className="px-3 py-2 text-left font-semibold text-blue-900">Room</th>
-                      <th className="px-3 py-2 text-right font-semibold text-blue-900">Prev Reading</th>
-                      <th className="px-3 py-2 text-right font-semibold text-blue-900">Curr Reading</th>
-                      <th className="px-3 py-2 text-right font-semibold text-blue-900">Units</th>
-                      <th className="px-3 py-2 text-right font-semibold text-blue-900">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {payments
-                      .filter(p => Number(p.currentReading || p.meterReading || 0) > 0 || Number(p.units || p.unitsConsumed || 0) > 0)
-                      .map((p) => (
-                        <tr key={p.id} className="border-b hover:bg-blue-50">
-                          <td className="px-3 py-2 font-semibold">{monthNames[p.month - 1]} {p.year}</td>
-                          <td className="px-3 py-2 text-gray-700">{p.roomNumber || '-'}</td>
-                          <td className="px-3 py-2 text-right text-gray-700">{p.previousReading ?? p.oldReading ?? '-'}</td>
-                          <td className="px-3 py-2 text-right text-gray-700">{p.currentReading ?? p.meterReading ?? '-'}</td>
-                          <td className="px-3 py-2 text-right font-semibold text-blue-700">{p.units ?? p.unitsConsumed ?? '-'}</td>
-                          <td className="px-3 py-2 text-right font-semibold text-green-700">₹{Number(p.electricity || p.electricityAmount || 0).toLocaleString('en-IN')}</td>
-                        </tr>
-                      ))
-                    }
-                  </tbody>
-                </table>
+            <>
+              {/* Tabs */}
+              <div className="flex border-b bg-white sticky top-0 z-10">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('rent')}
+                  className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+                    activeTab === 'rent'
+                      ? 'border-b-2 border-blue-600 text-blue-700 bg-blue-50'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  🏠 Rent History
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('electricity')}
+                  className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+                    activeTab === 'electricity'
+                      ? 'border-b-2 border-blue-600 text-blue-700 bg-blue-50'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  ⚡ Electricity Units History
+                </button>
               </div>
-            </div>
+
+              {/* Tab: Rent */}
+              {activeTab === 'rent' && (
+                <div className="overflow-x-auto p-6">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-100 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-semibold">Period</th>
+                        <th className="px-4 py-3 text-right font-semibold">Rent</th>
+                        <th className="px-4 py-3 text-right font-semibold">Electricity</th>
+                        <th className="px-4 py-3 text-right font-semibold">Total</th>
+                        <th className="px-4 py-3 text-right font-semibold">Paid</th>
+                        <th className="px-4 py-3 text-left font-semibold">Payment Date</th>
+                        <th className="px-4 py-3 text-center font-semibold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payments.map((payment) => {
+                        const rent = payment.rent || 0;
+                        const electricity = payment.electricity || 0;
+                        const total = rent + electricity;
+                        const paid = payment.paidAmount || 0;
+                        const isPaid = payment.status === 'paid';
+                        const dateStr = payment.paidDate || payment.paymentDate || payment.paidAt;
+
+                        return (
+                          <tr key={payment.id} className="border-b hover:bg-gray-50">
+                            <td className="px-4 py-3 font-semibold">
+                              {monthNames[payment.month - 1]} {payment.year}
+                            </td>
+                            <td className="px-4 py-3 text-right">₹{rent.toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-3 text-right">₹{electricity.toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-3 text-right font-semibold">₹{total.toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-3 text-right font-bold text-green-600">
+                              ₹{paid.toLocaleString('en-IN')}
+                            </td>
+                            <td className="px-4 py-3">
+                              {dateStr
+                                ? new Date(dateStr).toLocaleDateString('en-IN')
+                                : '-'
+                              }
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                isPaid && paid > 0
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
+                                {isPaid && paid > 0 ? '✅ Paid' : '❌ Pending'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Tab: Electricity Units History */}
+              {activeTab === 'electricity' && (
+                <div className="overflow-x-auto p-6">
+                  {payments.some(p => Number(p.currentReading || p.meterReading || 0) > 0 || Number(p.units || p.unitsConsumed || 0) > 0) ? (
+                    <table className="w-full text-sm">
+                      <thead className="bg-blue-50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-semibold text-blue-900">Month</th>
+                          <th className="px-3 py-2 text-right font-semibold text-blue-900">Prev Reading</th>
+                          <th className="px-3 py-2 text-right font-semibold text-blue-900">Curr Reading</th>
+                          <th className="px-3 py-2 text-right font-semibold text-blue-900">Units</th>
+                          <th className="px-3 py-2 text-right font-semibold text-blue-900">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {payments
+                          .filter(p => Number(p.currentReading || p.meterReading || 0) > 0 || Number(p.units || p.unitsConsumed || 0) > 0)
+                          .map((p) => (
+                            <tr key={p.id} className="border-b hover:bg-blue-50">
+                              <td className="px-3 py-2 font-semibold">{monthNames[p.month - 1]} {p.year}</td>
+                              <td className="px-3 py-2 text-right text-gray-700">{p.previousReading ?? p.oldReading ?? '-'}</td>
+                              <td className="px-3 py-2 text-right text-gray-700">{p.currentReading ?? p.meterReading ?? '-'}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-blue-700">{p.units ?? p.unitsConsumed ?? '-'}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-green-700">₹{Number(p.electricity || p.electricityAmount || 0).toLocaleString('en-IN')}</td>
+                            </tr>
+                          ))
+                        }
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="text-5xl mb-4">⚡</div>
+                      <p className="text-gray-500">No electricity meter data found for this tenant.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
 
