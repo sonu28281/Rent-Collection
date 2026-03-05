@@ -3108,16 +3108,19 @@ const TenantPortal = () => {
                 )}
 
                 {/* Pay Buttons - Google Pay + PhonePe */}
-                {getPayableAmount() && (
+                {activeUPI && (
                   <div className="mb-4">
                     {(() => {
+                      const payableData = getPayableAmount();
                       const browserContext = getBrowserContext();
                       const shouldDisableGenericUpi = browserContext.likelyInAppBrowser;
 
                       return (
                         <>
+                    {payableData ? (
+                      <>
                     <p className="text-sm font-semibold text-gray-700 mb-2">
-                      Payable Amount: <span className="text-green-600 text-lg">₹{getPayableAmount().totalAmount.toFixed(2)}</span>
+                      Payable Amount: <span className="text-green-600 text-lg">₹{payableData.totalAmount.toFixed(2)}</span>
                     </p>
                     <p className="text-xs text-gray-500 mb-3">Choose app and tap once to open with prefilled UPI details</p>
 
@@ -3137,7 +3140,7 @@ const TenantPortal = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button
                         onClick={() => openSpecificUPIApp('gpay')}
-                        disabled={paymentProcessing}
+                        disabled={paymentProcessing || !payableData}
                         className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 sm:py-4 px-4 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <div className="flex flex-col items-center leading-tight gap-1.5 sm:gap-2">
@@ -3146,13 +3149,13 @@ const TenantPortal = () => {
                             alt="Google Pay"
                             className="h-7 sm:h-8 w-auto bg-white rounded-full px-1.5 py-1"
                           />
-                          <span className="text-xs font-bold text-blue-50">Pay ₹{getPayableAmount().totalAmount.toFixed(2)}</span>
+                          <span className="text-xs font-bold text-blue-50">Pay ₹{payableData?.totalAmount.toFixed(2) || '0'}</span>
                         </div>
                       </button>
 
                       <button
                         onClick={() => openSpecificUPIApp('phonepe')}
-                        disabled={paymentProcessing}
+                        disabled={paymentProcessing || !payableData}
                         className="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white font-bold py-3 sm:py-4 px-4 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <div className="flex flex-col items-center leading-tight gap-1.5 sm:gap-2">
@@ -3161,23 +3164,30 @@ const TenantPortal = () => {
                             alt="PhonePe"
                             className="h-7 sm:h-8 w-auto bg-white rounded-full px-1.5 py-1"
                           />
-                          <span className="text-xs font-bold text-purple-50">Pay ₹{getPayableAmount().totalAmount.toFixed(2)}</span>
+                          <span className="text-xs font-bold text-purple-50">Pay ₹{payableData?.totalAmount.toFixed(2) || '0'}</span>
                         </div>
                       </button>
                     </div>
 
                     <button
                       onClick={openUPIPayment}
-                      disabled={paymentProcessing || shouldDisableGenericUpi}
+                      disabled={paymentProcessing || shouldDisableGenericUpi || !payableData}
                       className="w-full mt-3 bg-gray-800 hover:bg-gray-900 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        📱 Other UPI App • Pay ₹{getPayableAmount().totalAmount.toFixed(2)}
+                        📱 Other UPI App • Pay ₹{payableData?.totalAmount.toFixed(2) || '0'}
                     </button>
 
                     {shouldDisableGenericUpi && (
                       <p className="text-[11px] text-amber-700 mt-2">
                         Generic UPI launch is disabled in this app view. Use Google Pay / PhonePe buttons or open in Chrome.
                       </p>
+                    )}
+                      </>
+                    ) : (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-3">
+                        <p className="text-red-700 font-semibold mb-2">⚠️ Please enter valid meter readings</p>
+                        <p className="text-sm text-red-600">Current reading must be greater than or equal to previous reading.</p>
+                      </div>
                     )}
                         </>
                       );
