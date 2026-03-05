@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { collection, addDoc, getDocs, limit, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -24,7 +24,7 @@ const SubmitPayment = ({
     return {
       roomNumber: roomKey,
       previousReading: Number(previousMeterReadings[roomKey] || roomEntry.currentReading || 0),
-      currentReading: Number(currentMeterReadings[roomKey] || roomEntry.currentReading || 0),
+      currentReading: 0,
       rentAmount: Number(roomEntry.rent || 0)
     };
   });
@@ -35,8 +35,8 @@ const SubmitPayment = ({
     paidAmount: '',
     rentAmount: initialRentAmount || tenant?.currentRent || room?.rent || 0,
     electricityAmount: '',
-    previousReading: room?.currentReading || 0,
-    currentReading: room?.currentReading || 0,
+    previousReading: Number(previousMeterReadings[String(room?.roomNumber || '')] || room?.currentReading || 0),
+    currentReading: 0,
     roomBreakdown: initialRoomBreakdown,
     paidDate: new Date().toISOString().split('T')[0],
     utr: '',
@@ -45,6 +45,33 @@ const SubmitPayment = ({
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Update formData when meter readings props change
+  useEffect(() => {
+    console.log('🔄 SubmitPayment - Props changed:', {
+      previousMeterReadings,
+      currentMeterReadings,
+      effectiveRooms: effectiveRooms.map(r => r.roomNumber)
+    });
+
+    const updatedRoomBreakdown = effectiveRooms.map((roomEntry) => {
+      const roomKey = String(roomEntry.roomNumber);
+      const prevReading = Number(previousMeterReadings[roomKey] || roomEntry.currentReading || 0);
+      const currReading = Number(currentMeterReadings[roomKey] || roomEntry.currentReading || 0);
+      console.log(`📊 Room ${roomKey}: prev=${prevReading}, curr=${currReading}`);
+      return {
+        roomNumber: roomKey,
+        previousReading: prevReading,
+        currentReading: currReading,
+        rentAmount: Number(roomEntry.rent || 0)
+      };
+    });
+
+    setFormData((prevData) => ({
+      ...prevData,
+      roomBreakdown: updatedRoomBreakdown
+    }));
+  }, [previousMeterReadings, currentMeterReadings, effectiveRooms]);
 
   const normalizeUtr = (value) => value.replace(/\s+/g, '').toUpperCase();
 

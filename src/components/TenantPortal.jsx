@@ -2951,11 +2951,18 @@ const TenantPortal = () => {
                       // Auto-fill meter readings
                       const initialPrevious = {};
                       const initialCurrent = {};
+                      console.log('🔵 Submit Payment Button Clicked - effectiveRooms:', effectiveRooms.map(r => r.roomNumber));
                       effectiveRooms.forEach((roomEntry) => {
                         const roomKey = String(roomEntry.roomNumber);
                         const oldReading = getLastMonthClosingReading(roomEntry.roomNumber);
                         initialPrevious[roomKey] = String(oldReading);
                         initialCurrent[roomKey] = '';
+                        console.log(`  Room ${roomKey}: getLastMonthClosingReading returned ${oldReading}`);
+                      });
+                      
+                      console.log('📤 Setting submitPaymentData:', {
+                        previousMeterReadings: initialPrevious,
+                        currentMeterReadings: initialCurrent
                       });
                       
                       setSubmitPaymentData({
