@@ -2435,6 +2435,12 @@ const TenantPortal = () => {
           paidAmount: 0,
           status: 'paid',
           paidAt: null,
+          paidDate: null,
+          submissionDate: null,
+          verifiedAt: null,
+          ocrExtractedDate: null,
+          paymentDelayDays: 0,
+          isPaymentOnTime: true,
           notes: ''
         };
       }
@@ -2450,8 +2456,30 @@ const TenantPortal = () => {
       accumulator[key].totalAmount += total;
       accumulator[key].paidAmount += paidAmount;
 
-      if (record.paidAt && (!accumulator[key].paidAt || new Date(record.paidAt) > new Date(accumulator[key].paidAt))) {
-        accumulator[key].paidAt = record.paidAt;
+      const paymentDateToUse = record.paidDate || record.paidAt;
+      if (paymentDateToUse && (!accumulator[key].paidDate || new Date(paymentDateToUse) > new Date(accumulator[key].paidDate))) {
+        accumulator[key].paidDate = paymentDateToUse;
+        accumulator[key].paidAt = paymentDateToUse;
+      }
+
+      if (record.submissionDate && (!accumulator[key].submissionDate || new Date(record.submissionDate) > new Date(accumulator[key].submissionDate))) {
+        accumulator[key].submissionDate = record.submissionDate;
+      }
+
+      if (record.verifiedAt && (!accumulator[key].verifiedAt || new Date(record.verifiedAt) > new Date(accumulator[key].verifiedAt))) {
+        accumulator[key].verifiedAt = record.verifiedAt;
+      }
+
+      if (record.ocrExtractedDate && !accumulator[key].ocrExtractedDate) {
+        accumulator[key].ocrExtractedDate = record.ocrExtractedDate;
+      }
+
+      if (Number.isFinite(record.paymentDelayDays) && record.paymentDelayDays > (accumulator[key].paymentDelayDays || 0)) {
+        accumulator[key].paymentDelayDays = record.paymentDelayDays;
+      }
+
+      if (record.isPaymentOnTime === false) {
+        accumulator[key].isPaymentOnTime = false;
       }
 
       if (!accumulator[key].notes && record.notes) {
@@ -3470,6 +3498,11 @@ const TenantPortal = () => {
                               <p className="text-xs text-gray-600">
                                 {paymentTypeText}
                               </p>
+                              {isPaid && group.paidDate && (
+                                <p className="text-xs text-green-700 font-semibold mt-1">
+                                  💳 {new Date(group.paidDate).toLocaleDateString('en-IN')}
+                                </p>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
@@ -3493,17 +3526,54 @@ const TenantPortal = () => {
                               </div>
                             )}
 
-                            {/* Payment Date */}
-                            {group.paidAt && isPaid && (
-                              <div className="bg-white/50 rounded p-2">
-                                <p className="text-xs text-gray-600 mb-1">Payment Date:</p>
-                                <p className="text-sm font-semibold text-green-700">
-                                  {new Date(group.paidAt).toLocaleDateString('en-IN', {
-                                    day: 'numeric',
-                                    month: 'short',
-                                    year: 'numeric'
-                                  })}
-                                </p>
+                            {/* Payment Timeline - Enhanced */}
+                            {isPaid && (
+                              <div className="bg-green-50 border border-green-200 rounded p-3">
+                                <p className="text-xs font-semibold text-green-900 mb-2">📅 Payment Timeline</p>
+                                <div className="space-y-2 text-xs">
+                                  {group.paidDate && (
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-700">💳 Payment Date:</span>
+                                      <span className="font-semibold text-green-700">
+                                        {new Date(group.paidDate).toLocaleDateString('en-IN')}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {group.ocrExtractedDate && (
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-700">🔍 OCR Detected:</span>
+                                      <span className="font-semibold text-blue-700">
+                                        {new Date(group.ocrExtractedDate).toLocaleDateString('en-IN')}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {group.submissionDate && (
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-700">📤 Submitted:</span>
+                                      <span className="font-semibold text-indigo-700">
+                                        {new Date(group.submissionDate).toLocaleDateString('en-IN')}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {group.verifiedAt && (
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-700">✅ Verified:</span>
+                                      <span className="font-semibold text-emerald-700">
+                                        {new Date(group.verifiedAt).toLocaleDateString('en-IN')}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {group.paymentDelayDays !== undefined && (
+                                    <div className="flex justify-between items-center pt-2 border-t border-green-200">
+                                      <span className="text-gray-700 font-semibold">
+                                        {group.isPaymentOnTime ? '⏱️ On Time' : '⏰ Delayed'}
+                                      </span>
+                                      <span className={`font-bold ${group.isPaymentOnTime ? 'text-green-700' : 'text-orange-700'}`}>
+                                        {group.isPaymentOnTime ? 'Yes' : `${group.paymentDelayDays} days`}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
                             
