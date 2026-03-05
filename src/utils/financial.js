@@ -589,7 +589,7 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         }
       }
       
-      // Get meter readings for this tenant's rooms
+      // Get meter readings for this tenant's rooms from BOTH payment records and electricityReadings
       const meterReadingsForTenant = [];
       let totalPreviousReading = 0;
       let totalCurrentReading = 0;
@@ -599,7 +599,36 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
       // For each room of this tenant, calculate meter data
       if (tenantRoomNumbers.length > 0) {
         tenantRoomNumbers.forEach((roomNumber) => {
-          // Find meter reading for this room in this month
+          // First, check payment records for this room (where meter data is saved when approved)
+          const roomPaymentWithMeter = uniqueTenantPayments.find((payment) => {
+            const paymentRoom = String(payment.roomNumber || '');
+            const hasMeterData = Number(payment.currentReading || payment.meterReading || 0) > 0 || Number(payment.units || payment.unitsConsumed || 0) > 0;
+            return paymentRoom === String(roomNumber) && hasMeterData;
+          });
+
+          if (roomPaymentWithMeter) {
+            const prevReading = Number(roomPaymentWithMeter.previousReading || roomPaymentWithMeter.oldReading || 0);
+            const currReading = Number(roomPaymentWithMeter.currentReading || roomPaymentWithMeter.meterReading || 0);
+            const units = Math.max(0, Number(roomPaymentWithMeter.units || roomPaymentWithMeter.unitsConsumed || (currReading - prevReading)));
+            const electricity = units * globalElectricityRate;
+
+            totalPreviousReading += prevReading;
+            totalCurrentReading += currReading;
+            totalUnitsConsumed += units;
+            totalMeterElectricity += electricity;
+
+            meterReadingsForTenant.push({
+              roomNumber,
+              previousReading: prevReading,
+              currentReading: currReading,
+              units,
+              electricity,
+              source: 'payment_record'
+            });
+            return;
+          }
+
+          // Fallback: check electricityReadings collection
           const roomMeterReading = meterReadingsData.find((meter) => {
             const meterMonth = meter.month;
             const meterYear = meter.year;
@@ -625,7 +654,8 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
               previousReading: prevReading,
               currentReading: currReading,
               units,
-              electricity
+              electricity,
+              source: 'electricity_readings'
             });
           }
         });
