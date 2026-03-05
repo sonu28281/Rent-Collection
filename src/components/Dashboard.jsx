@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { getDashboardStats, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary, getTodaysCollection } from '../utils/financial';
 import ViewModeToggle from './ui/ViewModeToggle';
 import LiveDateTime from './ui/LiveDateTime';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
+import { PaymentHistoryModal } from './Tenants';
 
 const Dashboard = () => {
   const { currentUser } = useAuth();
@@ -33,6 +36,9 @@ const Dashboard = () => {
     yearly: { column: 'year', direction: 'desc' }
   });
   const [expandedSplitRows, setExpandedSplitRows] = useState({});
+  const [selectedTenantHistory, setSelectedTenantHistory] = useState(null);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const fetchMonthData = useCallback(async () => {
     try {
@@ -331,6 +337,72 @@ const Dashboard = () => {
     const paidCount = floorTenants.filter(t => t.status === 'paid' && t.collectedAmount > 0).length;
     const pendingCount = floorTenants.length - paidCount;
     return { totalExpected, totalCollected, totalDue, paidCount, pendingCount, totalTenants: floorTenants.length };
+  };
+
+  // Payment History functions
+  const handleViewHistory = async (tenant) => {
+    setSelectedTenantHistory(tenant);
+    await fetchPaymentHistory(tenant);
+  };
+
+  const fetchPaymentHistory = async (tenant) => {
+    if (!tenant) return;
+    
+    setLoadingHistory(true);
+    try {
+      const paymentsRef = collection(db, 'payments');
+      const paymentDocs = new Map();
+
+      // Query by tenantId
+      if (tenant.id) {
+        const tenantIdQuery = query(paymentsRef, where('tenantId', '==', tenant.id));
+        const tenantIdSnapshot = await getDocs(tenantIdQuery);
+        tenantIdSnapshot.forEach((doc) => paymentDocs.set(doc.id, doc));
+      }
+
+      // Query by each assigned room
+      const roomNumbers = Array.isArray(tenant.assignedRooms) && tenant.assignedRooms.length > 0
+        ? tenant.assignedRooms.map(r => Number(r))
+        : [Number(tenant.roomNumber)];
+
+      const roomQueries = roomNumbers.map((rn) => query(paymentsRef, where('roomNumber', '==', rn)));
+      const roomSnapshots = await Promise.all(roomQueries.map((roomQuery) => getDocs(roomQuery)));
+      roomSnapshots.forEach((snapshot) => {
+        snapshot.forEach((doc) => paymentDocs.set(doc.id, doc));
+      });
+
+      const tenantName = (tenant.name || '').trim().toLowerCase();
+
+      const payments = Array.from(paymentDocs.values())
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((payment) => {
+          if (payment.tenantId && tenant.id && payment.tenantId === tenant.id) {
+            return true;
+          }
+
+          const snapshotName = (payment.tenantNameSnapshot || '').trim().toLowerCase();
+          const legacyName = (payment.tenantName || '').trim().toLowerCase();
+
+          return Boolean(tenantName) && (snapshotName === tenantName || legacyName === tenantName);
+        })
+        .sort((a, b) => {
+          const yearDiff = Number(b.year || 0) - Number(a.year || 0);
+          if (yearDiff !== 0) return yearDiff;
+          return Number(b.month || 0) - Number(a.month || 0);
+        });
+
+      setPaymentHistory(payments);
+    } catch (err) {
+      console.error('Error fetching payment history:', err);
+      setPaymentHistory([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleCloseHistory = () => {
+    setSelectedTenantHistory(null);
+    setPaymentHistory([]);
   };
 
   return (
@@ -640,7 +712,16 @@ const Dashboard = () => {
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
-                                      <p className="font-bold text-gray-900">{getTenantRoomLabel(tenant)} • {tenant.name}</p>
+                                      <p className="font-bold text-gray-900">
+                                        {getTenantRoomLabel(tenant)} • 
+                                        <button
+                                          onClick={() => handleViewHistory(tenant)}
+                                          className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
+                                          title="View payment history"
+                                        >
+                                          {tenant.name}
+                                        </button>
+                                      </p>
                                       {tenant.roomCount > 1 && (
                                         <p className="text-xs text-indigo-700 font-semibold mt-1">Multi-room tenant ({tenant.roomCount} rooms)</p>
                                       )}
@@ -721,7 +802,13 @@ const Dashboard = () => {
                                             {getCompactRoomLabel(tenant)}
                                           </td>
                                           <td className="px-3 py-2">
-                                            {tenant.name}
+                                            <button
+                                              onClick={() => handleViewHistory(tenant)}
+                                              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer font-medium"
+                                              title="View payment history"
+                                            >
+                                              {tenant.name}
+                                            </button>
                                             {tenant.roomCount > 1 && (
                                               <div className="mt-1 flex items-center gap-2">
                                                 <span className="text-xs text-indigo-700 font-semibold">Multi-room tenant</span>
@@ -836,7 +923,16 @@ const Dashboard = () => {
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
-                                      <p className="font-bold text-gray-900">{getTenantRoomLabel(tenant)} • {tenant.name}</p>
+                                      <p className="font-bold text-gray-900">
+                                        {getTenantRoomLabel(tenant)} • 
+                                        <button
+                                          onClick={() => handleViewHistory(tenant)}
+                                          className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
+                                          title="View payment history"
+                                        >
+                                          {tenant.name}
+                                        </button>
+                                      </p>
                                       {tenant.roomCount > 1 && (
                                         <p className="text-xs text-indigo-700 font-semibold mt-1">Multi-room tenant ({tenant.roomCount} rooms)</p>
                                       )}
@@ -917,7 +1013,13 @@ const Dashboard = () => {
                                             {getCompactRoomLabel(tenant)}
                                           </td>
                                           <td className="px-3 py-2">
-                                            {tenant.name}
+                                            <button
+                                              onClick={() => handleViewHistory(tenant)}
+                                              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer font-medium"
+                                              title="View payment history"
+                                            >
+                                              {tenant.name}
+                                            </button>
                                             {tenant.roomCount > 1 && (
                                               <div className="mt-1 flex items-center gap-2">
                                                 <span className="text-xs text-indigo-700 font-semibold">Multi-room tenant</span>
@@ -1121,6 +1223,15 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* Payment History Modal */}
+      {selectedTenantHistory && (
+        <PaymentHistoryModal
+          tenant={selectedTenantHistory}
+          payments={paymentHistory}
+          loading={loadingHistory}
+          onClose={handleCloseHistory}
+        />
+      )}
 
     </div>
   );

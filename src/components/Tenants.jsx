@@ -3019,3 +3019,4 @@ const KycDetailModal = ({ applicant, onClose }) => {
 };
 
 export default Tenants;
+export { PaymentHistoryModal };
