@@ -913,6 +913,27 @@ const VerifyPayments = () => {
                     <p className="text-sm text-white text-opacity-90">
                       Room{Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 1 ? 's' : ''} {Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 0 ? submission.roomNumbers.join(', ') : submission.roomNumber}
                     </p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {submission.paidDate && (
+                        <span className="text-xs bg-white bg-opacity-20 px-2 py-0.5 rounded">
+                          💳 {submission.paidDate}
+                        </span>
+                      )}
+                      {submission.submittedAt && (
+                        <span className="text-xs bg-white bg-opacity-20 px-2 py-0.5 rounded">
+                          📤 {new Date(submission.submittedAt).toLocaleDateString('en-IN')}
+                        </span>
+                      )}
+                      {(() => {
+                        const paidDateStr = submission.paidDate;
+                        if (!paidDateStr) return null;
+                        const paidDate = new Date(paidDateStr);
+                        const dueDate = new Date(submission.year, submission.month - 1, 5);
+                        const diff = Math.floor((paidDate - dueDate) / (1000 * 60 * 60 * 24));
+                        if (diff <= 0) return <span className="text-xs bg-green-400 bg-opacity-40 px-2 py-0.5 rounded font-semibold">⏱️ On Time</span>;
+                        return <span className="text-xs bg-orange-400 bg-opacity-40 px-2 py-0.5 rounded font-semibold">⏰ {diff}d late</span>;
+                      })()}
+                    </div>
                   </div>
                   <div className="text-right">
                     <div className="mb-1">{getStatusBadge(submission.status)}</div>
@@ -947,8 +968,27 @@ const VerifyPayments = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                   <div>
-                    <label className="text-xs text-gray-500 font-semibold">Payment Date</label>
-                    <p className="text-sm font-bold">{submission.paidDate || '-'}</p>
+                    <label className="text-xs text-gray-500 font-semibold">💳 Payment Date (by Tenant)</label>
+                    <p className="text-sm font-bold text-green-700">{submission.paidDate || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 font-semibold">📤 Submitted At</label>
+                    <p className="text-sm font-bold text-indigo-700">
+                      {submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString('en-IN') : '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 font-semibold">⏰ Payment Delay</label>
+                    {(() => {
+                      const dueDay = 5;
+                      const paidDateStr = submission.paidDate;
+                      if (!paidDateStr) return <p className="text-sm font-bold text-gray-500">-</p>;
+                      const paidDate = new Date(paidDateStr);
+                      const dueDate = new Date(submission.year, submission.month - 1, dueDay);
+                      const diff = Math.floor((paidDate - dueDate) / (1000 * 60 * 60 * 24));
+                      if (diff <= 0) return <p className="text-sm font-bold text-green-700">⏱️ On Time</p>;
+                      return <p className="text-sm font-bold text-orange-700">⏰ {diff} day{diff !== 1 ? 's' : ''} late</p>;
+                    })()}
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 font-semibold">Month/Year</label>

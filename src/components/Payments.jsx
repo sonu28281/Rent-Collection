@@ -127,6 +127,11 @@ const Payments = () => {
         isPaid: false,
         totalPaid: 0,
         latestPaidDate: null,
+        submissionDate: null,
+        verifiedAt: null,
+        ocrExtractedDate: null,
+        paymentDelayDays: 0,
+        isPaymentOnTime: true,
         utrDisplay: '-',
         paymentCount: 0
       };
@@ -144,10 +149,31 @@ const Payments = () => {
       .map((payment) => String(payment.utr || '').trim())
       .filter(Boolean);
 
+    // Aggregate date/delay fields across all payments for this tenant
+    const submissionDate = matchedPayments.reduce((latest, p) => {
+      if (!p.submissionDate) return latest;
+      return !latest || new Date(p.submissionDate) > new Date(latest) ? p.submissionDate : latest;
+    }, null);
+
+    const verifiedAt = matchedPayments.reduce((latest, p) => {
+      if (!p.verifiedAt) return latest;
+      return !latest || new Date(p.verifiedAt) > new Date(latest) ? p.verifiedAt : latest;
+    }, null);
+
+    const ocrExtractedDate = matchedPayments.find(p => p.ocrExtractedDate)?.ocrExtractedDate || null;
+
+    const maxDelay = matchedPayments.reduce((max, p) => Math.max(max, Number(p.paymentDelayDays || 0)), 0);
+    const isOnTime = matchedPayments.every(p => p.isPaymentOnTime !== false);
+
     return {
       isPaid: true,
       totalPaid,
       latestPaidDate: latestPayment?.paidDate || null,
+      submissionDate,
+      verifiedAt,
+      ocrExtractedDate,
+      paymentDelayDays: maxDelay,
+      isPaymentOnTime: isOnTime,
       utrDisplay: utrValues.length > 0 ? Array.from(new Set(utrValues)).join(', ') : '-',
       paymentCount: matchedPayments.length
     };
@@ -717,15 +743,32 @@ const Payments = () => {
 
                   <div className="mt-3 flex items-center justify-between">
                     {isPaid ? (
-                      <div className="flex flex-col">
+                      <div className="flex flex-col gap-1">
                         <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-200 text-green-900 w-fit">
                           ✅ Paid
                         </span>
                         {paymentSummary.latestPaidDate && (
-                          <span className="text-xs text-gray-600 mt-1">
-                            {new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')}
+                          <span className="text-xs font-semibold text-green-700">
+                            💳 {new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')}
                           </span>
                         )}
+                        {paymentSummary.submissionDate && (
+                          <span className="text-xs text-indigo-700">
+                            📤 Submitted: {new Date(paymentSummary.submissionDate).toLocaleDateString('en-IN')}
+                          </span>
+                        )}
+                        {paymentSummary.verifiedAt && (
+                          <span className="text-xs text-emerald-700">
+                            ✅ Verified: {new Date(paymentSummary.verifiedAt).toLocaleDateString('en-IN')}
+                          </span>
+                        )}
+                        {paymentSummary.paymentDelayDays > 0 ? (
+                          <span className="text-xs font-semibold text-orange-700">
+                            ⏰ Delayed: {paymentSummary.paymentDelayDays}d late
+                          </span>
+                        ) : paymentSummary.latestPaidDate ? (
+                          <span className="text-xs font-semibold text-green-700">⏱️ On Time</span>
+                        ) : null}
                       </div>
                     ) : (
                       <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-200 text-orange-900">
@@ -796,10 +839,29 @@ const Payments = () => {
                       <td className="px-4 py-3 text-right font-bold text-gray-900">
                         ₹{(isPaid ? paymentSummary.totalPaid : (tenant.currentRent || 0)).toLocaleString('en-IN')}
                       </td>
-                      <td className="px-4 py-3 text-center text-sm text-gray-700">
-                        {paymentSummary.latestPaidDate
-                          ? new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')
-                          : '-'}
+                      <td className="px-4 py-3 text-sm">
+                        {paymentSummary.latestPaidDate ? (
+                          <div className="space-y-0.5">
+                            <div className="font-semibold text-green-700">
+                              💳 {new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')}
+                            </div>
+                            {paymentSummary.submissionDate && (
+                              <div className="text-xs text-indigo-700">
+                                📤 {new Date(paymentSummary.submissionDate).toLocaleDateString('en-IN')}
+                              </div>
+                            )}
+                            {paymentSummary.verifiedAt && (
+                              <div className="text-xs text-emerald-700">
+                                ✅ {new Date(paymentSummary.verifiedAt).toLocaleDateString('en-IN')}
+                              </div>
+                            )}
+                            {paymentSummary.paymentDelayDays > 0 ? (
+                              <div className="text-xs font-semibold text-orange-700">⏰ +{paymentSummary.paymentDelayDays}d late</div>
+                            ) : (
+                              <div className="text-xs font-semibold text-green-700">⏱️ On Time</div>
+                            )}
+                          </div>
+                        ) : '-'}
                       </td>
                       <td className="px-4 py-3 text-xs font-mono text-gray-700 max-w-[180px] truncate" title={paymentSummary.utrDisplay}>
                         {isPaid ? paymentSummary.utrDisplay : '-'}
