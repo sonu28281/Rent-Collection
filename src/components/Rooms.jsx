@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { collection, getDocs, query, orderBy, where, doc, updateDoc, addDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { validateRoomCount } from '../utils/roomValidation';
@@ -28,6 +28,13 @@ const Rooms = () => {
   const [occupyModal, setOccupyModal] = useState(null); // room object
   const [occupyTenantId, setOccupyTenantId] = useState('');
   const [occupyRemark, setOccupyRemark] = useState('');
+  // Expanded breakdown for multi-room rows
+  const [expandedMultiRows, setExpandedMultiRows] = useState(new Set());
+  const toggleMultiExpand = (key) => setExpandedMultiRows(prev => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
 
   useEffect(() => {
     fetchRooms();
@@ -360,6 +367,17 @@ const Rooms = () => {
     return isNaN(d) ? String(val) : d.toLocaleDateString('en-IN');
   };
 
+  // Per-room rent lookup (standalone so card/table breakdowns can use it too)
+  const getPerRoomRent = (roomObj) => {
+    if (roomObj.defaultRent) return Number(roomObj.defaultRent);
+    const rn = String(roomObj.roomNumber);
+    const byRoomNumber = tenants.find(t => String(t.roomNumber) === rn);
+    if (byRoomNumber?.currentRent) return Number(byRoomNumber.currentRent);
+    const byUsername = tenants.find(t => String(t.username) === rn);
+    if (byUsername?.currentRent) return Number(byUsername.currentRent);
+    return 0;
+  };
+
   // Build display rows: multi-room tenants (assignedRooms array) are merged into one row
   const buildDisplayRows = (roomList) => {
     const rows = [];
@@ -379,16 +397,6 @@ const Rooms = () => {
         const tnRooms = tenant.assignedRooms.map(String);
         const mergedRooms = roomList.filter(r => tnRooms.includes(String(r.roomNumber)));
         mergedRooms.forEach(r => handled.add(r.id));
-        // Per-room rent: room.defaultRent → tenant by roomNumber → inactive tenant by username (original room)
-        const getPerRoomRent = (roomObj) => {
-          if (roomObj.defaultRent) return Number(roomObj.defaultRent);
-          const rn = String(roomObj.roomNumber);
-          const byRoomNumber = tenants.find(t => String(t.roomNumber) === rn);
-          if (byRoomNumber?.currentRent) return Number(byRoomNumber.currentRent);
-          const byUsername = tenants.find(t => String(t.username) === rn);
-          if (byUsername?.currentRent) return Number(byUsername.currentRent);
-          return 0;
-        };
         const totalRent = mergedRooms.reduce((s, r) => s + getPerRoomRent(r), 0);
         const getTs = (v) => v?.seconds ? v.seconds : (v ? new Date(v).getTime() / 1000 : 0);
         const latestUpdated = mergedRooms.reduce((best, r) => {
@@ -746,6 +754,7 @@ const Rooms = () => {
             const { key, isMulti, rooms: rowRooms, primaryRoom, currentTenant, lastTenant, meterInfo, displayRent, isVacant, roomLabel, meterLabel, lastUpdated } = row;
             const rowIds = rowRooms.map(r => r.id);
             const allSelected = rowIds.every(id => selectedRooms.has(id));
+            const expanded = expandedMultiRows.has(key);
 
             return (
               <div key={key} className={`card border ${allSelected ? 'border-blue-300 bg-blue-50' : isMulti ? 'border-indigo-200 bg-indigo-50' : 'border-gray-200'} p-4`}>
@@ -772,8 +781,33 @@ const Rooms = () => {
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <p>Rent: <span className="font-semibold text-gray-900">{displayRent ? `₹${Number(displayRent).toLocaleString('en-IN')}` : 'N/A'}</span>{isMulti && displayRent ? <span className="text-xs text-indigo-500 ml-1">(combined)</span> : null}</p>
-                  <p>Meter No: <span className="font-semibold text-gray-900">{meterLabel}</span></p>
+                  <div className="flex items-center gap-1 col-span-2">
+                    <span>Rent: <span className="font-semibold text-gray-900">{displayRent ? `₹${Number(displayRent).toLocaleString('en-IN')}` : 'N/A'}</span>{isMulti && displayRent ? <span className="text-xs text-indigo-500 ml-1">(combined)</span> : null}</span>
+                    {isMulti && (
+                      <button
+                        onClick={() => toggleMultiExpand(key)}
+                        className="ml-2 text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded hover:bg-indigo-200 font-semibold"
+                      >
+                        {expanded ? 'Hide ▲' : 'Breakout ▼'}
+                      </button>
+                    )}
+                  </div>
+                  {isMulti && expanded && (
+                    <div className="col-span-2 bg-white border border-indigo-200 rounded-lg p-2 mt-1 space-y-1">
+                      {rowRooms.map(r => (
+                        <div key={r.id} className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-indigo-800">Room {r.roomNumber}</span>
+                          <span className="text-gray-700">Meter: {r.electricityMeterNo || '—'}</span>
+                          <span className="font-bold text-gray-900">₹{getPerRoomRent(r).toLocaleString('en-IN')}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between text-xs font-bold border-t border-indigo-200 pt-1 mt-1">
+                        <span className="text-indigo-700">Total</span>
+                        <span className="text-gray-900">₹{Number(displayRent || 0).toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+                  )}
+                  <p className="col-span-2">Meter No: <span className="font-semibold text-gray-900">{meterLabel}</span></p>
                   {!isVacant && currentTenant && (
                     <p className="col-span-2">Tenant: <span className="font-semibold text-green-700">👤 {currentTenant.name}</span>{isMulti && <span className="ml-1 text-xs text-indigo-600 font-semibold">· Multi-room</span>}</p>
                   )}
@@ -832,58 +866,98 @@ const Rooms = () => {
                 const { key, isMulti, rooms: rowRooms, primaryRoom, currentTenant, lastTenant, meterInfo, displayRent, isVacant, roomLabel, meterLabel, lastUpdated } = row;
                 const rowIds = rowRooms.map(r => r.id);
                 const allSelected = rowIds.every(id => selectedRooms.has(id));
+                const expanded = expandedMultiRows.has(key);
 
                 return (
-                  <tr key={key} className={allSelected ? 'bg-blue-50' : isMulti ? 'bg-indigo-50' : ''}>
-                    <td className="px-4 py-4">
-                      <input
-                        type="checkbox"
-                        checked={allSelected}
-                        onChange={() => toggleRowSelection(rowIds)}
-                        className="w-4 h-4 text-primary rounded"
-                      />
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-gray-900">{roomLabel}</div>
-                      {isMulti && <div className="text-xs text-indigo-600 font-semibold mt-0.5">🏠 Multi-room</div>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => openStatusModal(primaryRoom)}
-                        title={isVacant ? 'Click to mark Occupied' : 'Click to mark Vacant'}
-                        className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full cursor-pointer border transition hover:shadow ${
-                          isVacant
-                            ? 'bg-gray-100 text-gray-800 border-gray-300 hover:bg-green-50 hover:text-green-800'
-                            : 'bg-green-100 text-green-800 border-green-300 hover:bg-orange-50 hover:text-orange-800'
-                        }`}
-                      >
-                        {isVacant ? '⬜ Vacant' : '✅ Occupied'}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {!isVacant && currentTenant
-                        ? <span className="text-green-700 font-medium">👤 {currentTenant.name}{isMulti ? <span className="ml-1 text-xs text-indigo-600">· Multi-room</span> : null}</span>
-                        : lastTenant
-                          ? <span className="text-orange-600 text-xs">
-                              {lastTenant.name}
-                              {lastTenant.checkOutDate && <><br/><span className="text-gray-400">out: {fmtDate(lastTenant.checkOutDate)}</span></>}
-                            </span>
-                          : <span className="text-gray-400 text-xs">—</span>}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                      {displayRent ? `₹${Number(displayRent).toLocaleString('en-IN')}` : 'N/A'}
-                      {isMulti && displayRent ? <span className="block text-xs text-indigo-500 font-normal">(combined)</span> : null}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {meterLabel}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {meterInfo?.reading != null ? `${meterInfo.reading}` : '—'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {lastUpdated ? fmtDate(lastUpdated) : 'Never'}
-                    </td>
-                  </tr>
+                  <Fragment key={key}>
+                    <tr className={allSelected ? 'bg-blue-50' : isMulti ? 'bg-indigo-50' : ''}>
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={() => toggleRowSelection(rowIds)}
+                          className="w-4 h-4 text-primary rounded"
+                        />
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="text-sm font-bold text-gray-900">{roomLabel}</div>
+                        {isMulti && <div className="text-xs text-indigo-600 font-semibold mt-0.5">🏠 Multi-room</div>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => openStatusModal(primaryRoom)}
+                          title={isVacant ? 'Click to mark Occupied' : 'Click to mark Vacant'}
+                          className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full cursor-pointer border transition hover:shadow ${
+                            isVacant
+                              ? 'bg-gray-100 text-gray-800 border-gray-300 hover:bg-green-50 hover:text-green-800'
+                              : 'bg-green-100 text-green-800 border-green-300 hover:bg-orange-50 hover:text-orange-800'
+                          }`}
+                        >
+                          {isVacant ? '⬜ Vacant' : '✅ Occupied'}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {!isVacant && currentTenant
+                          ? <span className="text-green-700 font-medium">👤 {currentTenant.name}{isMulti ? <span className="ml-1 text-xs text-indigo-600">· Multi-room</span> : null}</span>
+                          : lastTenant
+                            ? <span className="text-orange-600 text-xs">
+                                {lastTenant.name}
+                                {lastTenant.checkOutDate && <><br/><span className="text-gray-400">out: {fmtDate(lastTenant.checkOutDate)}</span></>}
+                              </span>
+                            : <span className="text-gray-400 text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        <div>{displayRent ? `₹${Number(displayRent).toLocaleString('en-IN')}` : 'N/A'}</div>
+                        {isMulti && displayRent && (
+                          <button
+                            onClick={() => toggleMultiExpand(key)}
+                            className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded hover:bg-indigo-200 font-semibold mt-1"
+                          >
+                            {expanded ? 'Hide ▲' : 'Breakout ▼'}
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {meterLabel}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {meterInfo?.reading != null ? `${meterInfo.reading}` : '—'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {lastUpdated ? fmtDate(lastUpdated) : 'Never'}
+                      </td>
+                    </tr>
+                    {isMulti && expanded && (
+                      <tr className="bg-indigo-50">
+                        <td colSpan={8} className="px-8 py-3">
+                          <div className="border border-indigo-200 rounded-lg overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-indigo-100 text-indigo-800">
+                                  <th className="px-3 py-2 text-left font-semibold">Room</th>
+                                  <th className="px-3 py-2 text-left font-semibold">Meter No</th>
+                                  <th className="px-3 py-2 text-right font-semibold">Rent</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white">
+                                {rowRooms.map(r => (
+                                  <tr key={r.id} className="border-t border-indigo-100">
+                                    <td className="px-3 py-2 font-semibold text-indigo-800">{r.roomNumber}</td>
+                                    <td className="px-3 py-2 text-gray-600">{r.electricityMeterNo || '—'}</td>
+                                    <td className="px-3 py-2 text-right font-bold text-gray-900">₹{getPerRoomRent(r).toLocaleString('en-IN')}</td>
+                                  </tr>
+                                ))}
+                                <tr className="border-t-2 border-indigo-300 bg-indigo-50">
+                                  <td className="px-3 py-2 font-bold text-indigo-700" colSpan={2}>Total</td>
+                                  <td className="px-3 py-2 text-right font-bold text-indigo-900">₹{Number(displayRent || 0).toLocaleString('en-IN')}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>
