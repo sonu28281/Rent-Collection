@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy, doc, updateDoc, addDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, where, doc, updateDoc, addDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { validateRoomCount } from '../utils/roomValidation';
 import { useDialog } from './ui/DialogProvider';
@@ -9,6 +9,8 @@ import useResponsiveViewMode from '../utils/useResponsiveViewMode';
 const Rooms = () => {
   const { showConfirm } = useDialog();
   const [rooms, setRooms] = useState([]);
+  const [tenants, setTenants] = useState([]);
+  const [meterReadings, setMeterReadings] = useState({}); // roomNumber → latest reading
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // all, vacant, occupied
@@ -61,6 +63,44 @@ const Rooms = () => {
       });
       
       setRooms(roomsData);
+
+      // Fetch all tenants (for last tenant info on vacant rooms)
+      const tenantsSnap = await getDocs(collection(db, 'tenants'));
+      const tenantsData = tenantsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setTenants(tenantsData);
+
+      // Fetch latest meter reading per room from electricityReadings
+      try {
+        const readingsSnap = await getDocs(collection(db, 'electricityReadings'));
+        const readingsByRoom = {};
+        readingsSnap.docs.forEach(d => {
+          const r = d.data();
+          const rn = String(r.roomNumber ?? '');
+          if (!rn) return;
+          const existing = readingsByRoom[rn];
+          const ts = r.date || r.readingDate || r.createdAt || '';
+          if (!existing || ts > (existing.ts || '')) {
+            readingsByRoom[rn] = { reading: r.currentReading ?? r.reading ?? r.endReading ?? null, ts };
+          }
+        });
+        // Also check payments for last meter reading
+        const paymentsSnap = await getDocs(collection(db, 'payments'));
+        paymentsSnap.docs.forEach(d => {
+          const p = d.data();
+          const rn = String(p.roomNumber ?? '');
+          if (!rn) return;
+          const meterVal = p.currentMeterReading ?? p.endMeterReading ?? p.meterReading ?? null;
+          if (meterVal === null) return;
+          const ts = p.paidDate || p.paymentDate || `${p.year}-${String(p.month).padStart(2,'0')}` || '';
+          const existing = readingsByRoom[rn];
+          if (!existing || ts > (existing.ts || '')) {
+            readingsByRoom[rn] = { reading: meterVal, ts };
+          }
+        });
+        setMeterReadings(readingsByRoom);
+      } catch (mErr) {
+        console.warn('Could not fetch meter readings:', mErr.message);
+      }
       
       // VALIDATION: Check room count
       const validation = validateRoomCount(roomsData.length);
@@ -244,7 +284,36 @@ const Rooms = () => {
     vacant: rooms.filter(r => (r.status || 'vacant') === 'vacant').length,
     occupied: rooms.filter(r => r.status === 'occupied').length,
     floor1: rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106).length,
-    floor2: rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206).length
+    floor2: rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206).length,
+    floor1Vacant: rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106 && (r.status || 'vacant') === 'vacant').length,
+    floor2Vacant: rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206 && (r.status || 'vacant') === 'vacant').length,
+  };
+
+  // Helper: get enriched info for a room
+  const getRoomInfo = (room) => {
+    const rn = String(room.roomNumber);
+    const isVacant = (room.status || 'vacant') === 'vacant';
+    // Current tenant (occupied rooms)
+    const currentTenant = !isVacant
+      ? tenants.find(t => t.isActive && String(t.roomNumber) === rn)
+      : null;
+    // Last tenant (vacant rooms)
+    const pastTenants = tenants.filter(t => !t.isActive && String(t.roomNumber) === rn);
+    const lastTenant = pastTenants.sort((a, b) => {
+      const da = a.checkOutDate || '';
+      const db2 = b.checkOutDate || '';
+      return da > db2 ? -1 : 1;
+    })[0] || null;
+    // Last meter reading
+    const meterInfo = meterReadings[rn] || null;
+    return { currentTenant, lastTenant, meterInfo };
+  };
+
+  const fmtDate = (val) => {
+    if (!val) return null;
+    if (val.seconds) return new Date(val.seconds * 1000).toLocaleDateString('en-IN');
+    const d = new Date(val);
+    return isNaN(d) ? String(val) : d.toLocaleDateString('en-IN');
   };
 
   if (loading) {
@@ -307,6 +376,100 @@ const Rooms = () => {
             </div>
             <div className="text-4xl">✅</div>
           </div>
+        </div>
+      </div>
+
+      {/* Floor Vacancy Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {/* Floor 1 */}
+        <div className={`card border-2 ${stats.floor1Vacant > 0 ? 'border-orange-300 bg-orange-50' : 'border-green-300 bg-green-50'}`}>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ground Floor (101–106)</p>
+              <p className="text-lg font-bold text-gray-900 mt-0.5">
+                {stats.floor1Vacant > 0
+                  ? <span className="text-orange-700">🔓 {stats.floor1Vacant} Vacant</span>
+                  : <span className="text-green-700">✅ All Occupied</span>}
+              </p>
+            </div>
+            <div className={`text-3xl ${stats.floor1Vacant > 0 ? 'text-orange-400' : 'text-green-400'}`}>
+              {stats.floor1Vacant > 0 ? '🏚️' : '🏠'}
+            </div>
+          </div>
+          <div className="flex gap-1">
+            {rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106).map(r => (
+              <div
+                key={r.id}
+                title={`Room ${r.roomNumber}`}
+                className={`flex-1 h-5 rounded text-xs font-bold flex items-center justify-center text-white ${
+                  (r.status || 'vacant') === 'vacant' ? 'bg-orange-400' : 'bg-green-500'
+                }`}
+              >
+                {r.roomNumber}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            {stats.floor1 - stats.floor1Vacant}/{stats.floor1} occupied
+          </p>
+          {/* Vacant room quick-info */}
+          {rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106 && (r.status || 'vacant') === 'vacant').map(r => {
+            const { lastTenant, meterInfo } = getRoomInfo(r);
+            return (
+              <div key={r.id} className="mt-2 pl-2 border-l-2 border-orange-300 text-xs text-gray-600 space-y-0.5">
+                <span className="font-semibold text-orange-700">Room {r.roomNumber}:</span>
+                {lastTenant
+                  ? <> Last: <span className="font-medium text-gray-800">{lastTenant.name}</span>{lastTenant.checkOutDate ? <> · Checkout: <span className="font-medium">{fmtDate(lastTenant.checkOutDate)}</span></> : null}</>
+                  : <> — no past tenant on record</>}
+                {meterInfo?.reading != null && <> · Meter: <span className="font-medium">{meterInfo.reading} units</span></>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Floor 2 */}
+        <div className={`card border-2 ${stats.floor2Vacant > 0 ? 'border-orange-300 bg-orange-50' : 'border-green-300 bg-green-50'}`}>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">First Floor (201–206)</p>
+              <p className="text-lg font-bold text-gray-900 mt-0.5">
+                {stats.floor2Vacant > 0
+                  ? <span className="text-orange-700">🔓 {stats.floor2Vacant} Vacant</span>
+                  : <span className="text-green-700">✅ All Occupied</span>}
+              </p>
+            </div>
+            <div className={`text-3xl ${stats.floor2Vacant > 0 ? 'text-orange-400' : 'text-green-400'}`}>
+              {stats.floor2Vacant > 0 ? '🏚️' : '🏠'}
+            </div>
+          </div>
+          <div className="flex gap-1">
+            {rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206).map(r => (
+              <div
+                key={r.id}
+                title={`Room ${r.roomNumber}`}
+                className={`flex-1 h-5 rounded text-xs font-bold flex items-center justify-center text-white ${
+                  (r.status || 'vacant') === 'vacant' ? 'bg-orange-400' : 'bg-green-500'
+                }`}
+              >
+                {r.roomNumber}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            {stats.floor2 - stats.floor2Vacant}/{stats.floor2} occupied
+          </p>
+          {rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206 && (r.status || 'vacant') === 'vacant').map(r => {
+            const { lastTenant, meterInfo } = getRoomInfo(r);
+            return (
+              <div key={r.id} className="mt-2 pl-2 border-l-2 border-orange-300 text-xs text-gray-600 space-y-0.5">
+                <span className="font-semibold text-orange-700">Room {r.roomNumber}:</span>
+                {lastTenant
+                  ? <> Last: <span className="font-medium text-gray-800">{lastTenant.name}</span>{lastTenant.checkOutDate ? <> · Checkout: <span className="font-medium">{fmtDate(lastTenant.checkOutDate)}</span></> : null}</>
+                  : <> — no past tenant on record</>}
+                {meterInfo?.reading != null && <> · Meter: <span className="font-medium">{meterInfo.reading} units</span></>}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -450,6 +613,7 @@ const Rooms = () => {
           {filteredRooms.map((room) => {
             const roomStatus = room.status || 'vacant';
             const isVacant = roomStatus === 'vacant';
+            const { currentTenant, lastTenant, meterInfo } = getRoomInfo(room);
 
             return (
               <div key={room.id} className={`card border ${selectedRooms.has(room.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'} p-4`}>
@@ -476,8 +640,22 @@ const Rooms = () => {
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                   <p>Rent: <span className="font-semibold text-gray-900">₹{room.defaultRent?.toLocaleString('en-IN') || 'N/A'}</span></p>
-                  <p>Meter: <span className="font-semibold text-gray-900">{room.electricityMeterNo || 'N/A'}</span></p>
-                  <p className="col-span-2">Last Updated: <span className="font-semibold text-gray-900">{room.lastStatusUpdatedAt ? new Date(room.lastStatusUpdatedAt.seconds * 1000).toLocaleDateString() : 'Never'}</span></p>
+                  <p>Meter No: <span className="font-semibold text-gray-900">{room.electricityMeterNo || 'N/A'}</span></p>
+                  {!isVacant && currentTenant && (
+                    <p className="col-span-2">Tenant: <span className="font-semibold text-green-700">👤 {currentTenant.name}</span></p>
+                  )}
+                  {isVacant && lastTenant && (
+                    <p className="col-span-2 text-xs text-orange-700 bg-orange-50 rounded px-2 py-1">
+                      Last: <span className="font-semibold">{lastTenant.name}</span>
+                      {lastTenant.checkOutDate && <> · Checkout: <span className="font-semibold">{fmtDate(lastTenant.checkOutDate)}</span></>}
+                    </p>
+                  )}
+                  {isVacant && meterInfo?.reading != null && (
+                    <p className="col-span-2 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">
+                      Last Meter: <span className="font-semibold">{meterInfo.reading} units</span>
+                    </p>
+                  )}
+                  <p className="col-span-2 text-xs text-gray-400">Updated: {room.lastStatusUpdatedAt ? fmtDate(room.lastStatusUpdatedAt) : 'Never'}</p>
                 </div>
 
                 <button
@@ -505,8 +683,10 @@ const Rooms = () => {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tenant / Last Tenant</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Default Rent</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meter No</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Meter</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
@@ -515,6 +695,7 @@ const Rooms = () => {
               {filteredRooms.map(room => {
                 const roomStatus = room.status || 'vacant';
                 const isVacant = roomStatus === 'vacant';
+                const { currentTenant, lastTenant, meterInfo } = getRoomInfo(room);
 
                 return (
                   <tr key={room.id} className={selectedRooms.has(room.id) ? 'bg-blue-50' : ''}>
@@ -538,6 +719,16 @@ const Rooms = () => {
                         {isVacant ? '⬜ Vacant' : '✅ Occupied'}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {!isVacant && currentTenant
+                        ? <span className="text-green-700 font-medium">👤 {currentTenant.name}</span>
+                        : lastTenant
+                          ? <span className="text-orange-600 text-xs">
+                              {lastTenant.name}
+                              {lastTenant.checkOutDate && <><br/><span className="text-gray-400">out: {fmtDate(lastTenant.checkOutDate)}</span></>}
+                            </span>
+                          : <span className="text-gray-400 text-xs">—</span>}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       ₹{room.defaultRent?.toLocaleString('en-IN') || 'N/A'}
                     </td>
@@ -545,9 +736,10 @@ const Rooms = () => {
                       {room.electricityMeterNo || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {room.lastStatusUpdatedAt
-                        ? new Date(room.lastStatusUpdatedAt.seconds * 1000).toLocaleDateString()
-                        : 'Never'}
+                      {meterInfo?.reading != null ? `${meterInfo.reading}` : '—'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {room.lastStatusUpdatedAt ? fmtDate(room.lastStatusUpdatedAt) : 'Never'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <button

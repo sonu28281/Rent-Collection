@@ -720,6 +720,48 @@ const Tenants = () => {
         </div>
       </div>
 
+      {/* Floor Vacancy Bar */}
+      {rooms.length > 0 && (() => {
+        const f1Rooms = rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106);
+        const f2Rooms = rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206);
+        const f1Vacant = f1Rooms.filter(r => (r.status || 'vacant') === 'vacant').length;
+        const f2Vacant = f2Rooms.filter(r => (r.status || 'vacant') === 'vacant').length;
+        return (
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className={`card py-2 px-3 border-2 ${f1Vacant > 0 ? 'border-orange-300 bg-orange-50' : 'border-green-300 bg-green-50'}`}>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Ground Floor (101–106)</p>
+              <div className="flex gap-0.5 mb-1">
+                {f1Rooms.map(r => (
+                  <div key={r.id} title={`Room ${r.roomNumber}: ${r.status || 'vacant'}`}
+                    className={`flex-1 h-4 rounded text-[9px] font-bold flex items-center justify-center text-white ${(r.status || 'vacant') === 'vacant' ? 'bg-orange-400' : 'bg-green-500'}`}>
+                    {r.roomNumber}
+                  </div>
+                ))}
+              </div>
+              <p className={`text-sm font-bold ${f1Vacant > 0 ? 'text-orange-700' : 'text-green-700'}`}>
+                {f1Vacant > 0 ? `🔓 ${f1Vacant} vacant` : '✅ All occupied'}
+                <span className="text-xs font-normal text-gray-500 ml-1">({f1Rooms.length - f1Vacant}/{f1Rooms.length} occupied)</span>
+              </p>
+            </div>
+            <div className={`card py-2 px-3 border-2 ${f2Vacant > 0 ? 'border-orange-300 bg-orange-50' : 'border-green-300 bg-green-50'}`}>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">First Floor (201–206)</p>
+              <div className="flex gap-0.5 mb-1">
+                {f2Rooms.map(r => (
+                  <div key={r.id} title={`Room ${r.roomNumber}: ${r.status || 'vacant'}`}
+                    className={`flex-1 h-4 rounded text-[9px] font-bold flex items-center justify-center text-white ${(r.status || 'vacant') === 'vacant' ? 'bg-orange-400' : 'bg-green-500'}`}>
+                    {r.roomNumber}
+                  </div>
+                ))}
+              </div>
+              <p className={`text-sm font-bold ${f2Vacant > 0 ? 'text-orange-700' : 'text-green-700'}`}>
+                {f2Vacant > 0 ? `🔓 ${f2Vacant} vacant` : '✅ All occupied'}
+                <span className="text-xs font-normal text-gray-500 ml-1">({f2Rooms.length - f2Vacant}/{f2Rooms.length} occupied)</span>
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Filters & Tools */}
       <div className="card mb-4">
         {/* Filters row */}
