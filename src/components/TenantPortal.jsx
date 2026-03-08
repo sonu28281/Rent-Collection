@@ -3,7 +3,6 @@ import { collection, query, where, getDocs, limit, doc, getDoc, setDoc } from 'f
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import SubmitPayment from './SubmitPayment';
-import TenantCheckoutRequest from './TenantCheckoutRequest';
 import googlePayLogo from '../assets/payment-icons/google-pay.svg';
 import phonePeLogo from '../assets/payment-icons/phonepe.svg';
 import Tesseract from 'tesseract.js';
@@ -66,7 +65,7 @@ const TenantPortal = () => {
   const toastTimerRef = useRef(null);
   
   // Submit payment modal state
-  const [submitPaymentData, setSubmitPaymentData] = useState(null);
+  const [showSubmitPayment, setShowSubmitPayment] = useState(false);
   const [portalLanguage, setPortalLanguage] = useState(() => localStorage.getItem(TENANT_PORTAL_LANG_KEY) || 'en');
   const [notificationPermission, setNotificationPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
@@ -77,7 +76,6 @@ const TenantPortal = () => {
   const [kycCallbackMessage, setKycCallbackMessage] = useState('');
   const [hiddenRejectedSubmissionIds, setHiddenRejectedSubmissionIds] = useState(new Set());
   const [currentKycStep, setCurrentKycStep] = useState(1); // Track current active KYC step (1, 2, or 3)
-  const [showCheckoutRequest, setShowCheckoutRequest] = useState(false);
   const [tenantProfile, setTenantProfile] = useState({
     firstName: '',
     lastName: '',
@@ -2304,16 +2302,9 @@ const TenantPortal = () => {
   };
 
   const getLastMonthClosingReading = (roomNumber = null) => {
-    // Find last record where electricity was paid (has electricity amount or meter reading)
     const roomMatch = roomNumber !== null
       ? paymentRecords
-          .filter((record) => {
-            if (String(record.roomNumber) !== String(roomNumber)) return false;
-            // Only include records where electricity was billed (has currentReading or meterReading)
-            const hasElectricityBill = Number(record.electricity ?? record.electricityAmount ?? 0) > 0 
-              || Number(record.currentReading ?? record.meterReading ?? 0) > 0;
-            return hasElectricityBill;
-          })
+          .filter((record) => String(record.roomNumber) === String(roomNumber))
           .sort((a, b) => getMonthIndex(Number(b.year), Number(b.month)) - getMonthIndex(Number(a.year), Number(a.month)))[0]
       : null;
 
@@ -2435,12 +2426,6 @@ const TenantPortal = () => {
           paidAmount: 0,
           status: 'paid',
           paidAt: null,
-          paidDate: null,
-          submissionDate: null,
-          verifiedAt: null,
-          ocrExtractedDate: null,
-          paymentDelayDays: 0,
-          isPaymentOnTime: true,
           notes: ''
         };
       }
@@ -2456,30 +2441,8 @@ const TenantPortal = () => {
       accumulator[key].totalAmount += total;
       accumulator[key].paidAmount += paidAmount;
 
-      const paymentDateToUse = record.paidDate || record.paidAt;
-      if (paymentDateToUse && (!accumulator[key].paidDate || new Date(paymentDateToUse) > new Date(accumulator[key].paidDate))) {
-        accumulator[key].paidDate = paymentDateToUse;
-        accumulator[key].paidAt = paymentDateToUse;
-      }
-
-      if (record.submissionDate && (!accumulator[key].submissionDate || new Date(record.submissionDate) > new Date(accumulator[key].submissionDate))) {
-        accumulator[key].submissionDate = record.submissionDate;
-      }
-
-      if (record.verifiedAt && (!accumulator[key].verifiedAt || new Date(record.verifiedAt) > new Date(accumulator[key].verifiedAt))) {
-        accumulator[key].verifiedAt = record.verifiedAt;
-      }
-
-      if (record.ocrExtractedDate && !accumulator[key].ocrExtractedDate) {
-        accumulator[key].ocrExtractedDate = record.ocrExtractedDate;
-      }
-
-      if (Number.isFinite(record.paymentDelayDays) && record.paymentDelayDays > (accumulator[key].paymentDelayDays || 0)) {
-        accumulator[key].paymentDelayDays = record.paymentDelayDays;
-      }
-
-      if (record.isPaymentOnTime === false) {
-        accumulator[key].isPaymentOnTime = false;
+      if (record.paidAt && (!accumulator[key].paidAt || new Date(record.paidAt) > new Date(accumulator[key].paidAt))) {
+        accumulator[key].paidAt = record.paidAt;
       }
 
       if (!accumulator[key].notes && record.notes) {
@@ -2782,42 +2745,6 @@ const TenantPortal = () => {
 
             {/* DigiLocker KYC section removed - now integrated into Tenant KYC Profile below */}
 
-            {/* Checkout Request Button - Show if tenant is active and hasn't requested checkout */}
-            {tenant?.status !== 'checkout_requested' && tenant?.status !== 'inactive' && tenant?.isActive !== false && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">Planning to Move Out?</h3>
-                    <p className="text-sm text-gray-600">Submit a checkout request to start the settlement process</p>
-                  </div>
-                  <button
-                    onClick={() => setShowCheckoutRequest(true)}
-                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 transition-colors font-medium whitespace-nowrap"
-                  >
-                    Request Checkout
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Checkout Request Pending Notice */}
-            {tenant?.status === 'checkout_requested' && (
-              <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <div className="text-3xl">⏳</div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-orange-900 mb-1">Checkout Request Pending</h3>
-                    <p className="text-sm text-orange-800">Your checkout request has been submitted and is awaiting admin approval.</p>
-                    {tenant.proposedCheckoutDate && (
-                      <p className="text-sm text-orange-700 mt-2">
-                        <strong>Proposed Date:</strong> {new Date(tenant.proposedCheckoutDate).toLocaleDateString('en-IN')}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Due Date Alert - Mobile Optimized with Smart Logic */}
             {(() => {
               const dueInfo = getNextDueDate();
@@ -2982,29 +2909,7 @@ const TenantPortal = () => {
                   
                   {/* Submit Payment Proof Button - Always available */}
                   <button
-                    onClick={() => {
-                      // Auto-fill meter readings
-                      const initialPrevious = {};
-                      const initialCurrent = {};
-                      console.log('🔵 Submit Payment Button Clicked - effectiveRooms:', effectiveRooms.map(r => r.roomNumber));
-                      effectiveRooms.forEach((roomEntry) => {
-                        const roomKey = String(roomEntry.roomNumber);
-                        const oldReading = getLastMonthClosingReading(roomEntry.roomNumber);
-                        initialPrevious[roomKey] = String(oldReading);
-                        initialCurrent[roomKey] = '';
-                        console.log(`  Room ${roomKey}: getLastMonthClosingReading returned ${oldReading}`);
-                      });
-                      
-                      console.log('📤 Setting submitPaymentData:', {
-                        previousMeterReadings: initialPrevious,
-                        currentMeterReadings: initialCurrent
-                      });
-                      
-                      setSubmitPaymentData({
-                        previousMeterReadings: initialPrevious,
-                        currentMeterReadings: initialCurrent
-                      });
-                    }}
+                    onClick={() => setShowSubmitPayment(true)}
                     className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 touch-manipulation"
                   >
                     📝 Submit Payment for Verification
@@ -3136,19 +3041,16 @@ const TenantPortal = () => {
                 )}
 
                 {/* Pay Buttons - Google Pay + PhonePe */}
-                {activeUPI && (
+                {getPayableAmount() && (
                   <div className="mb-4">
                     {(() => {
-                      const payableData = getPayableAmount();
                       const browserContext = getBrowserContext();
                       const shouldDisableGenericUpi = browserContext.likelyInAppBrowser;
 
                       return (
                         <>
-                    {payableData ? (
-                      <>
                     <p className="text-sm font-semibold text-gray-700 mb-2">
-                      Payable Amount: <span className="text-green-600 text-lg">₹{payableData.totalAmount.toFixed(2)}</span>
+                      Payable Amount: <span className="text-green-600 text-lg">₹{getPayableAmount().totalAmount.toFixed(2)}</span>
                     </p>
                     <p className="text-xs text-gray-500 mb-3">Choose app and tap once to open with prefilled UPI details</p>
 
@@ -3168,7 +3070,7 @@ const TenantPortal = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button
                         onClick={() => openSpecificUPIApp('gpay')}
-                        disabled={paymentProcessing || !payableData}
+                        disabled={paymentProcessing}
                         className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 sm:py-4 px-4 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <div className="flex flex-col items-center leading-tight gap-1.5 sm:gap-2">
@@ -3177,13 +3079,13 @@ const TenantPortal = () => {
                             alt="Google Pay"
                             className="h-7 sm:h-8 w-auto bg-white rounded-full px-1.5 py-1"
                           />
-                          <span className="text-xs font-bold text-blue-50">Pay ₹{payableData?.totalAmount.toFixed(2) || '0'}</span>
+                          <span className="text-xs font-bold text-blue-50">Pay ₹{getPayableAmount().totalAmount.toFixed(2)}</span>
                         </div>
                       </button>
 
                       <button
                         onClick={() => openSpecificUPIApp('phonepe')}
-                        disabled={paymentProcessing || !payableData}
+                        disabled={paymentProcessing}
                         className="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white font-bold py-3 sm:py-4 px-4 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <div className="flex flex-col items-center leading-tight gap-1.5 sm:gap-2">
@@ -3192,30 +3094,23 @@ const TenantPortal = () => {
                             alt="PhonePe"
                             className="h-7 sm:h-8 w-auto bg-white rounded-full px-1.5 py-1"
                           />
-                          <span className="text-xs font-bold text-purple-50">Pay ₹{payableData?.totalAmount.toFixed(2) || '0'}</span>
+                          <span className="text-xs font-bold text-purple-50">Pay ₹{getPayableAmount().totalAmount.toFixed(2)}</span>
                         </div>
                       </button>
                     </div>
 
                     <button
                       onClick={openUPIPayment}
-                      disabled={paymentProcessing || shouldDisableGenericUpi || !payableData}
+                      disabled={paymentProcessing || shouldDisableGenericUpi}
                       className="w-full mt-3 bg-gray-800 hover:bg-gray-900 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        📱 Other UPI App • Pay ₹{payableData?.totalAmount.toFixed(2) || '0'}
+                        📱 Other UPI App • Pay ₹{getPayableAmount().totalAmount.toFixed(2)}
                     </button>
 
                     {shouldDisableGenericUpi && (
                       <p className="text-[11px] text-amber-700 mt-2">
                         Generic UPI launch is disabled in this app view. Use Google Pay / PhonePe buttons or open in Chrome.
                       </p>
-                    )}
-                      </>
-                    ) : (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-3">
-                        <p className="text-red-700 font-semibold mb-2">⚠️ Please enter valid meter readings</p>
-                        <p className="text-sm text-red-600">Current reading must be greater than or equal to previous reading.</p>
-                      </div>
                     )}
                         </>
                       );
@@ -3363,6 +3258,7 @@ const TenantPortal = () => {
                   <table className="w-full text-xs sm:text-sm">
                     <thead className="bg-gray-50 sticky top-0">
                       <tr>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-700">Old</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-700">Current</th>
@@ -3373,6 +3269,7 @@ const TenantPortal = () => {
                     <tbody>
                       {filteredTimeline.map((entry) => (
                         <tr key={entry.id} className="border-t border-gray-100">
+                          <td className="px-3 py-2 font-semibold text-gray-700">{entry.roomNumber || '-'}</td>
                           <td className="px-3 py-2">
                             <div className="font-semibold text-gray-800">{entry.monthLabel}</div>
                             <div className="text-[10px] text-gray-500">
@@ -3498,11 +3395,6 @@ const TenantPortal = () => {
                               <p className="text-xs text-gray-600">
                                 {paymentTypeText}
                               </p>
-                              {isPaid && group.paidDate && (
-                                <p className="text-xs text-green-700 font-semibold mt-1">
-                                  💳 {new Date(group.paidDate).toLocaleDateString('en-IN')}
-                                </p>
-                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
@@ -3526,54 +3418,17 @@ const TenantPortal = () => {
                               </div>
                             )}
 
-                            {/* Payment Timeline - Enhanced */}
-                            {isPaid && (
-                              <div className="bg-green-50 border border-green-200 rounded p-3">
-                                <p className="text-xs font-semibold text-green-900 mb-2">📅 Payment Timeline</p>
-                                <div className="space-y-2 text-xs">
-                                  {group.paidDate && (
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-700">💳 Payment Date:</span>
-                                      <span className="font-semibold text-green-700">
-                                        {new Date(group.paidDate).toLocaleDateString('en-IN')}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {group.ocrExtractedDate && (
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-700">🔍 OCR Detected:</span>
-                                      <span className="font-semibold text-blue-700">
-                                        {new Date(group.ocrExtractedDate).toLocaleDateString('en-IN')}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {group.submissionDate && (
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-700">📤 Submitted:</span>
-                                      <span className="font-semibold text-indigo-700">
-                                        {new Date(group.submissionDate).toLocaleDateString('en-IN')}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {group.verifiedAt && (
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-gray-700">✅ Verified:</span>
-                                      <span className="font-semibold text-emerald-700">
-                                        {new Date(group.verifiedAt).toLocaleDateString('en-IN')}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {group.paymentDelayDays !== undefined && (
-                                    <div className="flex justify-between items-center pt-2 border-t border-green-200">
-                                      <span className="text-gray-700 font-semibold">
-                                        {group.isPaymentOnTime ? '⏱️ On Time' : '⏰ Delayed'}
-                                      </span>
-                                      <span className={`font-bold ${group.isPaymentOnTime ? 'text-green-700' : 'text-orange-700'}`}>
-                                        {group.isPaymentOnTime ? 'Yes' : `${group.paymentDelayDays} days`}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
+                            {/* Payment Date */}
+                            {group.paidAt && isPaid && (
+                              <div className="bg-white/50 rounded p-2">
+                                <p className="text-xs text-gray-600 mb-1">Payment Date:</p>
+                                <p className="text-sm font-semibold text-green-700">
+                                  {new Date(group.paidAt).toLocaleDateString('en-IN', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    year: 'numeric'
+                                  })}
+                                </p>
                               </div>
                             )}
                             
@@ -3684,41 +3539,18 @@ const TenantPortal = () => {
         )}
         
         {/* Submit Payment Modal */}
-        {submitPaymentData && (
+        {showSubmitPayment && (
           <SubmitPayment
             tenant={tenant}
             room={room}
             rooms={roomsData}
-            previousMeterReadings={submitPaymentData.previousMeterReadings}
-            currentMeterReadings={submitPaymentData.currentMeterReadings}
             electricityRate={globalElectricityRate}
             language={portalLanguage}
-            onClose={() => setSubmitPaymentData(null)}
+            onClose={() => setShowSubmitPayment(false)}
             onSuccess={() => {
               // Reload tenant data after successful submission
-              setSubmitPaymentData(null);
+              setShowSubmitPayment(false);
               // Optionally refresh data here
-            }}
-          />
-        )}
-
-        {/* Checkout Request Modal */}
-        {showCheckoutRequest && (
-          <TenantCheckoutRequest
-            tenant={tenant}
-            room={room}
-            onClose={() => setShowCheckoutRequest(false)}
-            onSuccess={() => {
-              setShowCheckoutRequest(false);
-              setToast({ type: 'success', message: '✅ Checkout request submitted successfully! Admin will review it soon.' });
-              // Reload tenant data to update checkout status
-              if (tenant?.id) {
-                getDoc(doc(db, 'tenants', tenant.id)).then(docSnap => {
-                  if (docSnap.exists()) {
-                    setTenant({ id: docSnap.id, ...docSnap.data() });
-                  }
-                });
-              }
             }}
           />
         )}

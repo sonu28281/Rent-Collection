@@ -22,11 +22,9 @@ import TenantHistory from './components/TenantHistory';
 import ImportLogsPage from './components/ImportLogsPage';
 import PaymentsReset from './components/PaymentsReset';
 import DatabaseCleanup from './components/DatabaseCleanup';
-import KYCDocumentManager from './components/KYCDocumentManager';
 import VacancyReport from './components/VacancyReport';
 import TenantOnboarding from './components/TenantOnboarding';
 import DialogProvider from './components/ui/DialogProvider';
-import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   const hostname = window.location.hostname.toLowerCase();
@@ -46,28 +44,19 @@ function App() {
   );
 
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <DialogProvider>
-          <Router>
-            <Routes>
-            
-            {/* Public Tenant Portal Routes */}
-            <Route path="/tenant-portal" element={<TenantPortal />} />
-            <Route path="/kyc/callback" element={<TenantPortal />} />
-            <Route path="/t/:token" element={<TenantPortal />} />
-            
-            {/* Public Onboarding & KYC Routes - Wrapped in ErrorBoundary */}
-            <Route path="/onboarding" element={
-              <ErrorBoundary>
-                <TenantOnboarding mode="standalone" />
-              </ErrorBoundary>
-            } />
-            <Route path="/kyc" element={
-              <ErrorBoundary>
-                <TenantOnboarding mode="tenant" />
-              </ErrorBoundary>
-            } />
+    <AuthProvider>
+      <DialogProvider>
+        <Router>
+          <Routes>
+          
+          {/* Public Tenant Portal Routes */}
+          <Route path="/tenant-portal" element={<TenantPortal />} />
+          <Route path="/kyc/callback" element={<TenantPortal />} />
+          <Route path="/t/:token" element={<TenantPortal />} />
+          
+          {/* Public Onboarding & KYC Routes */}
+          <Route path="/onboarding" element={<TenantOnboarding mode="standalone" />} />
+          <Route path="/kyc" element={<TenantOnboarding mode="tenant" />} />
           
           <Route path="/login" element={isTenantPortalDomain ? tenantPortalRedirect : <Login />} />
           <Route 
@@ -143,10 +132,6 @@ function App() {
             element={adminRouteElement(<DatabaseCleanup />)} 
           />
           <Route 
-            path="/kyc-manager" 
-            element={adminRouteElement(<KYCDocumentManager />)} 
-          />
-          <Route 
             path="/settings" 
             element={adminRouteElement(<Settings />)} 
           />
@@ -156,7 +141,6 @@ function App() {
         </Router>
       </DialogProvider>
     </AuthProvider>
-    </ErrorBoundary>
   );
 }
 

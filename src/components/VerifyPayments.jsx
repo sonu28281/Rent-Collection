@@ -18,11 +18,6 @@ const VerifyPayments = () => {
   const [notificationPermission, setNotificationPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
   );
-  const [expandedCards, setExpandedCards] = useState(new Set());
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [tenantMap, setTenantMap] = useState({});
-  const [viewingScreenshot, setViewingScreenshot] = useState(null);
 
   const ADMIN_NOTIFIED_KEY = 'admin_notified_submission_ids_v1';
 
@@ -342,39 +337,71 @@ const VerifyPayments = () => {
         submissionsQuery = query(submissionsRef, where('status', '==', filter));
       }
       
-      const [snapshot, allTenantsSnapshot] = await Promise.all([
-        getDocs(submissionsQuery),
-        getDocs(query(collection(db, 'tenants')))
-      ]);
+      const snapshot = await getDocs(submissionsQuery);
       const data = [];
       snapshot.forEach((doc) => {
         data.push({ id: doc.id, ...doc.data() });
       });
-
-      // Build tenantId -> tenant map for dueDate lookups
-      const tMap = {};
-      allTenantsSnapshot.docs.forEach((tenantDoc) => {
-        tMap[tenantDoc.id] = { id: tenantDoc.id, ...tenantDoc.data() };
-      });
-      setTenantMap(tMap);
 
       if (filter === 'pending') {
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth() + 1;
 
-        const [currentMonthPaymentsSnapshot, currentMonthSubmissionsSnapshot] = await Promise.all([
+        const [tenantsSnapshot, currentMonthPaymentsSnapshot, currentMonthSubmissionsSnapshot] = await Promise.all([
+          getDocs(query(collection(db, 'tenants'), where('isActive', '==', true))),
           getDocs(query(collection(db, 'payments'), where('year', '==', currentYear), where('month', '==', currentMonth))),
           getDocs(query(collection(db, 'paymentSubmissions'), where('year', '==', currentYear), where('month', '==', currentMonth)))
         ]);
 
-        const activeTenants = Object.values(tMap).filter(t => t.isActive);
+        const activeTenants = tenantsSnapshot.docs.map((tenantDoc) => ({ id: tenantDoc.id, ...tenantDoc.data() }));
         const currentMonthPayments = currentMonthPaymentsSnapshot.docs.map((paymentDoc) => ({ id: paymentDoc.id, ...paymentDoc.data() }));
         const currentMonthSubmissions = currentMonthSubmissionsSnapshot.docs.map((submissionDoc) => ({ id: submissionDoc.id, ...submissionDoc.data() }));
 
         const alreadyListedIds = new Set(data.map((item) => item.id));
 
-        // Only show actual submitted payments (no placeholders)
+        activeTenants.forEach((tenant) => {
+          const hasPaidRecord = currentMonthPayments.some((payment) => {
+            const roomMatches = String(payment.roomNumber) === String(tenant.roomNumber);
+            const tenantMatches = payment.tenantId === tenant.id || (payment.tenantNameSnapshot === tenant.name);
+            return roomMatches && tenantMatches && payment.status === 'paid';
+          });
+
+          if (hasPaidRecord) {
+            return;
+          }
+
+          const tenantSubmission = currentMonthSubmissions.find((submission) => submission.tenantId === tenant.id);
+          if (tenantSubmission) {
+            if (tenantSubmission.status === 'pending' && !alreadyListedIds.has(tenantSubmission.id)) {
+              data.push(tenantSubmission);
+            }
+            return;
+          }
+
+          const placeholderId = `placeholder_${tenant.id}_${currentYear}_${currentMonth}`;
+          if (alreadyListedIds.has(placeholderId)) {
+            return;
+          }
+
+          data.push({
+            id: placeholderId,
+            isPlaceholder: true,
+            awaitingSubmission: true,
+            status: 'pending',
+            tenantId: tenant.id,
+            tenantName: tenant.name,
+            roomNumber: tenant.roomNumber,
+            year: currentYear,
+            month: currentMonth,
+            paidAmount: 0,
+            rentAmount: Number(tenant.currentRent || 0),
+            electricityAmount: 0,
+            paidDate: '',
+            submittedAt: null,
+            notes: 'Waiting for tenant to submit payment proof.'
+          });
+        });
       }
 
       data.sort((a, b) => {
@@ -391,29 +418,6 @@ const VerifyPayments = () => {
       setLoading(false);
     }
   }, [filter, showAlert]);
-
-  const toggleExpanded = (submissionId) => {
-    const newExpanded = new Set(expandedCards);
-    if (newExpanded.has(submissionId)) {
-      newExpanded.delete(submissionId);
-    } else {
-      newExpanded.add(submissionId);
-    }
-    setExpandedCards(newExpanded);
-  };
-
-  const filteredSubmissions = submissions.filter(submission => {
-    if (!startDate || !endDate) {
-      return true;
-    }
-
-    const submissionDate = new Date(submission.paidDate || submission.submittedAt);
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-
-    return submissionDate >= start && submissionDate <= end;
-  });
 
   useEffect(() => {
     fetchSubmissions();
@@ -501,6 +505,9 @@ const VerifyPayments = () => {
       );
       const monthPayments = monthPaymentsSnapshot.docs.map((monthPaymentDoc) => ({ id: monthPaymentDoc.id, ...monthPaymentDoc.data() }));
 
+      // Strip undefined values — Firestore rejects them
+      const cleanPayload = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+
       const upsertPaymentForRoom = async (roomPayload) => {
         const existingRecord = monthPayments.find((payment) => {
           const roomMatches = String(payment.roomNumber) === String(roomPayload.roomNumber);
@@ -508,9 +515,11 @@ const VerifyPayments = () => {
           return roomMatches && tenantMatches;
         });
 
+        const sanitized = cleanPayload(roomPayload);
+
         if (existingRecord) {
           await updateDoc(doc(db, 'payments', existingRecord.id), {
-            ...roomPayload,
+            ...sanitized,
             status: 'paid',
             verifiedBy: currentUser?.email || 'admin',
             verifiedAt: nowIso,
@@ -520,7 +529,7 @@ const VerifyPayments = () => {
           });
         } else {
           await addDoc(collection(db, 'payments'), {
-            ...roomPayload,
+            ...sanitized,
             status: 'paid',
             sourceSubmissionId: submission.id,
             submissionGroupId,
@@ -530,21 +539,6 @@ const VerifyPayments = () => {
           });
         }
       };
-
-      // Get OCR-extracted date if available
-      const ocrData = ocrChecks[submission.id];
-      const ocrExtractedDate = ocrData?.extractedDate; // From OCR verification
-      const actualPaymentDate = submission.paidDate || ocrExtractedDate || new Date().toISOString().split('T')[0];
-      
-      // Calculate payment delay using tenant's own due date
-      const tenantDueDay = tenantMap[submission.tenantId]?.dueDate || 5;
-      const dueDate = new Date(submissionYear, submissionMonth - 1, tenantDueDay);
-      const actualDate = new Date(actualPaymentDate);
-      const delayDays = Math.max(0, Math.floor((actualDate - dueDate) / (1000 * 60 * 60 * 24)));
-      const isOnTime = actualDate <= dueDate;
-      
-      // Submission date
-      const submissionDate = submission.submittedAt ? new Date(submission.submittedAt).toISOString().split('T')[0] : null;
 
       if (hasRoomBreakdown) {
         for (const roomEntry of submission.roomBreakdown) {
@@ -573,11 +567,7 @@ const VerifyPayments = () => {
             meterReading: roomCurrent,
             units: roomUnits,
             unitsConsumed: roomUnits,
-            paidDate: actualPaymentDate,
-            submissionDate: submissionDate,
-            ocrExtractedDate: ocrExtractedDate,
-            paymentDelayDays: delayDays,
-            isPaymentOnTime: isOnTime,
+            paidDate: submission.paidDate,
             paymentMethod: 'UPI',
             utr: normalizedUtr || getSubmissionUtr(submission) || '',
             screenshot: screenshotProof,
@@ -618,11 +608,7 @@ const VerifyPayments = () => {
           meterReading: currentReading,
           units: unitsConsumed,
           unitsConsumed,
-          paidDate: actualPaymentDate,
-          submissionDate: submissionDate,
-          ocrExtractedDate: ocrExtractedDate,
-          paymentDelayDays: delayDays,
-          isPaymentOnTime: isOnTime,
+          paidDate: submission.paidDate,
           paymentMethod: 'UPI',
           utr: normalizedUtr || getSubmissionUtr(submission) || '',
           screenshot: screenshotProof,
@@ -801,7 +787,7 @@ const VerifyPayments = () => {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto flex-wrap">
+      <div className="flex gap-2 mb-6 overflow-x-auto">
         {['pending', 'verified', 'rejected', 'all'].map((filterType) => (
           <button
             key={filterType}
@@ -820,39 +806,6 @@ const VerifyPayments = () => {
             )}
           </button>
         ))}
-      </div>
-
-      <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200 space-y-3">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div>
-            <label className="text-xs text-gray-600 font-semibold block mb-1">Start Date</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-600 font-semibold block mb-1">End Date</label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setStartDate('');
-              setEndDate('');
-            }}
-            className="bg-gray-400 hover:bg-gray-500 text-white text-sm font-semibold px-4 py-2 rounded-lg"
-          >
-            Clear Filter
-          </button>
-        </div>
       </div>
 
       <div className="mb-4">
@@ -889,7 +842,7 @@ const VerifyPayments = () => {
       </div>
 
       {/* Submissions List */}
-      {filteredSubmissions.length === 0 ? (
+      {submissions.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-8 text-center">
           <div className="text-6xl mb-4">📭</div>
           <h3 className="text-xl font-semibold text-gray-700 mb-2">No submissions found</h3>
@@ -898,8 +851,8 @@ const VerifyPayments = () => {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredSubmissions.map((submission) => (
+        <div className="space-y-4">
+          {submissions.map((submission) => (
             (() => {
               const safeUtr = getSubmissionUtr(submission);
               const screenshotProof = getSubmissionScreenshot(submission);
@@ -910,53 +863,24 @@ const VerifyPayments = () => {
 
               return (
             <div key={submission.id} className="bg-white rounded-lg shadow-md border-2 border-gray-200 overflow-hidden">
-              {/* Collapsible Header */}
-              <button
-                onClick={() => toggleExpanded(submission.id)}
-                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-4 flex items-center justify-between hover:from-blue-600 hover:to-indigo-700 transition"
-              >
-                <div className="flex items-center gap-4 flex-1 text-left">
-                  <div className="text-2xl">
-                    {expandedCards.has(submission.id) ? '▼' : '▶'}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold">{submission.tenantName}</h3>
-                    <p className="text-sm text-white text-opacity-90">
-                      Room{Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 1 ? 's' : ''} {Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 0 ? submission.roomNumbers.join(', ') : submission.roomNumber}
-                    </p>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {submission.paidDate && (
-                        <span className="text-xs bg-white bg-opacity-20 px-2 py-0.5 rounded">
-                          💳 {submission.paidDate}
-                        </span>
-                      )}
-                      {submission.submittedAt && (
-                        <span className="text-xs bg-white bg-opacity-20 px-2 py-0.5 rounded">
-                          📤 {new Date(submission.submittedAt).toLocaleDateString('en-IN')}
-                        </span>
-                      )}
-                      {(() => {
-                        const paidDateStr = submission.paidDate;
-                        if (!paidDateStr) return null;
-                        const paidDate = new Date(paidDateStr);
-                        const tDueDay = tenantMap[submission.tenantId]?.dueDate || 5;
-                        const dueDate = new Date(submission.year, submission.month - 1, tDueDay);
-                        const diff = Math.floor((paidDate - dueDate) / (1000 * 60 * 60 * 24));
-                        if (diff <= 0) return <span className="text-xs bg-green-400 bg-opacity-40 px-2 py-0.5 rounded font-semibold">⏱️ On Time</span>;
-                        return <span className="text-xs bg-orange-400 bg-opacity-40 px-2 py-0.5 rounded font-semibold">⏰ {diff}d late (due {tDueDay}th)</span>;
-                      })()}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="mb-1">{getStatusBadge(submission.status)}</div>
-                    <span className="text-sm font-bold bg-white bg-opacity-20 px-3 py-1 rounded">₹{Number(submission.paidAmount || 0).toLocaleString('en-IN')}</span>
-                  </div>
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold">{submission.tenantName}</h3>
+                  <p className="text-sm text-white text-opacity-90">
+                    Room{Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 1 ? 's' : ''} {Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 0 ? submission.roomNumbers.join(', ') : submission.roomNumber}
+                  </p>
                 </div>
-              </button>
+                <div className="text-right">
+                  {getStatusBadge(submission.status)}
+                  <p className="text-xs text-white text-opacity-90 mt-1">
+                    {submission.submittedAt ? new Date(submission.submittedAt).toLocaleString() : 'Awaiting submission'}
+                  </p>
+                </div>
+              </div>
 
-              {/* Collapsible Body */}
-              {expandedCards.has(submission.id) && (
-              <div className="p-6 bg-gray-50 border-t border-gray-200">
+              {/* Body */}
+              <div className="p-6">
                 <div className="mb-3 flex items-center gap-2">
                   {(() => {
                     const badge = getOcrBadge(submission.id);
@@ -980,27 +904,8 @@ const VerifyPayments = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                   <div>
-                    <label className="text-xs text-gray-500 font-semibold">💳 Payment Date (by Tenant)</label>
-                    <p className="text-sm font-bold text-green-700">{submission.paidDate || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 font-semibold">📤 Submitted At</label>
-                    <p className="text-sm font-bold text-indigo-700">
-                      {submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString('en-IN') : '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 font-semibold">⏰ Payment Delay (Due: {tenantMap[submission.tenantId]?.dueDate || 5}th)</label>
-                    {(() => {
-                      const dueDay = tenantMap[submission.tenantId]?.dueDate || 5;
-                      const paidDateStr = submission.paidDate;
-                      if (!paidDateStr) return <p className="text-sm font-bold text-gray-500">-</p>;
-                      const paidDate = new Date(paidDateStr);
-                      const dueDate = new Date(submission.year, submission.month - 1, dueDay);
-                      const diff = Math.floor((paidDate - dueDate) / (1000 * 60 * 60 * 24));
-                      if (diff <= 0) return <p className="text-sm font-bold text-green-700">⏱️ On Time</p>;
-                      return <p className="text-sm font-bold text-orange-700">⏰ {diff} day{diff !== 1 ? 's' : ''} late</p>;
-                    })()}
+                    <label className="text-xs text-gray-500 font-semibold">Payment Date</label>
+                    <p className="text-sm font-bold">{submission.paidDate || '-'}</p>
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 font-semibold">Month/Year</label>
@@ -1116,17 +1021,18 @@ const VerifyPayments = () => {
                   <div className="mb-4">
                     <label className="text-xs text-gray-500 font-semibold block mb-2">Screenshot</label>
                     {String(screenshotProof).startsWith('data:image') ? (
-                      <div
-                        onClick={() => setViewingScreenshot(screenshotProof)}
-                        className="inline-block cursor-pointer hover:opacity-80 transition-opacity"
+                      <a
+                        href={screenshotProof}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block"
                       >
                         <img
                           src={screenshotProof}
                           alt="Payment screenshot"
-                          className="max-h-56 w-auto rounded-lg border border-gray-300 cursor-pointer hover:border-blue-500 transition-colors"
+                          className="max-h-56 w-auto rounded-lg border border-gray-300"
                         />
-                        <p className="text-xs text-gray-500 mt-1">Click to view full size</p>
-                      </div>
+                      </a>
                     ) : (
                       <a 
                         href={screenshotProof} 
@@ -1202,7 +1108,6 @@ const VerifyPayments = () => {
                   </div>
                 )}
               </div>
-              )}
             </div>
               );
             })()
@@ -1233,14 +1138,9 @@ const VerifyPayments = () => {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Previous Reading</label>
                   <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={editingSubmission.previousReading ?? ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setEditingSubmission({ ...editingSubmission, previousReading: val === '' ? null : Number(val) });
-                    }}
+                    type="number"
+                    value={editingSubmission.previousReading || 0}
+                    onChange={(e) => setEditingSubmission({ ...editingSubmission, previousReading: e.target.value })}
                     className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg"
                   />
                 </div>
@@ -1316,38 +1216,6 @@ const VerifyPayments = () => {
                   {processing ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Screenshot Lightbox Modal */}
-      {viewingScreenshot && (
-        <div 
-          className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50"
-          onClick={() => setViewingScreenshot(null)}
-        >
-          <div 
-            className="relative max-w-4xl w-full bg-white rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setViewingScreenshot(null)}
-              className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/75 rounded-full w-10 h-10 flex items-center justify-center text-xl z-10 transition-colors"
-            >
-              ✕
-            </button>
-            
-            <div className="p-4">
-              <img
-                src={viewingScreenshot}
-                alt="Payment screenshot full view"
-                className="w-full h-auto rounded-lg"
-              />
-            </div>
-
-            <div className="bg-gray-100 px-4 py-3 rounded-b-lg text-center text-sm text-gray-600">
-              Click anywhere outside the image to close, or press ✕
             </div>
           </div>
         </div>

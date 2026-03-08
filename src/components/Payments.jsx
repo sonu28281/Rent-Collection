@@ -127,11 +127,6 @@ const Payments = () => {
         isPaid: false,
         totalPaid: 0,
         latestPaidDate: null,
-        submissionDate: null,
-        verifiedAt: null,
-        ocrExtractedDate: null,
-        paymentDelayDays: 0,
-        isPaymentOnTime: true,
         utrDisplay: '-',
         paymentCount: 0
       };
@@ -149,43 +144,10 @@ const Payments = () => {
       .map((payment) => String(payment.utr || '').trim())
       .filter(Boolean);
 
-    // Aggregate date/delay fields across all payments for this tenant
-    const submissionDate = matchedPayments.reduce((latest, p) => {
-      if (!p.submissionDate) return latest;
-      return !latest || new Date(p.submissionDate) > new Date(latest) ? p.submissionDate : latest;
-    }, null);
-
-    const verifiedAt = matchedPayments.reduce((latest, p) => {
-      if (!p.verifiedAt) return latest;
-      return !latest || new Date(p.verifiedAt) > new Date(latest) ? p.verifiedAt : latest;
-    }, null);
-
-    const ocrExtractedDate = matchedPayments.find(p => p.ocrExtractedDate)?.ocrExtractedDate || null;
-
-    // Re-compute delay in real-time using tenant's own dueDate (avoids stale stored values)
-    const tenantDueDay = Number(tenant.dueDate) || 5;
-    let computedDelayDays = 0;
-    let computedIsOnTime = true;
-    if (latestPayment?.paidDate) {
-      const paidDate = new Date(latestPayment.paidDate);
-      const payYear  = latestPayment.year  || selectedYear;
-      const payMonth = latestPayment.month || selectedMonth;
-      const dueDate  = new Date(payYear, payMonth - 1, tenantDueDay);
-      const diff = Math.floor((paidDate - dueDate) / (1000 * 60 * 60 * 24));
-      computedDelayDays = Math.max(0, diff);
-      computedIsOnTime  = diff <= 0;
-    }
-
     return {
       isPaid: true,
       totalPaid,
       latestPaidDate: latestPayment?.paidDate || null,
-      submissionDate,
-      verifiedAt,
-      ocrExtractedDate,
-      paymentDelayDays: computedDelayDays,
-      isPaymentOnTime: computedIsOnTime,
-      tenantDueDay,
       utrDisplay: utrValues.length > 0 ? Array.from(new Set(utrValues)).join(', ') : '-',
       paymentCount: matchedPayments.length
     };
@@ -755,27 +717,15 @@ const Payments = () => {
 
                   <div className="mt-3 flex items-center justify-between">
                     {isPaid ? (
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col">
                         <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-200 text-green-900 w-fit">
                           ✅ Paid
                         </span>
                         {paymentSummary.latestPaidDate && (
-                          <span className="text-xs text-gray-500">
-                            📅 Due: {tenant.dueDate || 5}th
+                          <span className="text-xs text-gray-600 mt-1">
+                            {new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')}
                           </span>
                         )}
-                        {paymentSummary.latestPaidDate && (
-                          <span className="text-xs font-semibold text-green-700">
-                            💳 {new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')}
-                          </span>
-                        )}
-                        {paymentSummary.paymentDelayDays > 0 ? (
-                          <span className="text-xs font-semibold text-orange-700">
-                            ⏰ {paymentSummary.paymentDelayDays}d late
-                          </span>
-                        ) : paymentSummary.latestPaidDate ? (
-                          <span className="text-xs font-semibold text-green-700">⏱️ On Time</span>
-                        ) : null}
                       </div>
                     ) : (
                       <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-200 text-orange-900">
@@ -846,20 +796,10 @@ const Payments = () => {
                       <td className="px-4 py-3 text-right font-bold text-gray-900">
                         ₹{(isPaid ? paymentSummary.totalPaid : (tenant.currentRent || 0)).toLocaleString('en-IN')}
                       </td>
-                      <td className="px-4 py-3 text-sm">
-                        {paymentSummary.latestPaidDate ? (
-                          <div className="space-y-0.5">
-                            <div className="text-xs text-gray-500">📅 Due: {tenant.dueDate || 5}th</div>
-                            <div className="font-semibold text-green-700">
-                              💳 {new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')}
-                            </div>
-                            {paymentSummary.paymentDelayDays > 0 ? (
-                              <div className="text-xs font-semibold text-orange-700">⏰ +{paymentSummary.paymentDelayDays}d late</div>
-                            ) : (
-                              <div className="text-xs font-semibold text-green-700">⏱️ On Time</div>
-                            )}
-                          </div>
-                        ) : '-'}
+                      <td className="px-4 py-3 text-center text-sm text-gray-700">
+                        {paymentSummary.latestPaidDate
+                          ? new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')
+                          : '-'}
                       </td>
                       <td className="px-4 py-3 text-xs font-mono text-gray-700 max-w-[180px] truncate" title={paymentSummary.utrDisplay}>
                         {isPaid ? paymentSummary.utrDisplay : '-'}

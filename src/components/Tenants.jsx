@@ -1,24 +1,14 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, addDoc, setDoc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, addDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import TenantForm from './TenantForm';
 import { useDialog } from './ui/DialogProvider';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
-import {
-  calculateElectricityCharges,
-  calculatePendingRent,
-  calculateSettlement,
-  getLastMeterReading,
-  validateCheckoutRequest,
-  formatCurrency,
-  generateCheckoutSummary
-} from '../utils/checkoutUtils';
 
 const Tenants = () => {
   const { showConfirm, showAlert } = useDialog();
   const [tenants, setTenants] = useState([]);
   const [applicants, setApplicants] = useState([]); // KYC applicants (not yet tenants)
-  const [checkoutRequests, setCheckoutRequests] = useState([]); // Checkout requests
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -27,7 +17,7 @@ const Tenants = () => {
   const [filter, setFilter] = useState('all'); // all, active, inactive
   const [kycFilter, setKycFilter] = useState('all'); // all, verified, not_verified
   const [floorFilter, setFloorFilter] = useState('all'); // all, floor1, floor2
-  const [categoryFilter, setCategoryFilter] = useState('tenants'); // tenants, applicants, checkouts
+  const [categoryFilter, setCategoryFilter] = useState('tenants'); // tenants, applicants
   const [viewingKyc, setViewingKyc] = useState(null); // Applicant whose KYC to view
   const [assigningRoom, setAssigningRoom] = useState(null); // Applicant being assigned a room
   const [assignRoomNumber, setAssignRoomNumber] = useState('');
@@ -41,21 +31,6 @@ const Tenants = () => {
   const [mergeTargetTenantId, setMergeTargetTenantId] = useState('');
   const [mergeSourceTenantId, setMergeSourceTenantId] = useState('');
   const [mergingTenants, setMergingTenants] = useState(false);
-  const [isFloorFilterExpanded, setIsFloorFilterExpanded] = useState(false);
-  
-  // Checkout request states
-  const [processingRequest, setProcessingRequest] = useState(null);
-  const [showSettlementModal, setShowSettlementModal] = useState(false);
-  const [settlementData, setSettlementData] = useState(null);
-  const [showSummaryModal, setShowSummaryModal] = useState(false);
-  const [summaryData, setSummaryData] = useState(null);
-  const [finalMeterReading, setFinalMeterReading] = useState('');
-  const [ratePerUnit, setRatePerUnit] = useState(9);
-  const [extraCharges, setExtraCharges] = useState(0);
-  const [damageCharges, setDamageCharges] = useState(0);
-  const [adjustDeposit, setAdjustDeposit] = useState(true);
-  const [adminRemarks, setAdminRemarks] = useState('');
-  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -93,17 +68,7 @@ const Tenants = () => {
       
       const tenantsData = [];
       tenantsSnapshot.forEach((doc) => {
-        const tenantDoc = { id: doc.id, ...doc.data() };
-        
-        // Ensure isActive is properly calculated
-        // A tenant is active if:
-        // - isActive field exists and is true, OR
-        // - isActive field doesn't exist AND status is NOT 'inactive'
-        if (typeof tenantDoc.isActive === 'undefined') {
-          tenantDoc.isActive = tenantDoc.status !== 'inactive';
-        }
-        
-        tenantsData.push(tenantDoc);
+        tenantsData.push({ id: doc.id, ...doc.data() });
       });
       
       // Fetch rooms
@@ -128,36 +93,10 @@ const Tenants = () => {
         // tenantApplications collection may not exist yet — ignore
         console.warn('Could not fetch tenantApplications:', appErr.message);
       }
-
-      // Fetch checkout requests (all statuses for admin management)
-      const checkoutRequestsRef = collection(db, 'checkoutRequests');
-      const checkoutRequestsQuery = query(checkoutRequestsRef, orderBy('requestedAt', 'desc'));
-      let checkoutRequestsData = [];
-      try {
-        const checkoutSnapshot = await getDocs(checkoutRequestsQuery);
-        console.log('📋 Total checkout requests in database:', checkoutSnapshot.size);
-        for (const docSnap of checkoutSnapshot.docs) {
-          const request = { id: docSnap.id, ...docSnap.data() };
-          console.log(`  🚪 Request: ${request.tenantName} (Room: ${request.roomNumber}, Status: ${request.status || 'NO STATUS'})`);
-          
-          // Fetch tenant details
-          if (request.tenantId) {
-            const tenantDoc = await getDoc(doc(db, 'tenants', request.tenantId));
-            if (tenantDoc.exists()) {
-              request.tenant = { id: tenantDoc.id, ...tenantDoc.data() };
-            }
-          }
-          
-          checkoutRequestsData.push(request);
-        }
-      } catch (checkoutErr) {
-        console.warn('Could not fetch checkout requests:', checkoutErr.message);
-      }
       
       setTenants(tenantsData);
       setRooms(roomsData);
       setApplicants(applicantsData);
-      setCheckoutRequests(checkoutRequestsData);
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load tenants. Please try again.');
@@ -297,7 +236,6 @@ const Tenants = () => {
       // 4) Deactivate source tenant (keep audit/history)
       await updateDoc(doc(db, 'tenants', sourceTenant.id), {
         isActive: false,
-        status: 'inactive',
         assignedRooms: [],
         roomNumber: '',
         mergedIntoTenantId: targetTenant.id,
@@ -588,422 +526,10 @@ const Tenants = () => {
     }
   };
 
-  // ════════════════════ CHECKOUT REQUEST HANDLERS ════════════════════
-
-  const handleRejectCheckout = async (request) => {
-    const confirmed = await showConfirm(
-      `Are you sure you want to reject the checkout request from ${request.tenantName}?`,
-      { title: 'Cancel Checkout Request', intent: 'warning' }
-    );
-
-    if (!confirmed) return;
-
-    try {
-      console.log('🚫 Rejecting checkout request:', request.id);
-
-      // Update checkout request status
-      await setDoc(doc(db, 'checkoutRequests', request.id), {
-        status: 'rejected',
-        rejectedAt: serverTimestamp(),
-        rejectedBy: 'admin'
-      }, { merge: true });
-
-      // Update tenant status back to active - use setDoc with merge
-      if (request.tenantId) {
-        await setDoc(doc(db, 'tenants', request.tenantId), {
-          status: 'active',
-          checkoutRequestId: null,
-          proposedCheckoutDate: null,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-        console.log('✅ Tenant status reset to active');
-      }
-
-      await showAlert('Checkout request cancelled', { intent: 'success' });
-      fetchData();
-    } catch (error) {
-      console.error('❌ Error rejecting checkout request:', error);
-      console.error('Error details:', error.code, error.message);
-      await showAlert(`Failed to cancel request: ${error.message}`, { intent: 'error' });
-    }
-  };
-
-  const handleDeleteCheckoutRequest = async (request) => {
-    const confirmed = await showConfirm(
-      `Delete checkout request from ${request.tenantName}?\n\nThis will permanently remove the request.`,
-      { title: 'Delete Checkout Request', intent: 'danger', confirmLabel: 'Delete' }
-    );
-
-    if (!confirmed) return;
-
-    try {
-      console.log('🗑️ Deleting checkout request:', request.id);
-
-      // Delete the checkout request
-      await deleteDoc(doc(db, 'checkoutRequests', request.id));
-
-      // Reset tenant status if needed
-      if (request.tenantId) {
-        await setDoc(doc(db, 'tenants', request.tenantId), {
-          status: 'active',
-          checkoutRequestId: null,
-          proposedCheckoutDate: null,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-        console.log('✅ Tenant status reset to active');
-      }
-
-      await showAlert('Checkout request deleted', { intent: 'success' });
-      fetchData();
-    } catch (error) {
-      console.error('❌ Error deleting checkout request:', error);
-      await showAlert(`Failed to delete request: ${error.message}`, { intent: 'error' });
-    }
-  };
-
-  const handleApproveCheckout = async (request) => {
-    setProcessingRequest(request);
-
-    try {
-      // Fetch all necessary data
-      const tenant = request.tenant;
-      if (!tenant) {
-        await showAlert('Tenant data not found', { intent: 'error' });
-        return;
-      }
-
-      // Fetch room
-      const roomsSnapshot = await getDocs(query(collection(db, 'rooms'), where('roomNumber', '==', request.roomNumber)));
-      let room = null;
-      if (!roomsSnapshot.empty) {
-        room = { id: roomsSnapshot.docs[0].id, ...roomsSnapshot.docs[0].data() };
-      }
-
-      // Fetch payment records
-      const paymentsSnapshot = await getDocs(query(collection(db, 'payments'), where('tenantId', '==', tenant.id)));
-      const paymentRecords = [];
-      paymentsSnapshot.forEach(doc => {
-        paymentRecords.push({ id: doc.id, ...doc.data() });
-      });
-
-      // Fetch meter history
-      const meterSnapshot = await getDocs(query(collection(db, 'meterHistory'), where('tenantId', '==', tenant.id)));
-      const meterRecords = [];
-      meterSnapshot.forEach(doc => {
-        meterRecords.push({ id: doc.id, ...doc.data() });
-      });
-
-      // Get last meter reading
-      const lastReading = getLastMeterReading(meterRecords, tenant.id, request.roomNumber);
-
-      // Calculate pending rent
-      const { pendingRent, unpaidMonths } = calculatePendingRent(
-        paymentRecords,
-        tenant,
-        request.proposedCheckoutDate
-      );
-
-      // Get electricity rate from settings
-      const settingsDoc = await getDoc(doc(db, 'settings', 'global'));
-      let electricityRate = 9;
-      if (settingsDoc.exists()) {
-        electricityRate = settingsDoc.data().electricityRate || 9;
-      }
-
-      // Prepare settlement data
-      setSettlementData({
-        request,
-        tenant,
-        room,
-        paymentRecords,
-        meterRecords,
-        lastReading,
-        pendingRent,
-        unpaidMonths,
-        electricityRate
-      });
-
-      // Pre-fill form
-      setFinalMeterReading(request.finalMeterReadingDraft || lastReading || '');
-      setRatePerUnit(electricityRate);
-      setExtraCharges(0);
-      setDamageCharges(0);
-      setAdjustDeposit(true);
-      setAdminRemarks('');
-
-      setShowSettlementModal(true);
-    } catch (error) {
-      console.error('Error preparing settlement:', error);
-      await showAlert('Failed to prepare settlement', { intent: 'error' });
-    } finally {
-      setProcessingRequest(null);
-    }
-  };
-
-  const calculateCurrentSettlement = () => {
-    if (!settlementData) return null;
-
-    const { lastReading, pendingRent, tenant } = settlementData;
-
-    // Calculate electricity charges
-    const { units, electricityCharges } = calculateElectricityCharges(
-      finalMeterReading || lastReading,
-      lastReading,
-      ratePerUnit
-    );
-
-    // Calculate settlement
-    const settlement = calculateSettlement({
-      pendingRent,
-      electricityCharges,
-      extraCharges: parseFloat(extraCharges) || 0,
-      damageCharges: parseFloat(damageCharges) || 0,
-      securityDeposit: tenant.securityDeposit || 0,
-      adjustDeposit
-    });
-
-    return { ...settlement, units, electricityCharges };
-  };
-
-  const handleFinalizeCheckout = async () => {
-    if (!settlementData) return;
-
-    const settlement = calculateCurrentSettlement();
-    const { request, tenant, room } = settlementData;
-
-    // Validate
-    const validation = validateCheckoutRequest({
-      tenant,
-      room,
-      checkoutDate: request.proposedCheckoutDate
-    });
-
-    if (!validation.isValid) {
-      await showAlert(validation.errors.join(', '), { intent: 'error' });
-      return;
-    }
-
-    // Confirm
-    const confirmed = await showConfirm(
-      `Final Amount: ${formatCurrency(settlement.finalPayable)}\n\nThis will:\n• Mark tenant as inactive\n• Set room as vacant\n• Create final settlement record\n\nProceed with checkout?`,
-      { title: 'Confirm Checkout', intent: 'warning' }
-    );
-
-    if (!confirmed) return;
-
-    try {
-      setProcessing(true);
-
-      // Use Firestore batch for atomic operations
-      const batch = writeBatch(db);
-
-      // 1. Create final settlement payment record
-      const settlementRef = doc(collection(db, 'payments'));
-      batch.set(settlementRef, {
-        tenantId: tenant.id,
-        tenantName: tenant.name,
-        roomNumber: request.roomNumber,
-        amount: settlement.finalPayable,
-        paymentType: 'checkout_settlement',
-        isFinalSettlement: true,
-        status: settlement.finalPayable <= 0 ? 'paid' : 'pending',
-        checkoutDate: request.proposedCheckoutDate,
-        finalMeterReading: parseFloat(finalMeterReading) || settlementData.lastReading,
-        lastMeterReading: settlementData.lastReading,
-        unitsConsumed: settlement.units,
-        electricityCharges: settlement.electricityCharges,
-        ratePerUnit: parseFloat(ratePerUnit),
-        extraCharges: parseFloat(extraCharges) || 0,
-        damageCharges: parseFloat(damageCharges) || 0,
-        pendingRent: settlement.breakdown.pendingRent,
-        depositAdjusted: adjustDeposit,
-        depositAdjustedAmount: settlement.depositAdjustment,
-        depositRefundable: settlement.depositRefundable,
-        breakdown: settlement.breakdown,
-        adminRemarks,
-        createdAt: serverTimestamp(),
-        createdBy: 'admin'
-      });
-
-      // 2. Update tenant status - use set with merge for new fields
-      const tenantRef = doc(db, 'tenants', tenant.id);
-      batch.set(tenantRef, {
-        status: 'inactive',
-        isActive: false,
-        checkOutDate: request.proposedCheckoutDate,
-        depositAdjustedAmount: settlement.depositAdjustment,
-        depositReturned: true,
-        checkoutSettlementId: settlementRef.id,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      // 3. Update room status if exists - use set with merge for new fields
-      if (room) {
-        const roomRef = doc(db, 'rooms', room.id);
-        batch.set(roomRef, {
-          status: 'vacant',
-          currentTenantId: null,
-          lastStatusUpdatedAt: serverTimestamp()
-        }, { merge: true });
-      }
-
-      // 4. Update checkout request status (only if not force checkout)
-      if (!request.isForceCheckout && request.id) {
-        const requestRef = doc(db, 'checkoutRequests', request.id);
-        batch.set(requestRef, {
-          status: 'completed',
-          completedAt: serverTimestamp(),
-          completedBy: 'admin',
-          settlementId: settlementRef.id
-        }, { merge: true });
-      }
-
-      // Commit batch
-      await batch.commit();
-
-      // Show success and summary
-      setSummaryData({
-        tenant,
-        room,
-        settlement,
-        checkoutDate: request.proposedCheckoutDate,
-        finalMeterReading: parseFloat(finalMeterReading) || settlementData.lastReading,
-        lastMeterReading: settlementData.lastReading
-      });
-
-      setShowSettlementModal(false);
-      setShowSummaryModal(true);
-
-      await showAlert('Checkout completed successfully!', { intent: 'success' });
-      fetchData();
-    } catch (error) {
-      console.error('Error finalizing checkout:', error);
-      await showAlert('Failed to finalize checkout. Please try again.', { intent: 'error' });
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const downloadSummary = () => {
-    if (!summaryData) return;
-
-    const summary = generateCheckoutSummary(
-      summaryData.settlement,
-      summaryData.tenant,
-      summaryData.checkoutDate
-    );
-
-    const blob = new Blob([summary], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `checkout-settlement-${summaryData.tenant.roomNumber}-${Date.now()}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  // Force checkout - admin initiated checkout without tenant request
-  const handleForceCheckout = async (tenant) => {
-    const confirmed = await showConfirm(
-      `Force checkout for ${tenant.name}?\n\nThis will initiate checkout process without tenant request. Use this when tenant leaves without formal checkout request.`,
-      { title: 'Force Checkout', intent: 'warning' }
-    );
-
-    if (!confirmed) return;
-
-    setProcessingRequest(tenant);
-
-    try {
-      // Fetch room
-      const assignedRooms = getAssignedRooms(tenant);
-      const roomNumber = assignedRooms[0] || tenant.roomNumber;
-      
-      const roomsSnapshot = await getDocs(query(collection(db, 'rooms'), where('roomNumber', '==', roomNumber)));
-      let room = null;
-      if (!roomsSnapshot.empty) {
-        room = { id: roomsSnapshot.docs[0].id, ...roomsSnapshot.docs[0].data() };
-      }
-
-      // Fetch payment records
-      const paymentsSnapshot = await getDocs(query(collection(db, 'payments'), where('tenantId', '==', tenant.id)));
-      const paymentRecords = [];
-      paymentsSnapshot.forEach(doc => {
-        paymentRecords.push({ id: doc.id, ...doc.data() });
-      });
-
-      // Fetch meter history
-      const meterSnapshot = await getDocs(query(collection(db, 'meterHistory'), where('tenantId', '==', tenant.id)));
-      const meterRecords = [];
-      meterSnapshot.forEach(doc => {
-        meterRecords.push({ id: doc.id, ...doc.data() });
-      });
-
-      // Get last meter reading
-      const lastReading = getLastMeterReading(meterRecords, tenant.id, roomNumber);
-
-      // Calculate pending rent up to today
-      const { pendingRent, unpaidMonths } = calculatePendingRent(
-        paymentRecords,
-        tenant,
-        new Date().toISOString().split('T')[0] // Today's date
-      );
-
-      // Get electricity rate from settings
-      const settingsDoc = await getDoc(doc(db, 'settings', 'global'));
-      let electricityRate = 9;
-      if (settingsDoc.exists()) {
-        electricityRate = settingsDoc.data().electricityRate || 9;
-      }
-
-      // Prepare settlement data (use fake request object)
-      setSettlementData({
-        request: {
-          proposedCheckoutDate: new Date().toISOString().split('T')[0],
-          roomNumber: roomNumber,
-          finalMeterReadingDraft: lastReading,
-          isForceCheckout: true // Flag to indicate this is force checkout
-        },
-        tenant,
-        room,
-        paymentRecords,
-        meterRecords,
-        lastReading,
-        pendingRent,
-        unpaidMonths,
-        electricityRate
-      });
-
-      // Pre-fill form
-      setFinalMeterReading(lastReading || '');
-      setRatePerUnit(electricityRate);
-      setExtraCharges(0);
-      setDamageCharges(0);
-      setAdjustDeposit(true);
-      setAdminRemarks('Force checkout initiated by admin');
-
-      setShowSettlementModal(true);
-    } catch (error) {
-      console.error('Error preparing force checkout:', error);
-      await showAlert('Failed to prepare checkout settlement', { intent: 'error' });
-    } finally {
-      setProcessingRequest(null);
-    }
-  };
-
   // Available rooms for assignment (not occupied by active tenants)
-  // Helper function to check if a tenant is a merged ghost record
-  const isMergedGhost = (tenant) => {
-    return tenant.mergedIntoTenantId && !tenant.isActive && (!tenant.assignedRooms || tenant.assignedRooms.length === 0);
-  };
-
-  // Valid tenants (exclude merged ghost records)
-  const validTenants = tenants.filter(t => !isMergedGhost(t));
-
   const getAvailableRooms = () => {
     const occupiedRoomNumbers = new Set();
-    validTenants.forEach(t => {
+    tenants.forEach(t => {
       if (t.isActive) {
         const assigned = getAssignedRooms(t);
         assigned.forEach(r => occupiedRoomNumbers.add(r));
@@ -1012,7 +538,7 @@ const Tenants = () => {
     return rooms.filter(r => !occupiedRoomNumbers.has(String(r.roomNumber)));
   };
 
-  const filteredTenants = validTenants.filter(tenant => {
+  const filteredTenants = tenants.filter(tenant => {
     // Active/Inactive filter
     let matchesActiveFilter = true;
     if (filter === 'active') matchesActiveFilter = tenant.isActive;
@@ -1052,23 +578,22 @@ const Tenants = () => {
   });
 
   const stats = {
-    total: validTenants.length,
-    active: validTenants.filter(t => t.isActive).length,
-    inactive: validTenants.filter(t => !t.isActive).length,
-    kycVerified: validTenants.filter((t) => t?.kyc?.verified === true && t?.kyc?.verifiedBy === 'DigiLocker').length,
-    kycNotVerified: validTenants.filter((t) => !(t?.kyc?.verified === true && t?.kyc?.verifiedBy === 'DigiLocker')).length,
-    floor1: validTenants.filter(t => {
+    total: tenants.length,
+    active: tenants.filter(t => t.isActive).length,
+    inactive: tenants.filter(t => !t.isActive).length,
+    kycVerified: tenants.filter((t) => t?.kyc?.verified === true && t?.kyc?.verifiedBy === 'DigiLocker').length,
+    kycNotVerified: tenants.filter((t) => !(t?.kyc?.verified === true && t?.kyc?.verifiedBy === 'DigiLocker')).length,
+    floor1: tenants.filter(t => {
       const assignedRoomNumbers = getAssignedRooms(t).map((room) => Number.parseInt(room, 10));
       return assignedRoomNumbers.some((roomNum) => roomNum >= 101 && roomNum <= 106);
     }).length,
-    floor2: validTenants.filter(t => {
+    floor2: tenants.filter(t => {
       const assignedRoomNumbers = getAssignedRooms(t).map((room) => Number.parseInt(room, 10));
       return assignedRoomNumbers.some((roomNum) => roomNum >= 201 && roomNum <= 206);
     }).length,
     applicants: applicants.length,
     applicantsPending: applicants.filter(a => a.status === 'pending_approval').length,
     applicantsApproved: applicants.filter(a => a.status === 'approved').length,
-    checkoutRequests: checkoutRequests.length,
   };
 
   if (loading) {
@@ -1110,7 +635,7 @@ const Tenants = () => {
         </button>
       </div>
 
-      {/* Category Toggle: Tenants / Applicants / Checkout Requests */}
+      {/* Category Toggle: Tenants / Applicants */}
       <div className="flex gap-2 mb-6">
         <button
           onClick={() => setCategoryFilter('tenants')}
@@ -1134,21 +659,6 @@ const Tenants = () => {
           {stats.applicantsPending > 0 && categoryFilter !== 'applicants' && (
             <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
               {stats.applicantsPending}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setCategoryFilter('checkouts')}
-          className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all relative ${
-            categoryFilter === 'checkouts'
-              ? 'bg-red-600 text-white shadow-lg shadow-red-200'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          🚪 Checkout Requests ({stats.checkoutRequests})
-          {stats.checkoutRequests > 0 && categoryFilter !== 'checkouts' && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
-              {stats.checkoutRequests}
             </span>
           )}
         </button>
@@ -1189,165 +699,197 @@ const Tenants = () => {
         </div>
       </div>
 
-      {/* Filters Section - Compact Single Row */}
-      <div className="card mb-4">
-        <div className="flex flex-col gap-4">
-          {/* All Filters in One Row - Wraps on Mobile */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 text-sm">
-            {/* Status Filter */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Status:</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setFilter('all')}
-                  className={`font-semibold transition ${
-                    filter === 'all'
-                      ? 'text-primary underline underline-offset-4'
-                      : 'text-gray-600 hover:text-primary'
-                  }`}
-                >
-                  All ({stats.total})
-                </button>
-                <span className="text-gray-400">|</span>
-                <button
-                  onClick={() => setFilter('active')}
-                  className={`font-semibold transition ${
-                    filter === 'active'
-                      ? 'text-green-600 underline underline-offset-4'
-                      : 'text-gray-600 hover:text-green-600'
-                  }`}
-                >
-                  Active ({stats.active})
-                </button>
-                <span className="text-gray-400">|</span>
-                <button
-                  onClick={() => setFilter('inactive')}
-                  className={`font-semibold transition ${
-                    filter === 'inactive'
-                      ? 'text-gray-600 underline underline-offset-4'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Inactive ({stats.inactive})
-                </button>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="hidden lg:block h-6 w-px bg-gray-300"></div>
-
-            {/* KYC Filter */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">KYC:</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setKycFilter('all')}
-                  className={`font-semibold transition ${
-                    kycFilter === 'all'
-                      ? 'text-emerald-600 underline underline-offset-4'
-                      : 'text-gray-600 hover:text-emerald-600'
-                  }`}
-                >
-                  All ({stats.total})
-                </button>
-                <span className="text-gray-400">|</span>
-                <button
-                  onClick={() => setKycFilter('verified')}
-                  className={`font-semibold transition ${
-                    kycFilter === 'verified'
-                      ? 'text-green-600 underline underline-offset-4'
-                      : 'text-gray-600 hover:text-green-600'
-                  }`}
-                >
-                  ✅ Verified ({stats.kycVerified})
-                </button>
-                <span className="text-gray-400">|</span>
-                <button
-                  onClick={() => setKycFilter('not_verified')}
-                  className={`font-semibold transition ${
-                    kycFilter === 'not_verified'
-                      ? 'text-amber-600 underline underline-offset-4'
-                      : 'text-gray-600 hover:text-amber-600'
-                  }`}
-                >
-                  ⏳ Not Verified ({stats.kycNotVerified})
-                </button>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="hidden lg:block h-6 w-px bg-gray-300"></div>
-
-            {/* View Mode */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">View:</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setViewMode('card')}
-                  className={`font-semibold transition flex items-center gap-1 ${
-                    viewMode === 'card'
-                      ? 'text-orange-600 underline underline-offset-4'
-                      : 'text-gray-600 hover:text-orange-600'
-                  }`}
-                >
-                  <span>🎴</span> Cards
-                </button>
-                <span className="text-gray-400">|</span>
-                <button
-                  onClick={() => setViewMode('table')}
-                  className={`font-semibold transition flex items-center gap-1 ${
-                    viewMode === 'table'
-                      ? 'text-orange-600 underline underline-offset-4'
-                      : 'text-gray-600 hover:text-orange-600'
-                  }`}
-                >
-                  <span>📋</span> Table
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Merge Section - Better Mobile Layout */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 pt-3 border-t border-gray-200 lg:border-t-0 lg:pt-0 lg:border-l-2 lg:border-amber-300 lg:pl-4">
-            <span className="text-xs font-bold text-amber-900 whitespace-nowrap">🧩 Merge:</span>
-            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-              <select
-                value={mergeTargetTenantId}
-                onChange={(event) => setMergeTargetTenantId(event.target.value)}
-                disabled={mergingTenants}
-                className="px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white w-28 sm:max-w-[120px]"
-              >
-                <option value="">Target</option>
-                {tenants.map((tenant) => (
-                  <option key={`target_${tenant.id}`} value={tenant.id}>
-                    {tenant.name}
-                  </option>
-                ))}
-              </select>
-              <span className="text-gray-400">→</span>
-              <select
-                value={mergeSourceTenantId}
-                onChange={(event) => setMergeSourceTenantId(event.target.value)}
-                disabled={mergingTenants}
-                className="px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white w-28 sm:max-w-[120px]"
-              >
-                <option value="">Source</option>
-                {tenants.map((tenant) => (
-                  <option key={`source_${tenant.id}`} value={tenant.id}>
-                    {tenant.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={mergeTenantAccounts}
-                disabled={mergingTenants}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 text-xs whitespace-nowrap"
-              >
-                {mergingTenants ? '...' : 'Merge'}
-              </button>
-            </div>
+      {/* Filter Buttons */}
+      <div className="card mb-6 space-y-4">
+        {/* Active/Inactive Filters */}
+        <div>
+          <label className="text-sm font-semibold text-gray-700 mb-2 block">Status Filter</label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                filter === 'all'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              All Tenants ({stats.total})
+            </button>
+            <button
+              onClick={() => setFilter('active')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                filter === 'active'
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Active ({stats.active})
+            </button>
+            <button
+              onClick={() => setFilter('inactive')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                filter === 'inactive'
+                  ? 'bg-gray-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Inactive ({stats.inactive})
+            </button>
           </div>
         </div>
+
+        {/* Floor Filters */}
+        <div className="hidden md:block">
+          <label className="text-sm font-semibold text-gray-700 mb-2 block">Floor Filter</label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFloorFilter('all')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                floorFilter === 'all'
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              All Floors
+            </button>
+            <button
+              onClick={() => setFloorFilter('floor1')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                floorFilter === 'floor1'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Floor 1 (Ground) ({stats.floor1})
+            </button>
+            <button
+              onClick={() => setFloorFilter('floor2')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                floorFilter === 'floor2'
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Floor 2 (First) ({stats.floor2})
+            </button>
+          </div>
+        </div>
+
+        {/* KYC Filters */}
+        <div>
+          <label className="text-sm font-semibold text-gray-700 mb-2 block">KYC Filter</label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setKycFilter('all')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                kycFilter === 'all'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              All ({stats.total})
+            </button>
+            <button
+              onClick={() => setKycFilter('verified')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                kycFilter === 'verified'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Verified ({stats.kycVerified})
+            </button>
+            <button
+              onClick={() => setKycFilter('not_verified')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                kycFilter === 'not_verified'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Not Verified ({stats.kycNotVerified})
+            </button>
+          </div>
+        </div>
+
+        {/* View Mode Toggle */}
+        <div className="hidden md:block">
+          <label className="text-sm font-semibold text-gray-700 mb-2 block">View Mode</label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setViewMode('card')}
+              className={`px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 ${
+                viewMode === 'card'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              <span>🎴</span> Card View
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 ${
+                viewMode === 'table'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              <span>📋</span> Table View
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Merge Tenant Accounts */}
+      <div className="card mb-6 border-2 border-amber-200 bg-amber-50">
+        <h3 className="text-lg font-bold text-amber-900 mb-3">🧩 Merge Duplicate Tenants</h3>
+        <p className="text-sm text-amber-800 mb-3">
+          Use this when the same person was added twice. Source tenant will be deactivated and records will move to target tenant.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="block text-xs font-semibold text-amber-900 mb-1">Target Tenant (keep this)</label>
+            <select
+              value={mergeTargetTenantId}
+              onChange={(event) => setMergeTargetTenantId(event.target.value)}
+              disabled={mergingTenants}
+              className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white"
+            >
+              <option value="">Select target tenant</option>
+              {tenants.map((tenant) => (
+                <option key={`target_${tenant.id}`} value={tenant.id}>
+                  {tenant.name} ({getAssignedRooms(tenant).join(', ') || '-'}) {tenant.isActive ? '' : '[Inactive]'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-amber-900 mb-1">Source Tenant (merge this into target)</label>
+            <select
+              value={mergeSourceTenantId}
+              onChange={(event) => setMergeSourceTenantId(event.target.value)}
+              disabled={mergingTenants}
+              className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white"
+            >
+              <option value="">Select source tenant</option>
+              {tenants.map((tenant) => (
+                <option key={`source_${tenant.id}`} value={tenant.id}>
+                  {tenant.name} ({getAssignedRooms(tenant).join(', ') || '-'}) {tenant.isActive ? '' : '[Inactive]'}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <button
+          onClick={mergeTenantAccounts}
+          disabled={mergingTenants}
+          className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
+        >
+          {mergingTenants ? 'Merging...' : 'Merge Tenants'}
+        </button>
       </div>
 
       {/* Tenants List */}
@@ -1378,7 +920,6 @@ const Tenants = () => {
               onDelete={() => handleDeleteTenant(tenant)}
               onViewHistory={() => handleViewHistory(tenant)}
               onResetKyc={() => handleResetKyc(tenant)}
-              onForceCheckout={() => handleForceCheckout(tenant)}
             />
           ))}
         </div>
@@ -1488,15 +1029,6 @@ const Tenants = () => {
                         >
                           ✏️
                         </button>
-                        {tenant.isActive && (
-                          <button 
-                            onClick={() => handleForceCheckout(tenant)}
-                            className="text-red-600 hover:text-red-900 font-medium"
-                            title="Force Checkout"
-                          >
-                            🚪
-                          </button>
-                        )}
                         {isKycVerified && (
                           <button 
                             onClick={() => handleResetKyc(tenant)}
@@ -1523,7 +1055,7 @@ const Tenants = () => {
         </div>
       )}
       </> 
-      ) : categoryFilter === 'applicants' ? (
+      ) : (
       /* ════════ APPLICANTS VIEW ════════ */
       <>
       {/* Applicant Stats */}
@@ -1579,311 +1111,31 @@ const Tenants = () => {
         </div>
       )}
       </>
-      ) : categoryFilter === 'checkouts' ? (
-      /* ════════ CHECKOUT REQUESTS VIEW ════════ */
-      <>
-      {/* Checkout Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="card bg-gradient-to-br from-yellow-500 to-yellow-600 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-yellow-100 text-sm">Pending</p>
-              <p className="text-3xl font-bold mt-1">{checkoutRequests.filter(r => r.status === 'pending').length}</p>
-            </div>
-            <div className="text-4xl">⏳</div>
-          </div>
-        </div>
-        <div className="card bg-gradient-to-br from-red-500 to-red-600 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-red-100 text-sm">Rejected</p>
-              <p className="text-3xl font-bold mt-1">{checkoutRequests.filter(r => r.status === 'rejected').length}</p>
-            </div>
-            <div className="text-4xl">❌</div>
-          </div>
-        </div>
-        <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-sm">Completed</p>
-              <p className="text-3xl font-bold mt-1">{checkoutRequests.filter(r => r.status === 'completed').length}</p>
-            </div>
-            <div className="text-4xl">✅</div>
-          </div>
-        </div>
-        <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-sm">Total</p>
-              <p className="text-3xl font-bold mt-1">{checkoutRequests.length}</p>
-            </div>
-            <div className="text-4xl">📊</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Checkout Requests List */}
-      {checkoutRequests.length === 0 ? (
-        <div className="card text-center py-12">
-          <div className="text-6xl mb-4">🚪</div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">No Checkout Requests</h3>
-          <p className="text-gray-600">When tenants request checkout, they will appear here for approval.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {/* Pending Requests */}
-          {checkoutRequests.filter(r => !r.status || r.status === 'pending').length > 0 && (
-            <>
-              <h4 className="text-sm font-semibold text-gray-700 text-yellow-700">⏳ PENDING REQUESTS</h4>
-              <div className="grid gap-4">
-                {checkoutRequests.filter(r => !r.status || r.status === 'pending').map((request) => (
-                  <div key={request.id} className="bg-white rounded-lg shadow-sm border-l-4 border-l-yellow-400 border border-gray-200 p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-3 flex-wrap">
-                          <h3 className="text-lg font-semibold text-gray-900">{request.tenantName}</h3>
-                          <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded">
-                            Room {request.roomNumber}
-                          </span>
-                          <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded">
-                            {request.status ? request.status.charAt(0).toUpperCase() + request.status.slice(1) : 'Pending'}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-600">Proposed Checkout:</span>
-                            <p className="font-medium text-gray-900">
-                              {new Date(request.proposedCheckoutDate).toLocaleDateString('en-IN')}
-                            </p>
-                          </div>
-                          {request.finalMeterReadingDraft && (
-                            <div>
-                              <span className="text-gray-600">Meter Reading:</span>
-                              <p className="font-medium text-gray-900">{request.finalMeterReadingDraft}</p>
-                            </div>
-                          )}
-                          <div>
-                            <span className="text-gray-600">Requested On:</span>
-                            <p className="font-medium text-gray-900">
-                              {request.requestedAt ? new Date(request.requestedAt.toDate()).toLocaleDateString('en-IN') : '-'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {request.remarks && (
-                          <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                            <span className="text-xs text-gray-600 font-medium">Remarks:</span>
-                            <p className="text-sm text-gray-900 mt-1">{request.remarks}</p>
-                          </div>
-                        )}
-
-                        {request.tenant && (
-                          <div className="mt-3 flex gap-4 text-xs text-gray-600">
-                            {request.tenant.checkInDate && (
-                              <span>Check-in: {new Date(request.tenant.checkInDate).toLocaleDateString('en-IN')}</span>
-                            )}
-                            {request.tenant.securityDeposit > 0 && (
-                              <span>Security Deposit: ₹{request.tenant.securityDeposit.toLocaleString('en-IN')}</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex flex-col gap-2 ml-4">
-                        <button
-                          onClick={() => handleApproveCheckout(request)}
-                          disabled={processingRequest === request}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium whitespace-nowrap"
-                        >
-                          {processingRequest === request ? 'Processing...' : 'Approve & Settle'}
-                        </button>
-                        <button
-                          onClick={() => handleRejectCheckout(request)}
-                          className="px-4 py-2 border-2 border-orange-400 text-orange-700 rounded-lg hover:bg-orange-50 transition-colors text-sm font-medium whitespace-nowrap"
-                        >
-                          ❌ Cancel Request
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCheckoutRequest(request)}
-                          className="px-4 py-2 border-2 border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium whitespace-nowrap"
-                        >
-                          🗑️ Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* Other Requests (Rejected/Completed) */}
-          {checkoutRequests.filter(r => r.status && r.status !== 'pending').length > 0 && (
-            <>
-              <h4 className="text-sm font-semibold text-gray-700 mt-6">📋 OTHER REQUESTS</h4>
-              <div className="grid gap-4">
-                {checkoutRequests.filter(r => r.status !== 'pending').map((request) => (
-                  <div key={request.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 opacity-75">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-3 flex-wrap">
-                          <h3 className="text-lg font-semibold text-gray-900">{request.tenantName}</h3>
-                          <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded">
-                            Room {request.roomNumber}
-                          </span>
-                          <span className={`px-2 py-1 text-xs font-medium rounded ${
-                            request.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                            request.status === 'completed' ? 'bg-green-100 text-green-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {request.status?.charAt(0).toUpperCase() + request.status?.slice(1) || 'Unknown'}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-600">Proposed Checkout:</span>
-                            <p className="font-medium text-gray-900">
-                              {new Date(request.proposedCheckoutDate).toLocaleDateString('en-IN')}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Requested On:</span>
-                            <p className="font-medium text-gray-900">
-                              {request.requestedAt ? new Date(request.requestedAt.toDate()).toLocaleDateString('en-IN') : '-'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col gap-2 ml-4">
-                        <button
-                          onClick={() => handleDeleteCheckoutRequest(request)}
-                          className="px-4 py-2 border-2 border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium whitespace-nowrap"
-                        >
-                          🗑️ Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
       )}
-      </>
-      ) : null}
 
-      {/* Floating Floor Switcher - Mobile */}
       {isMobileViewport && categoryFilter === 'tenants' && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-white/95 backdrop-blur border border-gray-200 rounded-full shadow-lg px-2 py-1 flex items-center gap-1">
           <button
             type="button"
             onClick={() => setFloorFilter('all')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${floorFilter === 'all' ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-full ${floorFilter === 'all' ? 'bg-primary text-white' : 'text-gray-700'}`}
           >
             All
           </button>
           <button
             type="button"
             onClick={() => setFloorFilter('floor1')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${floorFilter === 'floor1' ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-full ${floorFilter === 'floor1' ? 'bg-primary text-white' : 'text-gray-700'}`}
           >
             Floor 1
           </button>
           <button
             type="button"
             onClick={() => setFloorFilter('floor2')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${floorFilter === 'floor2' ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-full ${floorFilter === 'floor2' ? 'bg-primary text-white' : 'text-gray-700'}`}
           >
             Floor 2
           </button>
-        </div>
-      )}
-
-      {/* Floating Floor Switcher - Desktop (Collapsible) */}
-      {!isMobileViewport && categoryFilter === 'tenants' && (
-        <div className="fixed bottom-8 right-8 z-50">
-          {!isFloorFilterExpanded ? (
-            /* Collapsed - Small Floating Button */
-            <button
-              type="button"
-              onClick={() => setIsFloorFilterExpanded(true)}
-              className="group bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-4 rounded-full shadow-2xl hover:shadow-3xl hover:scale-110 transition-all duration-300"
-              title="Floor Filter"
-            >
-              <div className="flex flex-col items-center">
-                <span className="text-2xl">🏢</span>
-                <span className="text-[10px] font-bold mt-0.5 opacity-90">
-                  {floorFilter === 'all' ? 'All' : floorFilter === 'floor1' ? 'F1' : 'F2'}
-                </span>
-              </div>
-            </button>
-          ) : (
-            /* Expanded - Full Filter Options */
-            <div className="bg-white/95 backdrop-blur border-2 border-gray-300 rounded-2xl shadow-2xl overflow-hidden animate-slideIn">
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-2 flex items-center justify-between">
-                <p className="text-xs font-bold text-white uppercase tracking-wider">🏢 Floor Filter</p>
-                <button
-                  type="button"
-                  onClick={() => setIsFloorFilterExpanded(false)}
-                  className="text-white hover:text-gray-200 text-lg font-bold"
-                  title="Minimize"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="p-2 space-y-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFloorFilter('all');
-                    setIsFloorFilterExpanded(false);
-                  }}
-                  className={`w-full px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-between ${
-                    floorFilter === 'all'
-                      ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <span>All Floors</span>
-                  <span className="text-xs">({stats.total})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFloorFilter('floor1');
-                    setIsFloorFilterExpanded(false);
-                  }}
-                  className={`w-full px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-between ${
-                    floorFilter === 'floor1'
-                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <span>Ground Floor</span>
-                  <span className="text-xs">({stats.floor1})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFloorFilter('floor2');
-                    setIsFloorFilterExpanded(false);
-                  }}
-                  className={`w-full px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-between ${
-                    floorFilter === 'floor2'
-                      ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <span>First Floor</span>
-                  <span className="text-xs">({stats.floor2})</span>
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -1985,331 +1237,11 @@ const Tenants = () => {
           </div>
         </div>
       )}
-
-      {/* Settlement Modal */}
-      {showSettlementModal && settlementData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full my-8">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-green-500 to-teal-500 text-white px-6 py-4 rounded-t-lg">
-              <h2 className="text-xl font-bold">Final Settlement</h2>
-              <p className="text-sm text-white/90 mt-1">
-                {settlementData.tenant.name} - Room {settlementData.request.roomNumber}
-              </p>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
-              {/* Tenant Info */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <h3 className="font-semibold text-blue-900 mb-2">Tenant Information</h3>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-blue-700">Check-in Date:</span>
-                    <p className="font-medium text-blue-900">
-                      {settlementData.tenant.checkInDate ? new Date(settlementData.tenant.checkInDate).toLocaleDateString('en-IN') : '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-blue-700">Checkout Date:</span>
-                    <p className="font-medium text-blue-900">
-                      {new Date(settlementData.request.proposedCheckoutDate).toLocaleDateString('en-IN')}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-blue-700">Security Deposit:</span>
-                    <p className="font-medium text-blue-900">
-                      ₹{(settlementData.tenant.securityDeposit || 0).toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-blue-700">Current Rent:</span>
-                    <p className="font-medium text-blue-900">
-                      ₹{(settlementData.tenant.currentRent || 0).toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Pending Rent Warning */}
-              {settlementData.unpaidMonths > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                  <div className="flex items-start gap-2">
-                    <svg className="w-5 h-5 text-yellow-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    <div>
-                      <p className="font-semibold text-yellow-900">Unpaid Rent: {settlementData.unpaidMonths} month(s)</p>
-                      <p className="text-sm text-yellow-800 mt-1">
-                        Total Pending: ₹{settlementData.pendingRent.toLocaleString('en-IN')}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Settlement Form */}
-              <div className="space-y-4">
-                {/* Meter Reading */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Last Meter Reading
-                    </label>
-                    <input
-                      type="number"
-                      value={settlementData.lastReading}
-                      disabled
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Final Meter Reading <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      value={finalMeterReading}
-                      onChange={(e) => setFinalMeterReading(e.target.value)}
-                      min={settlementData.lastReading}
-                      step="0.01"
-                      required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                {/* Rate Per Unit */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Rate Per Unit (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={ratePerUnit}
-                    onChange={(e) => setRatePerUnit(e.target.value)}
-                    min="0"
-                    step="0.01"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Extra and Damage Charges */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Extra Charges (₹)
-                    </label>
-                    <input
-                      type="number"
-                      value={extraCharges}
-                      onChange={(e) => setExtraCharges(e.target.value)}
-                      min="0"
-                      step="0.01"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Damage Charges (₹)
-                    </label>
-                    <input
-                      type="number"
-                      value={damageCharges}
-                      onChange={(e) => setDamageCharges(e.target.value)}
-                      min="0"
-                      step="0.01"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                {/* Adjust Security Deposit */}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="adjustDeposit"
-                    checked={adjustDeposit}
-                    onChange={(e) => setAdjustDeposit(e.target.checked)}
-                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
-                  />
-                  <label htmlFor="adjustDeposit" className="text-sm font-medium text-gray-700 cursor-pointer">
-                    Adjust Security Deposit (deduct charges from deposit)
-                  </label>
-                </div>
-
-                {/* Admin Remarks */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Admin Remarks
-                  </label>
-                  <textarea
-                    value={adminRemarks}
-                    onChange={(e) => setAdminRemarks(e.target.value)}
-                    rows="3"
-                    placeholder="Any notes about this checkout..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
-                  />
-                </div>
-
-                {/* Settlement Summary */}
-                {(() => {
-                  const current = calculateCurrentSettlement();
-                  if (!current) return null;
-
-                  return (
-                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-300 rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3">Settlement Summary</h3>
-                      <div className="space-y-2 text-sm">
-                        {current.breakdown.pendingRent > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Pending Rent:</span>
-                            <span className="font-medium text-gray-900">{formatCurrency(current.breakdown.pendingRent)}</span>
-                          </div>
-                        )}
-                        {current.units > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Electricity ({current.units.toFixed(2)} units @ ₹{ratePerUnit}):</span>
-                            <span className="font-medium text-gray-900">{formatCurrency(current.electricityCharges)}</span>
-                          </div>
-                        )}
-                        {current.breakdown.extraCharges > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Extra Charges:</span>
-                            <span className="font-medium text-gray-900">{formatCurrency(current.breakdown.extraCharges)}</span>
-                          </div>
-                        )}
-                        {current.breakdown.damageCharges > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Damage Charges:</span>
-                            <span className="font-medium text-gray-900">{formatCurrency(current.breakdown.damageCharges)}</span>
-                          </div>
-                        )}
-                        <div className="border-t border-gray-300 pt-2">
-                          <div className="flex justify-between font-semibold">
-                            <span className="text-gray-700">Subtotal:</span>
-                            <span className="text-gray-900">{formatCurrency(current.breakdown.subtotal)}</span>
-                          </div>
-                        </div>
-                        {adjustDeposit && current.depositAdjustment > 0 && (
-                          <div className="flex justify-between text-green-600">
-                            <span>Deposit Adjustment:</span>
-                            <span className="font-medium">- {formatCurrency(current.depositAdjustment)}</span>
-                          </div>
-                        )}
-                        <div className="border-t border-gray-300 pt-2">
-                          <div className="flex justify-between text-lg font-bold">
-                            <span className="text-gray-900">Final Amount:</span>
-                            <span className={current.finalPayable >= 0 ? 'text-red-600' : 'text-green-600'}>
-                              {current.finalPayable >= 0 ? 'To Collect: ' : 'To Refund: '}
-                              {formatCurrency(Math.abs(current.finalPayable))}
-                            </span>
-                          </div>
-                        </div>
-                        {current.depositRefundable > 0 && (
-                          <div className="flex justify-between text-green-600">
-                            <span>Deposit Refundable:</span>
-                            <span className="font-medium">{formatCurrency(current.depositRefundable)}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 rounded-b-lg flex gap-3">
-              <button
-                onClick={() => setShowSettlementModal(false)}
-                disabled={processing}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleFinalizeCheckout}
-                disabled={processing || !finalMeterReading}
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg hover:from-green-600 hover:to-teal-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-              >
-                {processing ? 'Processing...' : 'Finalize Checkout'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Summary Modal */}
-      {showSummaryModal && summaryData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full">
-            <div className="bg-gradient-to-r from-green-500 to-teal-500 text-white px-6 py-4 rounded-t-lg">
-              <h2 className="text-xl font-bold">✅ Checkout Completed</h2>
-            </div>
-
-            <div className="p-6">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {summaryData.tenant.name} - Room {summaryData.room?.roomNumber || summaryData.tenant.roomNumber}
-                </h3>
-                <p className="text-gray-600">
-                  Checkout Date: {new Date(summaryData.checkoutDate).toLocaleDateString('en-IN')}
-                </p>
-              </div>
-
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2 text-sm mb-6">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Final Amount:</span>
-                  <span className="font-bold text-lg text-gray-900">
-                    {formatCurrency(summaryData.settlement.finalPayable)}
-                  </span>
-                </div>
-                {summaryData.settlement.depositRefundable > 0 && (
-                  <div className="flex justify-between text-green-600">
-                    <span>Deposit Refundable:</span>
-                    <span className="font-medium">{formatCurrency(summaryData.settlement.depositRefundable)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Room Status:</span>
-                  <span className="font-medium text-gray-900">Vacant</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Tenant Status:</span>
-                  <span className="font-medium text-gray-900">Inactive</span>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowSummaryModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={downloadSummary}
-                  className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-colors font-medium"
-                >
-                  Download Summary
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
 const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
-  const [activeTab, setActiveTab] = useState('rent');
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
   // Calculate totals
@@ -2349,7 +1281,7 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto flex flex-col">
+        <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
@@ -2364,129 +1296,59 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
               <p className="text-gray-600">This tenant has no payment records yet.</p>
             </div>
           ) : (
-            <>
-              {/* Tabs */}
-              <div className="flex border-b bg-white sticky top-0 z-10">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('rent')}
-                  className={`flex-1 py-3 text-sm font-semibold transition-colors ${
-                    activeTab === 'rent'
-                      ? 'border-b-2 border-blue-600 text-blue-700 bg-blue-50'
-                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  🏠 Rent History
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('electricity')}
-                  className={`flex-1 py-3 text-sm font-semibold transition-colors ${
-                    activeTab === 'electricity'
-                      ? 'border-b-2 border-blue-600 text-blue-700 bg-blue-50'
-                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  ⚡ Electricity Units History
-                </button>
-              </div>
-
-              {/* Tab: Rent */}
-              {activeTab === 'rent' && (
-                <div className="overflow-x-auto p-6">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-100 sticky top-0">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-semibold">Period</th>
-                        <th className="px-4 py-3 text-right font-semibold">Rent</th>
-                        <th className="px-4 py-3 text-right font-semibold">Electricity</th>
-                        <th className="px-4 py-3 text-right font-semibold">Total</th>
-                        <th className="px-4 py-3 text-right font-semibold">Paid</th>
-                        <th className="px-4 py-3 text-left font-semibold">Payment Date</th>
-                        <th className="px-4 py-3 text-center font-semibold">Status</th>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">Period</th>
+                    <th className="px-4 py-3 text-right font-semibold">Rent</th>
+                    <th className="px-4 py-3 text-right font-semibold">Electricity</th>
+                    <th className="px-4 py-3 text-right font-semibold">Total</th>
+                    <th className="px-4 py-3 text-right font-semibold">Paid</th>
+                    <th className="px-4 py-3 text-left font-semibold">Payment Date</th>
+                    <th className="px-4 py-3 text-center font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map((payment) => {
+                    const rent = payment.rent || 0;
+                    const electricity = payment.electricity || 0;
+                    const total = rent + electricity;
+                    const paid = payment.paidAmount || 0;
+                    const isPaid = payment.status === 'paid';
+                    
+                    return (
+                      <tr key={payment.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 font-semibold">
+                          {monthNames[payment.month - 1]} {payment.year}
+                        </td>
+                        <td className="px-4 py-3 text-right">₹{rent.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3 text-right">₹{electricity.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3 text-right font-semibold">₹{total.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3 text-right font-bold text-green-600">
+                          ₹{paid.toLocaleString('en-IN')}
+                        </td>
+                        <td className="px-4 py-3">
+                          {payment.paymentDate || payment.paidAt 
+                            ? new Date(payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
+                            : '-'
+                          }
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            isPaid && paid > 0
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {isPaid && paid > 0 ? '✅ Paid' : '❌ Pending'}
+                          </span>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {payments.map((payment) => {
-                        const rent = payment.rent || 0;
-                        const electricity = payment.electricity || 0;
-                        const total = rent + electricity;
-                        const paid = payment.paidAmount || 0;
-                        const isPaid = payment.status === 'paid';
-                        const dateStr = payment.paidDate || payment.paymentDate || payment.paidAt;
-
-                        return (
-                          <tr key={payment.id} className="border-b hover:bg-gray-50">
-                            <td className="px-4 py-3 font-semibold">
-                              {monthNames[payment.month - 1]} {payment.year}
-                            </td>
-                            <td className="px-4 py-3 text-right">₹{rent.toLocaleString('en-IN')}</td>
-                            <td className="px-4 py-3 text-right">₹{electricity.toLocaleString('en-IN')}</td>
-                            <td className="px-4 py-3 text-right font-semibold">₹{total.toLocaleString('en-IN')}</td>
-                            <td className="px-4 py-3 text-right font-bold text-green-600">
-                              ₹{paid.toLocaleString('en-IN')}
-                            </td>
-                            <td className="px-4 py-3">
-                              {dateStr
-                                ? new Date(dateStr).toLocaleDateString('en-IN')
-                                : '-'
-                              }
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                isPaid && paid > 0
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-red-100 text-red-800'
-                              }`}>
-                                {isPaid && paid > 0 ? '✅ Paid' : '❌ Pending'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Tab: Electricity Units History */}
-              {activeTab === 'electricity' && (
-                <div className="overflow-x-auto p-6">
-                  {payments.some(p => Number(p.currentReading || p.meterReading || 0) > 0 || Number(p.units || p.unitsConsumed || 0) > 0) ? (
-                    <table className="w-full text-sm">
-                      <thead className="bg-blue-50 sticky top-0">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-semibold text-blue-900">Month</th>
-                          <th className="px-3 py-2 text-right font-semibold text-blue-900">Prev Reading</th>
-                          <th className="px-3 py-2 text-right font-semibold text-blue-900">Curr Reading</th>
-                          <th className="px-3 py-2 text-right font-semibold text-blue-900">Units</th>
-                          <th className="px-3 py-2 text-right font-semibold text-blue-900">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {payments
-                          .filter(p => Number(p.currentReading || p.meterReading || 0) > 0 || Number(p.units || p.unitsConsumed || 0) > 0)
-                          .map((p) => (
-                            <tr key={p.id} className="border-b hover:bg-blue-50">
-                              <td className="px-3 py-2 font-semibold">{monthNames[p.month - 1]} {p.year}</td>
-                              <td className="px-3 py-2 text-right text-gray-700">{p.previousReading ?? p.oldReading ?? '-'}</td>
-                              <td className="px-3 py-2 text-right text-gray-700">{p.currentReading ?? p.meterReading ?? '-'}</td>
-                              <td className="px-3 py-2 text-right font-semibold text-blue-700">{p.units ?? p.unitsConsumed ?? '-'}</td>
-                              <td className="px-3 py-2 text-right font-semibold text-green-700">₹{Number(p.electricity || p.electricityAmount || 0).toLocaleString('en-IN')}</td>
-                            </tr>
-                          ))
-                        }
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className="text-center py-12">
-                      <div className="text-5xl mb-4">⚡</div>
-                      <p className="text-gray-500">No electricity meter data found for this tenant.</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
@@ -2504,7 +1366,7 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
   );
 };
 
-const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc, onForceCheckout }) => {
+const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc }) => {
   const { showAlert, showPrompt } = useDialog();
   const isActive = tenant.isActive;
   const isKycVerified = tenant?.kyc?.verified === true && tenant?.kyc?.verifiedBy === 'DigiLocker';
@@ -2675,7 +1537,7 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc, onFor
       </div>
 
       {/* Action Buttons - Minimized */}
-      <div className="grid gap-2 grid-cols-2">
+      <div className={`grid gap-2 ${isKycVerified ? 'grid-cols-2' : 'grid-cols-3'}`}>
         <button 
           onClick={onViewHistory} 
           className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg font-semibold transition text-xs border border-purple-300"
@@ -2690,15 +1552,6 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc, onFor
         >
           ✏️ Edit
         </button>
-        {isActive && (
-          <button 
-            onClick={onForceCheckout}
-            className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg font-semibold transition text-xs border border-red-300"
-            title="Force Checkout"
-          >
-            🚪 Checkout
-          </button>
-        )}
         {isKycVerified && (
           <button 
             onClick={onResetKyc} 
@@ -3019,4 +1872,3 @@ const KycDetailModal = ({ applicant, onClose }) => {
 };
 
 export default Tenants;
-export { PaymentHistoryModal };

@@ -304,8 +304,8 @@ export const getTodaysCollection = async () => {
       // Check if payment was made today
       let isTodaysPayment = false;
       
-      // Check paidDate field (format: 'YYYY-MM-DD')
-      if (data.paidDate === today) {
+      // Check paymentDate field (format: 'YYYY-MM-DD')
+      if (data.paymentDate === today) {
         isTodaysPayment = true;
       }
       
@@ -348,31 +348,6 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
     const now = new Date();
     const currentMonth = month || (now.getMonth() + 1); // 1-12
     const currentYear = year || now.getFullYear();
-
-    // Fetch global electricity rate from settings
-    let globalElectricityRate = 9; // Default
-    try {
-      const settingsRef = collection(db, 'settings');
-      const settingsSnapshot = await getDocs(settingsRef);
-      if (!settingsSnapshot.empty) {
-        const settings = settingsSnapshot.docs[0].data();
-        globalElectricityRate = Number(settings.electricityRate) || 9;
-      }
-    } catch (settingsError) {
-      console.warn('Error fetching electricity rate:', settingsError);
-    }
-
-    // Fetch all meter readings
-    const meterReadingsData = [];
-    try {
-      const readingsRef = collection(db, 'electricityReadings');
-      const readingsSnapshot = await getDocs(readingsRef);
-      readingsSnapshot.forEach((doc) => {
-        meterReadingsData.push({ id: doc.id, ...doc.data() });
-      });
-    } catch (meterError) {
-      console.warn('Error fetching meter readings:', meterError);
-    }
 
     // Fetch all active tenants
     const tenantsRef = collection(db, 'tenants');
@@ -543,124 +518,17 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
       today.setHours(0, 0, 0, 0);
       dueDate.setHours(0, 0, 0, 0);
       
-      // Calculate days until/since due date
-      const msPerDay = 24 * 60 * 60 * 1000;
-      const daysUntilDue = Math.round((dueDate - today) / msPerDay);
-      let dueStatusText = '';
-      let dueStatusColor = 'gray'; // gray, green, yellow, orange, red
-      
       if (status === 'paid') {
         // If paid, check if payment was made after due date
         if (paidDateObj) {
           paidDateObj.setHours(0, 0, 0, 0);
           isDelayed = paidDateObj > dueDate;
-          const daysLate = Math.round((paidDateObj - dueDate) / msPerDay);
-          if (isDelayed) {
-            dueStatusText = daysLate === 1 ? 'Paid 1 day late' : `Paid ${daysLate} days late`;
-            dueStatusColor = 'orange';
-          } else {
-            dueStatusText = 'Paid on time';
-            dueStatusColor = 'green';
-          }
-        } else {
-          dueStatusText = 'Paid';
-          dueStatusColor = 'green';
         }
       } else {
         // If pending, check if due date has passed
         isDelayed = today > dueDate;
-        
-        if (isDelayed) {
-          const daysOverdue = Math.abs(daysUntilDue);
-          dueStatusText = daysOverdue === 1 ? 'Delayed by 1 day' : `Delayed by ${daysOverdue} days`;
-          dueStatusColor = 'red';
-        } else if (daysUntilDue === 0) {
-          dueStatusText = 'Due today';
-          dueStatusColor = 'orange';
-        } else if (daysUntilDue === 1) {
-          dueStatusText = 'Due tomorrow';
-          dueStatusColor = 'yellow';
-        } else if (daysUntilDue > 0 && daysUntilDue <= 3) {
-          dueStatusText = `Due in ${daysUntilDue} days`;
-          dueStatusColor = 'yellow';
-        } else if (daysUntilDue > 3) {
-          dueStatusText = `Due in ${daysUntilDue} days`;
-          dueStatusColor = 'gray';
-        }
       }
       
-      // Get meter readings for this tenant's rooms from BOTH payment records and electricityReadings
-      const meterReadingsForTenant = [];
-      let totalPreviousReading = 0;
-      let totalCurrentReading = 0;
-      let totalUnitsConsumed = 0;
-      let totalMeterElectricity = 0;
-
-      // For each room of this tenant, calculate meter data
-      if (tenantRoomNumbers.length > 0) {
-        tenantRoomNumbers.forEach((roomNumber) => {
-          // First, check payment records for this room (where meter data is saved when approved)
-          const roomPaymentWithMeter = uniqueTenantPayments.find((payment) => {
-            const paymentRoom = String(payment.roomNumber || '');
-            const hasMeterData = Number(payment.currentReading || payment.meterReading || 0) > 0 || Number(payment.units || payment.unitsConsumed || 0) > 0;
-            return paymentRoom === String(roomNumber) && hasMeterData;
-          });
-
-          if (roomPaymentWithMeter) {
-            const prevReading = Number(roomPaymentWithMeter.previousReading || roomPaymentWithMeter.oldReading || 0);
-            const currReading = Number(roomPaymentWithMeter.currentReading || roomPaymentWithMeter.meterReading || 0);
-            const units = Math.max(0, Number(roomPaymentWithMeter.units || roomPaymentWithMeter.unitsConsumed || (currReading - prevReading)));
-            const electricity = units * globalElectricityRate;
-
-            totalPreviousReading += prevReading;
-            totalCurrentReading += currReading;
-            totalUnitsConsumed += units;
-            totalMeterElectricity += electricity;
-
-            meterReadingsForTenant.push({
-              roomNumber,
-              previousReading: prevReading,
-              currentReading: currReading,
-              units,
-              electricity,
-              source: 'payment_record'
-            });
-            return;
-          }
-
-          // Fallback: check electricityReadings collection
-          const roomMeterReading = meterReadingsData.find((meter) => {
-            const meterMonth = meter.month;
-            const meterYear = meter.year;
-            const meterRoom = String(meter.roomNumber || meter.room || '');
-            const matchRoom = meterRoom === String(roomNumber);
-            const matchMonth = Number(meterMonth) === currentMonth && Number(meterYear) === currentYear;
-            return matchRoom && matchMonth;
-          });
-
-          if (roomMeterReading) {
-            const prevReading = Number(roomMeterReading.previousReading || 0);
-            const currReading = Number(roomMeterReading.currentReading || 0);
-            const units = Math.max(0, currReading - prevReading);
-            const electricity = units * globalElectricityRate;
-
-            totalPreviousReading += prevReading;
-            totalCurrentReading += currReading;
-            totalUnitsConsumed += units;
-            totalMeterElectricity += electricity;
-
-            meterReadingsForTenant.push({
-              roomNumber,
-              previousReading: prevReading,
-              currentReading: currReading,
-              units,
-              electricity,
-              source: 'electricity_readings'
-            });
-          }
-        });
-      }
-
       tenantList.push({
         id: doc.id,
         name: tenant.name,
@@ -677,19 +545,9 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         paidDate,
         paidTimestamp: latestPaidRecord?.paidAt ? new Date(latestPaidRecord.paidAt).getTime() : 0,
         isDelayed,
-        daysUntilDue,
-        dueStatusText,
-        dueStatusColor,
         paymentMethod: latestPaidRecord ? latestPaidRecord.paymentMethod : null,
         paymentRecordsCount: uniqueTenantPayments.length,
-        roomWiseSplit,
-        // Meter reading data
-        meterReadings: meterReadingsForTenant,
-        totalPreviousReading,
-        totalCurrentReading,
-        totalUnitsConsumed,
-        totalMeterElectricity,
-        globalElectricityRate
+        roomWiseSplit
       });
       
       totalExpected += expectedTotal;

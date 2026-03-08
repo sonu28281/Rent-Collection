@@ -1,12 +1,9 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { getDashboardStats, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary, getTodaysCollection } from '../utils/financial';
 import ViewModeToggle from './ui/ViewModeToggle';
 import LiveDateTime from './ui/LiveDateTime';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
-import { PaymentHistoryModal } from './Tenants';
 
 const Dashboard = () => {
   const { currentUser } = useAuth();
@@ -36,9 +33,6 @@ const Dashboard = () => {
     yearly: { column: 'year', direction: 'desc' }
   });
   const [expandedSplitRows, setExpandedSplitRows] = useState({});
-  const [selectedTenantHistory, setSelectedTenantHistory] = useState(null);
-  const [paymentHistory, setPaymentHistory] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const fetchMonthData = useCallback(async () => {
     try {
@@ -240,53 +234,6 @@ const Dashboard = () => {
     return sorted;
   };
 
-  // Get row background color based on payment status
-  const getRowBgColor = (tenant) => {
-    const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
-    
-    if (isPaid) {
-      // Paid - always green
-      return 'bg-green-50 hover:bg-green-100';
-    }
-    
-    // Pending payments - color based on due status
-    switch (tenant.dueStatusColor) {
-      case 'red':
-        // Delayed/Overdue
-        return 'bg-red-50 hover:bg-red-100';
-      case 'orange':
-        // Due today
-        return 'bg-orange-50 hover:bg-orange-100';
-      case 'yellow':
-        // Due soon (1-3 days)
-        return 'bg-yellow-50 hover:bg-yellow-100';
-      default:
-        // Due later (>3 days) or no due date - light blue
-        return 'bg-blue-50 hover:bg-blue-100';
-    }
-  };
-
-  // Get status badge color
-  const getStatusBadgeColor = (tenant) => {
-    const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
-    
-    if (isPaid) {
-      return 'bg-green-200 text-green-900';
-    }
-    
-    // Pending payments
-    switch (tenant.dueStatusColor) {
-      case 'red':
-        return 'bg-red-200 text-red-900';
-      case 'orange':
-        return 'bg-orange-200 text-orange-900';
-      case 'yellow':
-        return 'bg-yellow-200 text-yellow-900';
-      default:
-        return 'bg-gray-200 text-gray-900';
-    }
-  };
-
   const sortYearlyRows = (rows) => {
     const sortConfig = tableSorts.yearly || { column: 'year', direction: 'desc' };
     const sorted = [...rows].sort((a, b) => {
@@ -327,82 +274,6 @@ const Dashboard = () => {
       return tenantRooms.some((room) => getFloor(room) === 2);
     });
     return { floor1, floor2 };
-  };
-
-  // Helper function to calculate floor-wise summary stats
-  const calculateFloorStats = (floorTenants) => {
-    const totalExpected = floorTenants.reduce((sum, tenant) => sum + (tenant.expectedTotal || 0), 0);
-    const totalCollected = floorTenants.reduce((sum, tenant) => sum + (tenant.collectedAmount || 0), 0);
-    const totalDue = totalExpected - totalCollected;
-    const paidCount = floorTenants.filter(t => t.status === 'paid' && t.collectedAmount > 0).length;
-    const pendingCount = floorTenants.length - paidCount;
-    return { totalExpected, totalCollected, totalDue, paidCount, pendingCount, totalTenants: floorTenants.length };
-  };
-
-  // Payment History functions
-  const handleViewHistory = async (tenant) => {
-    setSelectedTenantHistory(tenant);
-    await fetchPaymentHistory(tenant);
-  };
-
-  const fetchPaymentHistory = async (tenant) => {
-    if (!tenant) return;
-    
-    setLoadingHistory(true);
-    try {
-      const paymentsRef = collection(db, 'payments');
-      const paymentDocs = new Map();
-
-      // Query by tenantId
-      if (tenant.id) {
-        const tenantIdQuery = query(paymentsRef, where('tenantId', '==', tenant.id));
-        const tenantIdSnapshot = await getDocs(tenantIdQuery);
-        tenantIdSnapshot.forEach((doc) => paymentDocs.set(doc.id, doc));
-      }
-
-      // Query by each assigned room
-      const roomNumbers = Array.isArray(tenant.assignedRooms) && tenant.assignedRooms.length > 0
-        ? tenant.assignedRooms.map(r => Number(r))
-        : [Number(tenant.roomNumber)];
-
-      const roomQueries = roomNumbers.map((rn) => query(paymentsRef, where('roomNumber', '==', rn)));
-      const roomSnapshots = await Promise.all(roomQueries.map((roomQuery) => getDocs(roomQuery)));
-      roomSnapshots.forEach((snapshot) => {
-        snapshot.forEach((doc) => paymentDocs.set(doc.id, doc));
-      });
-
-      const tenantName = (tenant.name || '').trim().toLowerCase();
-
-      const payments = Array.from(paymentDocs.values())
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .filter((payment) => {
-          if (payment.tenantId && tenant.id && payment.tenantId === tenant.id) {
-            return true;
-          }
-
-          const snapshotName = (payment.tenantNameSnapshot || '').trim().toLowerCase();
-          const legacyName = (payment.tenantName || '').trim().toLowerCase();
-
-          return Boolean(tenantName) && (snapshotName === tenantName || legacyName === tenantName);
-        })
-        .sort((a, b) => {
-          const yearDiff = Number(b.year || 0) - Number(a.year || 0);
-          if (yearDiff !== 0) return yearDiff;
-          return Number(b.month || 0) - Number(a.month || 0);
-        });
-
-      setPaymentHistory(payments);
-    } catch (err) {
-      console.error('Error fetching payment history:', err);
-      setPaymentHistory([]);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  const handleCloseHistory = () => {
-    setSelectedTenantHistory(null);
-    setPaymentHistory([]);
   };
 
   return (
@@ -481,10 +352,7 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Overall Summary Cards */}
-            <div className="mb-3">
-              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Overall Summary</h3>
-            </div>
+            {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-center justify-between">
@@ -545,126 +413,10 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Floor-wise Summary */}
-            {currentMonthSummary.allTenants && currentMonthSummary.allTenants.length > 0 && (() => {
-              const { floor1, floor2 } = groupTenantsByFloor(currentMonthSummary.allTenants);
-              const floor1Stats = calculateFloorStats(floor1);
-              const floor2Stats = calculateFloorStats(floor2);
-              
-              return (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Floor-wise Breakdown</h3>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* Floor 1 Card */}
-                    <div className="border border-indigo-200 rounded-lg p-4 bg-gradient-to-br from-indigo-50 to-white">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl">🏠</span>
-                        <h4 className="font-bold text-indigo-900">Floor 1 - Ground Floor</h4>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Expected</p>
-                          <p className="text-lg font-bold text-blue-700">
-                            ₹{floor1Stats.totalExpected.toLocaleString('en-IN')}
-                          </p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Collected</p>
-                          <p className="text-lg font-bold text-green-700">
-                            ₹{floor1Stats.totalCollected.toLocaleString('en-IN')}
-                          </p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Due</p>
-                          <p className="text-lg font-bold text-orange-700">
-                            ₹{floor1Stats.totalDue.toLocaleString('en-IN')}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-indigo-200 flex items-center justify-between text-xs">
-                        <span className="text-gray-600">{floor1Stats.totalTenants} tenants</span>
-                        <span className="text-green-700 font-semibold">{floor1Stats.paidCount} paid</span>
-                        <span className="text-orange-700 font-semibold">{floor1Stats.pendingCount} pending</span>
-                      </div>
-                      {/* Progress bar for Floor 1 */}
-                      <div className="mt-3">
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-500"
-                            style={{ 
-                              width: floor1Stats.totalExpected > 0 
-                                ? `${Math.min((floor1Stats.totalCollected / floor1Stats.totalExpected) * 100, 100)}%`
-                                : '0%'
-                            }}
-                          ></div>
-                        </div>
-                        <p className="text-xs text-gray-600 text-center mt-1">
-                          {floor1Stats.totalExpected > 0 
-                            ? ((floor1Stats.totalCollected / floor1Stats.totalExpected) * 100).toFixed(1)
-                            : 0}% collected
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Floor 2 Card */}
-                    <div className="border border-violet-200 rounded-lg p-4 bg-gradient-to-br from-violet-50 to-white">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl">🏢</span>
-                        <h4 className="font-bold text-violet-900">Floor 2 - First Floor</h4>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Expected</p>
-                          <p className="text-lg font-bold text-blue-700">
-                            ₹{floor2Stats.totalExpected.toLocaleString('en-IN')}
-                          </p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Collected</p>
-                          <p className="text-lg font-bold text-green-700">
-                            ₹{floor2Stats.totalCollected.toLocaleString('en-IN')}
-                          </p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Due</p>
-                          <p className="text-lg font-bold text-orange-700">
-                            ₹{floor2Stats.totalDue.toLocaleString('en-IN')}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-violet-200 flex items-center justify-between text-xs">
-                        <span className="text-gray-600">{floor2Stats.totalTenants} tenants</span>
-                        <span className="text-green-700 font-semibold">{floor2Stats.paidCount} paid</span>
-                        <span className="text-orange-700 font-semibold">{floor2Stats.pendingCount} pending</span>
-                      </div>
-                      {/* Progress bar for Floor 2 */}
-                      <div className="mt-3">
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-500"
-                            style={{ 
-                              width: floor2Stats.totalExpected > 0 
-                                ? `${Math.min((floor2Stats.totalCollected / floor2Stats.totalExpected) * 100, 100)}%`
-                                : '0%'
-                            }}
-                          ></div>
-                        </div>
-                        <p className="text-xs text-gray-600 text-center mt-1">
-                          {floor2Stats.totalExpected > 0 
-                            ? ((floor2Stats.totalCollected / floor2Stats.totalExpected) * 100).toFixed(1)
-                            : 0}% collected
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
             {/* Collection Progress */}
             <div className="mb-6">
               <div className="flex items-center justify-between text-sm mb-2">
-                <span className="font-semibold text-gray-700">Overall Collection Progress</span>
+                <span className="font-semibold text-gray-700">Collection Progress</span>
                 <span className="text-gray-600">
                   {currentMonthSummary.totalExpected > 0 
                     ? ((currentMonthSummary.totalCollected / currentMonthSummary.totalExpected) * 100).toFixed(1)
@@ -708,25 +460,18 @@ const Dashboard = () => {
                             {floor1.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
-                                <div key={tenant.id} className={`rounded-lg border p-3 ${getRowBgColor(tenant).replace('hover:bg-', 'border-').replace('-100', '-200')}`}>
+                                <div key={tenant.id} className={`rounded-lg border p-3 ${isPaid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
-                                      <p className="font-bold text-gray-900">
-                                        {getTenantRoomLabel(tenant)} • 
-                                        <button
-                                          onClick={() => handleViewHistory(tenant)}
-                                          className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
-                                          title="View payment history"
-                                        >
-                                          {tenant.name}
-                                        </button>
-                                      </p>
+                                      <p className="font-bold text-gray-900">{getTenantRoomLabel(tenant)} • {tenant.name}</p>
                                       {tenant.roomCount > 1 && (
                                         <p className="text-xs text-indigo-700 font-semibold mt-1">Multi-room tenant ({tenant.roomCount} rooms)</p>
                                       )}
                                     </div>
-                                    <span className={`text-xs px-2 py-1 rounded font-semibold ${getStatusBadgeColor(tenant)}`}>
+                                    <span className={`text-xs px-2 py-1 rounded font-semibold ${
+                                      isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
+                                    }`}>
                                       {isPaid ? '✅ Paid' : '❌ Pending'}
                                     </span>
                                   </div>
@@ -736,37 +481,12 @@ const Dashboard = () => {
                                     <p>Expected: <span className="font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</span></p>
                                     <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
                                   </div>
-                                  {isPaid && tenant.totalMeterElectricity > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-blue-200 bg-blue-50 rounded p-2">
-                                      <p className="text-xs font-semibold text-blue-900 mb-2">⚡ Meter Reading Details</p>
-                                      <div className="grid grid-cols-2 gap-2 text-xs">
-                                        <p>Previous: <span className="font-semibold">{tenant.totalPreviousReading}</span></p>
-                                        <p>Current: <span className="font-semibold">{tenant.totalCurrentReading}</span></p>
-                                        <p>Units: <span className="font-semibold text-blue-700">{tenant.totalUnitsConsumed}</span></p>
-                                        <p>Rate: <span className="font-semibold">₹{tenant.globalElectricityRate}/unit</span></p>
-                                      </div>
-                                      <p className="mt-2 font-semibold text-blue-900">Bill: ₹{tenant.totalMeterElectricity.toLocaleString('en-IN', {maximumFractionDigits: 2})}</p>
-                                    </div>
-                                  )}
-                                  <div className="mt-2 text-sm text-gray-700">
-                                    <p className="mb-1">Payment: {tenant.paidDate || '-'}</p>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
-                                      {tenant.dueStatusText && (
-                                        <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{
-                                          backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' : 
-                                                         tenant.dueStatusColor === 'orange' ? '#fed7aa' : 
-                                                         tenant.dueStatusColor === 'yellow' ? '#fef08a' : 
-                                                         tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
-                                          color: tenant.dueStatusColor === 'red' ? '#991b1b' : 
-                                                 tenant.dueStatusColor === 'orange' ? '#c2410c' : 
-                                                 tenant.dueStatusColor === 'yellow' ? '#a16207' : 
-                                                 tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
-                                        }}>
-                                          {tenant.dueStatusText}
-                                        </span>
-                                      )}
-                                    </div>
+                                  <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
+                                    <span>Payment: {tenant.paidDate || '-'}</span>
+                                    <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
+                                    {tenant.isDelayed && (
+                                      <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -796,19 +516,17 @@ const Dashboard = () => {
                                       <Fragment key={tenant.id}>
                                         <tr
                                           key={tenant.id}
-                                          className={`border-b transition-colors ${getRowBgColor(tenant)}`}
+                                          className={`border-b transition-colors ${
+                                            isPaid
+                                              ? 'bg-green-50 hover:bg-green-100'
+                                              : 'bg-red-50 hover:bg-red-100'
+                                          }`}
                                         >
                                           <td className="px-3 py-2 font-semibold whitespace-nowrap" title={getTenantRoomLabel(tenant)}>
                                             {getCompactRoomLabel(tenant)}
                                           </td>
                                           <td className="px-3 py-2">
-                                            <button
-                                              onClick={() => handleViewHistory(tenant)}
-                                              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer font-medium"
-                                              title="View payment history"
-                                            >
-                                              {tenant.name}
-                                            </button>
+                                            {tenant.name}
                                             {tenant.roomCount > 1 && (
                                               <div className="mt-1 flex items-center gap-2">
                                                 <span className="text-xs text-indigo-700 font-semibold">Multi-room tenant</span>
@@ -823,42 +541,30 @@ const Dashboard = () => {
                                             )}
                                           </td>
                                           <td className="px-3 py-2 text-right text-gray-700">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
-                                          <td
-                                            className="px-3 py-2 text-right text-blue-700 cursor-help"
-                                            title={isPaid && tenant.totalMeterElectricity > 0
-                                              ? `Prev: ${tenant.totalPreviousReading} → Curr: ${tenant.totalCurrentReading} = ${tenant.totalUnitsConsumed} units × ₹${tenant.globalElectricityRate}/unit = ₹${tenant.totalMeterElectricity.toFixed(2)}`
-                                              : ''}
-                                          >
-                                            {isPaid && tenant.totalMeterElectricity > 0 ? `₹${tenant.totalMeterElectricity.toLocaleString('en-IN', {maximumFractionDigits: 2})}` : '₹' + tenant.expectedElectricity.toLocaleString('en-IN')}
-                                          </td>
+                                          <td className="px-3 py-2 text-right text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</td>
                                           <td className="px-3 py-2 text-right font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
                                           <td className={`px-3 py-2 text-right font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>
                                             ₹{tenant.collectedAmount.toLocaleString('en-IN')}
                                           </td>
                                           <td className="px-3 py-2">
                                             <div className="flex items-center gap-2">
-                                              <span className="text-sm whitespace-nowrap">{tenant.paidDate || '-'}</span>
-                                              {tenant.dueStatusText && (
-                                                <span className="text-xs font-semibold whitespace-nowrap" style={{
-                                                  color: tenant.dueStatusColor === 'red' ? '#991b1b' : 
-                                                         tenant.dueStatusColor === 'orange' ? '#c2410c' : 
-                                                         tenant.dueStatusColor === 'yellow' ? '#a16207' : 
-                                                         tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
-                                                }}>
-                                                  {tenant.dueStatusText}
-                                                </span>
+                                              <span>{tenant.paidDate || '-'}</span>
+                                              {tenant.isDelayed && (
+                                                <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
                                               )}
                                             </div>
                                           </td>
                                           <td className="px-3 py-2 text-center">
-                                            <span className={`text-xs px-2 py-1 rounded font-semibold ${getStatusBadgeColor(tenant)}`}>
+                                            <span className={`text-xs px-2 py-1 rounded font-semibold ${
+                                              isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
+                                            }`}>
                                               {isPaid ? '✅ Paid' : '❌ Pending'}
                                             </span>
                                           </td>
                                         </tr>
                                         {tenant.roomCount > 1 && expanded && (
                                           <tr className="bg-indigo-50 border-b">
-                                            <td className="px-3 py-2" colSpan={6}>
+                                            <td className="px-3 py-2" colSpan={8}>
                                               <div className="text-xs font-semibold text-indigo-900 mb-2">Room-wise collected split</div>
                                               <div className="overflow-x-auto">
                                                 <table className="w-full text-xs">
@@ -919,25 +625,18 @@ const Dashboard = () => {
                             {floor2.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
-                                <div key={tenant.id} className={`rounded-lg border p-3 ${getRowBgColor(tenant).replace('hover:bg-', 'border-').replace('-100', '-200')}`}>
+                                <div key={tenant.id} className={`rounded-lg border p-3 ${isPaid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
-                                      <p className="font-bold text-gray-900">
-                                        {getTenantRoomLabel(tenant)} • 
-                                        <button
-                                          onClick={() => handleViewHistory(tenant)}
-                                          className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
-                                          title="View payment history"
-                                        >
-                                          {tenant.name}
-                                        </button>
-                                      </p>
+                                      <p className="font-bold text-gray-900">{getTenantRoomLabel(tenant)} • {tenant.name}</p>
                                       {tenant.roomCount > 1 && (
                                         <p className="text-xs text-indigo-700 font-semibold mt-1">Multi-room tenant ({tenant.roomCount} rooms)</p>
                                       )}
                                     </div>
-                                    <span className={`text-xs px-2 py-1 rounded font-semibold ${getStatusBadgeColor(tenant)}`}>
+                                    <span className={`text-xs px-2 py-1 rounded font-semibold ${
+                                      isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
+                                    }`}>
                                       {isPaid ? '✅ Paid' : '❌ Pending'}
                                     </span>
                                   </div>
@@ -947,37 +646,12 @@ const Dashboard = () => {
                                     <p>Expected: <span className="font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</span></p>
                                     <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
                                   </div>
-                                  {isPaid && tenant.totalMeterElectricity > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-blue-200 bg-blue-50 rounded p-2">
-                                      <p className="text-xs font-semibold text-blue-900 mb-2">⚡ Meter Reading Details</p>
-                                      <div className="grid grid-cols-2 gap-2 text-xs">
-                                        <p>Previous: <span className="font-semibold">{tenant.totalPreviousReading}</span></p>
-                                        <p>Current: <span className="font-semibold">{tenant.totalCurrentReading}</span></p>
-                                        <p>Units: <span className="font-semibold text-blue-700">{tenant.totalUnitsConsumed}</span></p>
-                                        <p>Rate: <span className="font-semibold">₹{tenant.globalElectricityRate}/unit</span></p>
-                                      </div>
-                                      <p className="mt-2 font-semibold text-blue-900">Bill: ₹{tenant.totalMeterElectricity.toLocaleString('en-IN', {maximumFractionDigits: 2})}</p>
-                                    </div>
-                                  )}
-                                  <div className="mt-2 text-sm text-gray-700">
-                                    <p className="mb-1">Payment: {tenant.paidDate || '-'}</p>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
-                                      {tenant.dueStatusText && (
-                                        <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{
-                                          backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' : 
-                                                         tenant.dueStatusColor === 'orange' ? '#fed7aa' : 
-                                                         tenant.dueStatusColor === 'yellow' ? '#fef08a' : 
-                                                         tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
-                                          color: tenant.dueStatusColor === 'red' ? '#991b1b' : 
-                                                 tenant.dueStatusColor === 'orange' ? '#c2410c' : 
-                                                 tenant.dueStatusColor === 'yellow' ? '#a16207' : 
-                                                 tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
-                                        }}>
-                                          {tenant.dueStatusText}
-                                        </span>
-                                      )}
-                                    </div>
+                                  <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
+                                    <span>Payment: {tenant.paidDate || '-'}</span>
+                                    <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
+                                    {tenant.isDelayed && (
+                                      <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -1007,19 +681,17 @@ const Dashboard = () => {
                                       <Fragment key={tenant.id}>
                                         <tr
                                           key={tenant.id}
-                                          className={`border-b transition-colors ${getRowBgColor(tenant)}`}
+                                          className={`border-b transition-colors ${
+                                            isPaid
+                                              ? 'bg-green-50 hover:bg-green-100'
+                                              : 'bg-red-50 hover:bg-red-100'
+                                          }`}
                                         >
                                           <td className="px-3 py-2 font-semibold whitespace-nowrap" title={getTenantRoomLabel(tenant)}>
                                             {getCompactRoomLabel(tenant)}
                                           </td>
                                           <td className="px-3 py-2">
-                                            <button
-                                              onClick={() => handleViewHistory(tenant)}
-                                              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer font-medium"
-                                              title="View payment history"
-                                            >
-                                              {tenant.name}
-                                            </button>
+                                            {tenant.name}
                                             {tenant.roomCount > 1 && (
                                               <div className="mt-1 flex items-center gap-2">
                                                 <span className="text-xs text-indigo-700 font-semibold">Multi-room tenant</span>
@@ -1034,42 +706,30 @@ const Dashboard = () => {
                                             )}
                                           </td>
                                           <td className="px-3 py-2 text-right text-gray-700">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
-                                          <td
-                                            className="px-3 py-2 text-right text-blue-700 cursor-help"
-                                            title={isPaid && tenant.totalMeterElectricity > 0
-                                              ? `Prev: ${tenant.totalPreviousReading} → Curr: ${tenant.totalCurrentReading} = ${tenant.totalUnitsConsumed} units × ₹${tenant.globalElectricityRate}/unit = ₹${tenant.totalMeterElectricity.toFixed(2)}`
-                                              : ''}
-                                          >
-                                            {isPaid && tenant.totalMeterElectricity > 0 ? `₹${tenant.totalMeterElectricity.toLocaleString('en-IN', {maximumFractionDigits: 2})}` : '₹' + tenant.expectedElectricity.toLocaleString('en-IN')}
-                                          </td>
+                                          <td className="px-3 py-2 text-right text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</td>
                                           <td className="px-3 py-2 text-right font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
                                           <td className={`px-3 py-2 text-right font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>
                                             ₹{tenant.collectedAmount.toLocaleString('en-IN')}
                                           </td>
                                           <td className="px-3 py-2">
                                             <div className="flex items-center gap-2">
-                                              <span className="text-sm whitespace-nowrap">{tenant.paidDate || '-'}</span>
-                                              {tenant.dueStatusText && (
-                                                <span className="text-xs font-semibold whitespace-nowrap" style={{
-                                                  color: tenant.dueStatusColor === 'red' ? '#991b1b' : 
-                                                         tenant.dueStatusColor === 'orange' ? '#c2410c' : 
-                                                         tenant.dueStatusColor === 'yellow' ? '#a16207' : 
-                                                         tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
-                                                }}>
-                                                  {tenant.dueStatusText}
-                                                </span>
+                                              <span>{tenant.paidDate || '-'}</span>
+                                              {tenant.isDelayed && (
+                                                <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
                                               )}
                                             </div>
                                           </td>
                                           <td className="px-3 py-2 text-center">
-                                            <span className={`text-xs px-2 py-1 rounded font-semibold ${getStatusBadgeColor(tenant)}`}>
+                                            <span className={`text-xs px-2 py-1 rounded font-semibold ${
+                                              isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
+                                            }`}>
                                               {isPaid ? '✅ Paid' : '❌ Pending'}
                                             </span>
                                           </td>
                                         </tr>
                                         {tenant.roomCount > 1 && expanded && (
                                           <tr className="bg-indigo-50 border-b">
-                                            <td className="px-3 py-2" colSpan={6}>
+                                            <td className="px-3 py-2" colSpan={8}>
                                               <div className="text-xs font-semibold text-indigo-900 mb-2">Room-wise collected split</div>
                                               <div className="overflow-x-auto">
                                                 <table className="w-full text-xs">
@@ -1223,15 +883,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Payment History Modal */}
-      {selectedTenantHistory && (
-        <PaymentHistoryModal
-          tenant={selectedTenantHistory}
-          payments={paymentHistory}
-          loading={loadingHistory}
-          onClose={handleCloseHistory}
-        />
-      )}
 
     </div>
   );

@@ -52,12 +52,6 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
-    // Meter history - Allow public read (for checkout settlement), admin write
-    match /meterHistory/{recordId} {
-      allow read: if true;  // ✅ Needed for checkout settlement calculations
-      allow write: if isAdmin();
-    }
-    
     // Bank accounts - Allow public read (tenant portal shows UPI for payments), admin write
     match /bankAccounts/{accountId} {
       allow read: if true;  // ✅ Tenant portal shows active UPI details
@@ -93,13 +87,6 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if true;  // Anyone can submit an application
       allow update, delete: if isAdmin();
-    }
-
-    // Checkout requests - tenants can create and read, admin can manage
-    match /checkoutRequests/{requestId} {
-      allow read: if true;  // ✅ Tenant portal needs to read their requests
-      allow create: if true;  // ✅ Tenants can submit checkout requests (validated in app)
-      allow update, delete: if isAdmin();  // ✅ Only admin can approve/reject
     }
 
     // Import logs - Admin only
