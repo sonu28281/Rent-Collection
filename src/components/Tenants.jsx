@@ -689,230 +689,129 @@ const Tenants = () => {
         <AdminCheckoutPanel />
       ) : categoryFilter === 'tenants' ? (
       <>
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="card py-3 bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-sm">Total Tenants</p>
-              <p className="text-3xl font-bold mt-1">{stats.total}</p>
+              <p className="text-blue-100 text-xs">Total</p>
+              <p className="text-2xl font-bold">{stats.total}</p>
             </div>
-            <div className="text-4xl">👥</div>
+            <div className="text-3xl">👥</div>
           </div>
         </div>
 
-        <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
+        <div className="card py-3 bg-gradient-to-br from-green-500 to-green-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-sm">Active Tenants</p>
-              <p className="text-3xl font-bold mt-1">{stats.active}</p>
+              <p className="text-green-100 text-xs">Active</p>
+              <p className="text-2xl font-bold">{stats.active}</p>
             </div>
-            <div className="text-4xl">✅</div>
+            <div className="text-3xl">✅</div>
           </div>
         </div>
 
-        <div className="card bg-gradient-to-br from-gray-500 to-gray-600 text-white">
+        <div className="card py-3 bg-gradient-to-br from-gray-500 to-gray-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-100 text-sm">Inactive Tenants</p>
-              <p className="text-3xl font-bold mt-1">{stats.inactive}</p>
+              <p className="text-gray-100 text-xs">Inactive</p>
+              <p className="text-2xl font-bold">{stats.inactive}</p>
             </div>
-            <div className="text-4xl">📋</div>
+            <div className="text-3xl">📋</div>
           </div>
         </div>
       </div>
 
-      {/* Filter Buttons */}
-      <div className="card mb-6 space-y-4">
-        {/* Active/Inactive Filters */}
-        <div>
-          <label className="text-sm font-semibold text-gray-700 mb-2 block">Status Filter</label>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                filter === 'all'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              All Tenants ({stats.total})
-            </button>
-            <button
-              onClick={() => setFilter('active')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                filter === 'active'
-                  ? 'bg-green-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Active ({stats.active})
-            </button>
-            <button
-              onClick={() => setFilter('inactive')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                filter === 'inactive'
-                  ? 'bg-gray-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Inactive ({stats.inactive})
-            </button>
+      {/* Filters & Tools */}
+      <div className="card mb-4 space-y-2">
+        {/* Row 1: Status + KYC filters */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="text-xs font-semibold text-gray-500 uppercase">Status:</span>
+          <div className="flex gap-1.5">
+            {[
+              { key: 'all', label: `All (${stats.total})`, color: 'bg-primary' },
+              { key: 'active', label: `Active (${stats.active})`, color: 'bg-green-500' },
+              { key: 'inactive', label: `Inactive (${stats.inactive})`, color: 'bg-gray-500' },
+            ].map(f => (
+              <button key={f.key} onClick={() => setFilter(f.key)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${filter === f.key ? `${f.color} text-white` : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >{f.label}</button>
+            ))}
+          </div>
+
+          <span className="text-gray-300 hidden sm:inline">|</span>
+
+          <span className="text-xs font-semibold text-gray-500 uppercase">KYC:</span>
+          <div className="flex gap-1.5">
+            {[
+              { key: 'all', label: 'All', color: 'bg-emerald-500' },
+              { key: 'verified', label: `✅ (${stats.kycVerified})`, color: 'bg-green-600' },
+              { key: 'not_verified', label: `⚠️ (${stats.kycNotVerified})`, color: 'bg-amber-600' },
+            ].map(f => (
+              <button key={f.key} onClick={() => setKycFilter(f.key)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${kycFilter === f.key ? `${f.color} text-white` : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >{f.label}</button>
+            ))}
           </div>
         </div>
 
-        {/* Floor Filters */}
-        <div className="hidden md:block">
-          <label className="text-sm font-semibold text-gray-700 mb-2 block">Floor Filter</label>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setFloorFilter('all')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                floorFilter === 'all'
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              All Floors
-            </button>
-            <button
-              onClick={() => setFloorFilter('floor1')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                floorFilter === 'floor1'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Floor 1 (Ground) ({stats.floor1})
-            </button>
-            <button
-              onClick={() => setFloorFilter('floor2')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                floorFilter === 'floor2'
-                  ? 'bg-indigo-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Floor 2 (First) ({stats.floor2})
-            </button>
+        {/* Row 2: Floor filter (desktop) + View mode */}
+        <div className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="text-xs font-semibold text-gray-500 uppercase">Floor:</span>
+          <div className="flex gap-1.5">
+            {[
+              { key: 'all', label: 'All', color: 'bg-purple-500' },
+              { key: 'floor1', label: `F1 (${stats.floor1})`, color: 'bg-blue-500' },
+              { key: 'floor2', label: `F2 (${stats.floor2})`, color: 'bg-indigo-500' },
+            ].map(f => (
+              <button key={f.key} onClick={() => setFloorFilter(f.key)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${floorFilter === f.key ? `${f.color} text-white` : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >{f.label}</button>
+            ))}
+          </div>
+
+          <span className="text-gray-300">|</span>
+
+          <span className="text-xs font-semibold text-gray-500 uppercase">View:</span>
+          <div className="flex gap-1.5">
+            <button onClick={() => setViewMode('card')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${viewMode === 'card' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            >🎴 Card</button>
+            <button onClick={() => setViewMode('table')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${viewMode === 'table' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            >📋 Table</button>
           </div>
         </div>
 
-        {/* KYC Filters */}
-        <div>
-          <label className="text-sm font-semibold text-gray-700 mb-2 block">KYC Filter</label>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setKycFilter('all')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                kycFilter === 'all'
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              All ({stats.total})
-            </button>
-            <button
-              onClick={() => setKycFilter('verified')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                kycFilter === 'verified'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Verified ({stats.kycVerified})
-            </button>
-            <button
-              onClick={() => setKycFilter('not_verified')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                kycFilter === 'not_verified'
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Not Verified ({stats.kycNotVerified})
+        {/* Merge Duplicate Tenants - collapsible */}
+        <details className="border-t border-gray-100 pt-2">
+          <summary className="cursor-pointer text-xs font-semibold text-amber-700 hover:text-amber-900 select-none">
+            🧩 Merge Duplicate Tenants
+          </summary>
+          <div className="mt-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+            <p className="text-xs text-amber-800 mb-2">Source tenant deactivated, records move to target.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+              <select value={mergeTargetTenantId} onChange={(e) => setMergeTargetTenantId(e.target.value)} disabled={mergingTenants}
+                className="w-full px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white">
+                <option value="">Target (keep)</option>
+                {tenants.map((t) => (
+                  <option key={`target_${t.id}`} value={t.id}>{t.name} ({getAssignedRooms(t).join(', ') || '-'}) {t.isActive ? '' : '[Inactive]'}</option>
+                ))}
+              </select>
+              <select value={mergeSourceTenantId} onChange={(e) => setMergeSourceTenantId(e.target.value)} disabled={mergingTenants}
+                className="w-full px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white">
+                <option value="">Source (merge into target)</option>
+                {tenants.map((t) => (
+                  <option key={`source_${t.id}`} value={t.id}>{t.name} ({getAssignedRooms(t).join(', ') || '-'}) {t.isActive ? '' : '[Inactive]'}</option>
+                ))}
+              </select>
+            </div>
+            <button onClick={mergeTenantAccounts} disabled={mergingTenants}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 text-xs">
+              {mergingTenants ? 'Merging...' : 'Merge'}
             </button>
           </div>
-        </div>
-
-        {/* View Mode Toggle */}
-        <div className="hidden md:block">
-          <label className="text-sm font-semibold text-gray-700 mb-2 block">View Mode</label>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setViewMode('card')}
-              className={`px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 ${
-                viewMode === 'card'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              <span>🎴</span> Card View
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 ${
-                viewMode === 'table'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              <span>📋</span> Table View
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Merge Tenant Accounts */}
-      <div className="card mb-6 border-2 border-amber-200 bg-amber-50">
-        <h3 className="text-lg font-bold text-amber-900 mb-3">🧩 Merge Duplicate Tenants</h3>
-        <p className="text-sm text-amber-800 mb-3">
-          Use this when the same person was added twice. Source tenant will be deactivated and records will move to target tenant.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-          <div>
-            <label className="block text-xs font-semibold text-amber-900 mb-1">Target Tenant (keep this)</label>
-            <select
-              value={mergeTargetTenantId}
-              onChange={(event) => setMergeTargetTenantId(event.target.value)}
-              disabled={mergingTenants}
-              className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white"
-            >
-              <option value="">Select target tenant</option>
-              {tenants.map((tenant) => (
-                <option key={`target_${tenant.id}`} value={tenant.id}>
-                  {tenant.name} ({getAssignedRooms(tenant).join(', ') || '-'}) {tenant.isActive ? '' : '[Inactive]'}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-amber-900 mb-1">Source Tenant (merge this into target)</label>
-            <select
-              value={mergeSourceTenantId}
-              onChange={(event) => setMergeSourceTenantId(event.target.value)}
-              disabled={mergingTenants}
-              className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white"
-            >
-              <option value="">Select source tenant</option>
-              {tenants.map((tenant) => (
-                <option key={`source_${tenant.id}`} value={tenant.id}>
-                  {tenant.name} ({getAssignedRooms(tenant).join(', ') || '-'}) {tenant.isActive ? '' : '[Inactive]'}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <button
-          onClick={mergeTenantAccounts}
-          disabled={mergingTenants}
-          className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
-        >
-          {mergingTenants ? 'Merging...' : 'Merge Tenants'}
-        </button>
+        </details>
       </div>
 
       {/* Tenants List */}
