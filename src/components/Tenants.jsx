@@ -172,7 +172,7 @@ const Tenants = () => {
     const mergedRooms = [...new Set([...targetRooms, ...sourceRooms])].sort((a, b) => Number(a) - Number(b));
 
     const confirmed = await showConfirm(
-      `Merge "${sourceTenant.name}" into "${targetTenant.name}"?\n\nTarget rooms: ${targetRooms.join(', ') || '-'}\nSource rooms: ${sourceRooms.join(', ') || '-'}\nMerged rooms: ${mergedRooms.join(', ') || '-'}\n\nSource tenant will be marked inactive after merge.`,
+      `Merge "${sourceTenant.name}" into "${targetTenant.name}"?\n\nTarget rooms: ${targetRooms.join(', ') || '-'}\nSource rooms: ${sourceRooms.join(', ') || '-'}\nMerged rooms: ${mergedRooms.join(', ') || '-'}\n\nSource tenant will become a past tenant after merge.`,
       { title: 'Confirm Tenant Merge', confirmLabel: 'Merge Now', intent: 'warning' }
     );
 
@@ -714,7 +714,7 @@ const Tenants = () => {
         <div className="card py-3 bg-gradient-to-br from-gray-500 to-gray-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-100 text-xs">Inactive</p>
+              <p className="text-gray-100 text-xs">Past</p>
               <p className="text-2xl font-bold">{stats.inactive}</p>
             </div>
             <div className="text-3xl">📋</div>
@@ -731,7 +731,7 @@ const Tenants = () => {
             {[
               { key: 'all', label: `All (${stats.total})`, color: 'bg-primary' },
               { key: 'active', label: `Active (${stats.active})`, color: 'bg-green-500' },
-              { key: 'inactive', label: `Inactive (${stats.inactive})`, color: 'bg-gray-500' },
+              { key: 'inactive', label: `Past (${stats.inactive})`, color: 'bg-gray-500' },
             ].map(f => (
               <button key={f.key} onClick={() => setFilter(f.key)}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${filter === f.key ? `${f.color} text-white` : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
@@ -795,14 +795,14 @@ const Tenants = () => {
                 className="w-full px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white">
                 <option value="">Target (keep)</option>
                 {tenants.map((t) => (
-                  <option key={`target_${t.id}`} value={t.id}>{t.name} ({getAssignedRooms(t).join(', ') || '-'}) {t.isActive ? '' : '[Inactive]'}</option>
+                  <option key={`target_${t.id}`} value={t.id}>{t.name} ({getAssignedRooms(t).join(', ') || '-'}) {t.isActive ? '' : '[Past]'}</option>
                 ))}
               </select>
               <select value={mergeSourceTenantId} onChange={(e) => setMergeSourceTenantId(e.target.value)} disabled={mergingTenants}
                 className="w-full px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white">
                 <option value="">Source (merge into target)</option>
                 {tenants.map((t) => (
-                  <option key={`source_${t.id}`} value={t.id}>{t.name} ({getAssignedRooms(t).join(', ') || '-'}) {t.isActive ? '' : '[Inactive]'}</option>
+                  <option key={`source_${t.id}`} value={t.id}>{t.name} ({getAssignedRooms(t).join(', ') || '-'}) {t.isActive ? '' : '[Past]'}</option>
                 ))}
               </select>
             </div>
@@ -925,7 +925,7 @@ const Tenants = () => {
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                         tenant.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {tenant.isActive ? '✅ Active' : '📋 Inactive'}
+                        {tenant.isActive ? '✅ Active' : '📋 Past'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1367,7 +1367,7 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc }) => 
                 ? 'bg-green-500 text-white'
                 : 'bg-gray-500 text-white'
             }`}>
-              {isActive ? '✅ Active' : '📋 Inactive'}
+              {isActive ? '✅ Active' : '📋 Past'}
             </span>
             {assignedRooms.length > 0 && (
               <span className="px-3 py-1 rounded-full text-sm font-semibold bg-blue-500 text-white">

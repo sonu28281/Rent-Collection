@@ -89,7 +89,7 @@ const AdminCheckoutPanel = () => {
     }
 
     const confirmed = await showConfirm(
-      `${request.tenantName} (Room ${request.roomNumber}) ka checkout approve karna hai?\n\nYe hoga:\n• Tenant inactive ho jayega\n• Room vacant ho jayega\n\nKya sab pending payments clear ho gayi hain?`,
+      `${request.tenantName} (Room ${request.roomNumber}) ka checkout approve karna hai?\n\nYe hoga:\n• Tenant past tenant ho jayega\n• Room vacant ho jayega\n\nKya sab pending payments clear ho gayi hain?`,
       { title: 'Approve Checkout', confirmLabel: 'Approve Checkout', intent: 'warning' }
     );
     if (!confirmed) return;

@@ -136,6 +136,7 @@ const TenantHistory = () => {
           const tenantId = doc.id;
           const tenantName = data.name?.trim();
           if (!tenantName) return;
+          const nameKey = tenantName.toLowerCase();
 
           // Ensure isActive is properly calculated
           let isActive = Boolean(data.isActive);
@@ -143,9 +144,10 @@ const TenantHistory = () => {
             isActive = data.status !== 'inactive';
           }
 
-          if (!tenantMap.has(tenantName)) {
-            tenantMap.set(tenantName, {
+          if (!tenantMap.has(nameKey)) {
+            tenantMap.set(nameKey, {
               id: tenantId,
+              allIds: [tenantId],
               name: tenantName,
               isActive: isActive,
               roomNumber: data.roomNumber ?? null,
@@ -159,10 +161,12 @@ const TenantHistory = () => {
               source: 'tenantDoc'
             });
           } else {
-            const existing = tenantMap.get(tenantName);
-            tenantMap.set(tenantName, {
+            const existing = tenantMap.get(nameKey);
+            const allIds = [...new Set([...(existing.allIds || []), tenantId])];
+            tenantMap.set(nameKey, {
               ...existing,
               id: existing.id || tenantId,
+              allIds,
               isActive: existing.isActive || Boolean(data.isActive),
               roomNumber: existing.roomNumber ?? data.roomNumber ?? null,
               checkInDate: existing.checkInDate ?? data.checkInDate ?? null,
@@ -175,6 +179,7 @@ const TenantHistory = () => {
           const data = doc.data();
           const tenantName = (data.tenantNameSnapshot || data.tenantName || '').trim();
           const paymentTenantId = data.tenantId || null;
+          const nameKey = tenantName.toLowerCase();
 
           if (
             !tenantName ||
@@ -196,9 +201,10 @@ const TenantHistory = () => {
           const sortKey = yearMonth ? toSortKey(yearMonth.year, yearMonth.month) : null;
           const roomFromPayment = data.roomNumber ?? null;
 
-          if (!tenantMap.has(tenantName)) {
-            tenantMap.set(tenantName, {
+          if (!tenantMap.has(nameKey)) {
+            tenantMap.set(nameKey, {
               id: paymentTenantId,
+              allIds: paymentTenantId ? [paymentTenantId] : [],
               name: tenantName,
               isActive: false,
               roomNumber: roomFromPayment,
@@ -216,7 +222,7 @@ const TenantHistory = () => {
             return;
           }
 
-          const existing = tenantMap.get(tenantName);
+          const existing = tenantMap.get(nameKey);
           const nextFirstSort = Number.isFinite(sortKey) && (!Number.isFinite(existing.firstStaySortKey) || sortKey < existing.firstStaySortKey)
             ? sortKey
             : existing.firstStaySortKey;
@@ -229,9 +235,10 @@ const TenantHistory = () => {
             roomsSet.add(String(roomFromPayment));
           }
 
-          tenantMap.set(tenantName, {
+          tenantMap.set(nameKey, {
             ...existing,
             id: existing.id || paymentTenantId,
+            allIds: paymentTenantId ? [...new Set([...(existing.allIds || []), paymentTenantId])] : (existing.allIds || []),
             roomNumber: existing.roomNumber ?? roomFromPayment,
             firstStaySortKey: nextFirstSort,
             lastStaySortKey: nextLastSort,
@@ -265,7 +272,7 @@ const TenantHistory = () => {
   // Load tenant history
   const loadTenantHistory = async (tenantObj) => {
     const tenantName = tenantObj.name;
-    const tenantId = tenantObj.id || null;
+    const tenantIds = new Set(tenantObj.allIds || (tenantObj.id ? [tenantObj.id] : []));
     setLoading(true);
     setSelectedTenant(tenantObj);
     
@@ -273,13 +280,13 @@ const TenantHistory = () => {
       const paymentsRef = collection(db, 'payments');
       const snapshot = await getDocs(paymentsRef);
       
-      // Filter payments for this tenant
+      // Filter payments for this tenant (match any of the tenant's IDs or name)
       const history = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(p => {
           const name = (p.tenantNameSnapshot || p.tenantName || '').trim();
-          if (tenantId && p.tenantId === tenantId) return true;
-          if (!p.tenantId && name === tenantName) return true;
+          if (p.tenantId && tenantIds.has(p.tenantId)) return true;
+          if (!p.tenantId && name.toLowerCase() === tenantName.toLowerCase()) return true;
           return false;
         })
         .sort((a, b) => {
@@ -315,13 +322,16 @@ const TenantHistory = () => {
       const stats = calculateStats(history);
       setStats(stats);
 
-      // Fetch meter history for this tenant
+      // Fetch meter history for this tenant (all IDs)
       try {
         const readingsRef = collection(db, 'electricityReadings');
-        const readingQuery = query(readingsRef, where('tenantId', '==', tenantId));
-        const readingsSnapshot = await getDocs(readingQuery);
-        const readings = readingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setMeterHistory(readings);
+        const allReadings = [];
+        for (const tid of tenantIds) {
+          const readingQuery = query(readingsRef, where('tenantId', '==', tid));
+          const readingsSnapshot = await getDocs(readingQuery);
+          readingsSnapshot.docs.forEach(doc => allReadings.push({ id: doc.id, ...doc.data() }));
+        }
+        setMeterHistory(allReadings);
       } catch (error) {
         console.log('No meter history found for this tenant:', error.message);
         setMeterHistory([]);
