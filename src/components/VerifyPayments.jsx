@@ -343,67 +343,6 @@ const VerifyPayments = () => {
         data.push({ id: doc.id, ...doc.data() });
       });
 
-      if (filter === 'pending') {
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth() + 1;
-
-        const [tenantsSnapshot, currentMonthPaymentsSnapshot, currentMonthSubmissionsSnapshot] = await Promise.all([
-          getDocs(query(collection(db, 'tenants'), where('isActive', '==', true))),
-          getDocs(query(collection(db, 'payments'), where('year', '==', currentYear), where('month', '==', currentMonth))),
-          getDocs(query(collection(db, 'paymentSubmissions'), where('year', '==', currentYear), where('month', '==', currentMonth)))
-        ]);
-
-        const activeTenants = tenantsSnapshot.docs.map((tenantDoc) => ({ id: tenantDoc.id, ...tenantDoc.data() }));
-        const currentMonthPayments = currentMonthPaymentsSnapshot.docs.map((paymentDoc) => ({ id: paymentDoc.id, ...paymentDoc.data() }));
-        const currentMonthSubmissions = currentMonthSubmissionsSnapshot.docs.map((submissionDoc) => ({ id: submissionDoc.id, ...submissionDoc.data() }));
-
-        const alreadyListedIds = new Set(data.map((item) => item.id));
-
-        activeTenants.forEach((tenant) => {
-          const hasPaidRecord = currentMonthPayments.some((payment) => {
-            const roomMatches = String(payment.roomNumber) === String(tenant.roomNumber);
-            const tenantMatches = payment.tenantId === tenant.id || (payment.tenantNameSnapshot === tenant.name);
-            return roomMatches && tenantMatches && payment.status === 'paid';
-          });
-
-          if (hasPaidRecord) {
-            return;
-          }
-
-          const tenantSubmission = currentMonthSubmissions.find((submission) => submission.tenantId === tenant.id);
-          if (tenantSubmission) {
-            if (tenantSubmission.status === 'pending' && !alreadyListedIds.has(tenantSubmission.id)) {
-              data.push(tenantSubmission);
-            }
-            return;
-          }
-
-          const placeholderId = `placeholder_${tenant.id}_${currentYear}_${currentMonth}`;
-          if (alreadyListedIds.has(placeholderId)) {
-            return;
-          }
-
-          data.push({
-            id: placeholderId,
-            isPlaceholder: true,
-            awaitingSubmission: true,
-            status: 'pending',
-            tenantId: tenant.id,
-            tenantName: tenant.name,
-            roomNumber: tenant.roomNumber,
-            year: currentYear,
-            month: currentMonth,
-            paidAmount: 0,
-            rentAmount: Number(tenant.currentRent || 0),
-            electricityAmount: 0,
-            paidDate: '',
-            submittedAt: null,
-            notes: 'Waiting for tenant to submit payment proof.'
-          });
-        });
-      }
-
       data.sort((a, b) => {
         const aTime = a?.submittedAt ? new Date(a.submittedAt).getTime() : 0;
         const bTime = b?.submittedAt ? new Date(b.submittedAt).getTime() : 0;

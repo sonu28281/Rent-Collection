@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy, doc, getDoc, updateDoc, setDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, updateDoc, setDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
   calculateElectricityCharges,
@@ -50,7 +50,7 @@ const AdminCheckoutPanel = () => {
 
       // Fetch all pending checkout requests
       const requestsRef = collection(db, 'checkoutRequests');
-      const requestsQuery = query(requestsRef, where('status', '==', 'pending'), orderBy('requestedAt', 'desc'));
+      const requestsQuery = query(requestsRef, where('status', '==', 'pending'));
       const requestsSnapshot = await getDocs(requestsQuery);
 
       const requestsData = [];
@@ -67,6 +67,13 @@ const AdminCheckoutPanel = () => {
 
         requestsData.push(request);
       }
+
+      // Sort by requestedAt descending (client-side to avoid composite index requirement)
+      requestsData.sort((a, b) => {
+        const aTime = a.requestedAt?.toMillis?.() || a.requestedAt?.seconds * 1000 || 0;
+        const bTime = b.requestedAt?.toMillis?.() || b.requestedAt?.seconds * 1000 || 0;
+        return bTime - aTime;
+      });
 
       setCheckoutRequests(requestsData);
     } catch (error) {
@@ -358,7 +365,7 @@ const AdminCheckoutPanel = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading checkout requests...</p>
@@ -368,7 +375,7 @@ const AdminCheckoutPanel = () => {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Checkout Requests</h1>

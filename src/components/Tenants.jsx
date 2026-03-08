@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, addDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import TenantForm from './TenantForm';
+import AdminCheckoutPanel from './AdminCheckoutPanel';
 import { useDialog } from './ui/DialogProvider';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
 
@@ -9,6 +10,7 @@ const Tenants = () => {
   const { showConfirm, showAlert } = useDialog();
   const [tenants, setTenants] = useState([]);
   const [applicants, setApplicants] = useState([]); // KYC applicants (not yet tenants)
+  const [checkoutCount, setCheckoutCount] = useState(0);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,7 +19,7 @@ const Tenants = () => {
   const [filter, setFilter] = useState('all'); // all, active, inactive
   const [kycFilter, setKycFilter] = useState('all'); // all, verified, not_verified
   const [floorFilter, setFloorFilter] = useState('all'); // all, floor1, floor2
-  const [categoryFilter, setCategoryFilter] = useState('tenants'); // tenants, applicants
+  const [categoryFilter, setCategoryFilter] = useState('tenants'); // tenants, applicants, checkout
   const [viewingKyc, setViewingKyc] = useState(null); // Applicant whose KYC to view
   const [assigningRoom, setAssigningRoom] = useState(null); // Applicant being assigned a room
   const [assignRoomNumber, setAssignRoomNumber] = useState('');
@@ -97,6 +99,14 @@ const Tenants = () => {
       setTenants(tenantsData);
       setRooms(roomsData);
       setApplicants(applicantsData);
+
+      // Fetch pending checkout requests count
+      try {
+        const checkoutSnapshot = await getDocs(query(collection(db, 'checkoutRequests'), where('status', '==', 'pending')));
+        setCheckoutCount(checkoutSnapshot.size);
+      } catch (checkoutErr) {
+        console.warn('Could not fetch checkoutRequests:', checkoutErr.message);
+      }
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load tenants. Please try again.');
@@ -662,9 +672,22 @@ const Tenants = () => {
             </span>
           )}
         </button>
+        <button
+          onClick={() => setCategoryFilter('checkout')}
+          className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all relative ${categoryFilter === 'checkout' ? 'bg-red-500 text-white shadow-lg shadow-red-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        >
+          🚪 Checkout Requests ({checkoutCount})
+          {checkoutCount > 0 && categoryFilter !== 'checkout' && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+              {checkoutCount}
+            </span>
+          )}
+        </button>
       </div>
 
-      {categoryFilter === 'tenants' ? (
+      {categoryFilter === 'checkout' ? (
+        <AdminCheckoutPanel />
+      ) : categoryFilter === 'tenants' ? (
       <>
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

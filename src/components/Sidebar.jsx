@@ -18,6 +18,7 @@ const Sidebar = () => {
     { icon: '📈', label: 'Rent Increase', path: '/rent-increase' },
     { icon: '💳', label: 'Payments', path: '/payments' },
     { icon: '🔍', label: 'Verify Payments', path: '/verify-payments' },
+
     { icon: '🔧', label: 'Maintenance', path: '/maintenance' },
     { icon: '📚', label: 'History Manager', path: '/history' },
     { icon: '📊', label: 'Vacancy Report', path: '/vacancy-report' },

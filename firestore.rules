@@ -94,6 +94,12 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if isAdmin();
     }
+
+    // Checkout requests - tenant creates, admin manages
+    match /checkoutRequests/{requestId} {
+      allow read: if true;
+      allow write: if true;  // ✅ Tenant portal creates checkout requests, admin approves/rejects
+    }
     
     // Logs - Admin only
     match /logs/{logId} {
