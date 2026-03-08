@@ -121,8 +121,7 @@ const Rooms = () => {
   const openStatusModal = (room) => {
     setModalRoom(room);
     // Pre-select the opposite status (toggle behaviour)
-    const current = room.status || 'vacant';
-    setModalStatus(current === 'vacant' ? 'occupied' : 'vacant');
+    setModalStatus(isRoomOccupied(room) ? 'vacant' : 'occupied');
     setModalRemark('');
     setShowStatusModal(true);
   };
@@ -262,12 +261,17 @@ const Rooms = () => {
     }
   };
 
+  // 'filled' (set by TenantForm) and 'occupied' (set by admin) both mean occupied
+  const isRoomOccupied = (room) => room.status === 'occupied' || room.status === 'filled';
+  const isRoomVacant = (room) => !isRoomOccupied(room);
+
   const filteredRooms = rooms.filter(room => {
     // Status filter
     let matchesStatusFilter = true;
-    if (filter !== 'all') {
-      const roomStatus = room.status || 'vacant';
-      matchesStatusFilter = roomStatus === filter;
+    if (filter === 'occupied') {
+      matchesStatusFilter = isRoomOccupied(room);
+    } else if (filter === 'vacant') {
+      matchesStatusFilter = isRoomVacant(room);
     }
     
     // Floor filter
@@ -283,18 +287,18 @@ const Rooms = () => {
 
   const stats = {
     total: rooms.length,
-    vacant: rooms.filter(r => (r.status || 'vacant') === 'vacant').length,
-    occupied: rooms.filter(r => r.status === 'occupied').length,
+    vacant: rooms.filter(r => isRoomVacant(r)).length,
+    occupied: rooms.filter(r => isRoomOccupied(r)).length,
     floor1: rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106).length,
     floor2: rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206).length,
-    floor1Vacant: rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106 && (r.status || 'vacant') === 'vacant').length,
-    floor2Vacant: rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206 && (r.status || 'vacant') === 'vacant').length,
+    floor1Vacant: rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106 && isRoomVacant(r)).length,
+    floor2Vacant: rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206 && isRoomVacant(r)).length,
   };
 
   // Helper: get enriched info for a room
   const getRoomInfo = (room) => {
     const rn = String(room.roomNumber);
-    const isVacant = (room.status || 'vacant') === 'vacant';
+    const isVacant = isRoomVacant(room);
     // Current tenant (occupied rooms)
     const currentTenant = !isVacant
       ? tenants.find(t => t.isActive && String(t.roomNumber) === rn)
@@ -404,7 +408,7 @@ const Rooms = () => {
                 key={r.id}
                 title={`Room ${r.roomNumber}`}
                 className={`flex-1 h-5 rounded text-xs font-bold flex items-center justify-center text-white ${
-                  (r.status || 'vacant') === 'vacant' ? 'bg-orange-400' : 'bg-green-500'
+                  isRoomVacant(r) ? 'bg-orange-400' : 'bg-green-500'
                 }`}
               >
                 {r.roomNumber}
@@ -415,7 +419,7 @@ const Rooms = () => {
             {stats.floor1 - stats.floor1Vacant}/{stats.floor1} occupied
           </p>
           {/* Vacant room quick-info */}
-          {rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106 && (r.status || 'vacant') === 'vacant').map(r => {
+          {rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106 && isRoomVacant(r)).map(r => {
             const { lastTenant, meterInfo } = getRoomInfo(r);
             return (
               <div key={r.id} className="mt-2 pl-2 border-l-2 border-orange-300 text-xs text-gray-600 space-y-0.5">
@@ -450,7 +454,7 @@ const Rooms = () => {
                 key={r.id}
                 title={`Room ${r.roomNumber}`}
                 className={`flex-1 h-5 rounded text-xs font-bold flex items-center justify-center text-white ${
-                  (r.status || 'vacant') === 'vacant' ? 'bg-orange-400' : 'bg-green-500'
+                  isRoomVacant(r) ? 'bg-orange-400' : 'bg-green-500'
                 }`}
               >
                 {r.roomNumber}
@@ -460,7 +464,7 @@ const Rooms = () => {
           <p className="text-xs text-gray-500 mt-2">
             {stats.floor2 - stats.floor2Vacant}/{stats.floor2} occupied
           </p>
-          {rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206 && (r.status || 'vacant') === 'vacant').map(r => {
+          {rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206 && isRoomVacant(r)).map(r => {
             const { lastTenant, meterInfo } = getRoomInfo(r);
             return (
               <div key={r.id} className="mt-2 pl-2 border-l-2 border-orange-300 text-xs text-gray-600 space-y-0.5">
@@ -613,9 +617,9 @@ const Rooms = () => {
           </div>
 
           {filteredRooms.map((room) => {
-            const roomStatus = room.status || 'vacant';
-            const isVacant = roomStatus === 'vacant';
+            const isVacant = isRoomVacant(room);
             const { currentTenant, lastTenant, meterInfo } = getRoomInfo(room);
+            const displayRent = room.defaultRent || currentTenant?.currentRent || null;
 
             return (
               <div key={room.id} className={`card border ${selectedRooms.has(room.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'} p-4`}>
@@ -641,7 +645,7 @@ const Rooms = () => {
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <p>Rent: <span className="font-semibold text-gray-900">₹{room.defaultRent?.toLocaleString('en-IN') || 'N/A'}</span></p>
+                  <p>Rent: <span className="font-semibold text-gray-900">{displayRent ? `₹${Number(displayRent).toLocaleString('en-IN')}` : 'N/A'}</span></p>
                   <p>Meter No: <span className="font-semibold text-gray-900">{room.electricityMeterNo || 'N/A'}</span></p>
                   {!isVacant && currentTenant && (
                     <p className="col-span-2">Tenant: <span className="font-semibold text-green-700">👤 {currentTenant.name}</span></p>
@@ -695,9 +699,9 @@ const Rooms = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredRooms.map(room => {
-                const roomStatus = room.status || 'vacant';
-                const isVacant = roomStatus === 'vacant';
+                const isVacant = isRoomVacant(room);
                 const { currentTenant, lastTenant, meterInfo } = getRoomInfo(room);
+                const displayRent = room.defaultRent || currentTenant?.currentRent || null;
 
                 return (
                   <tr key={room.id} className={selectedRooms.has(room.id) ? 'bg-blue-50' : ''}>
@@ -732,7 +736,7 @@ const Rooms = () => {
                           : <span className="text-gray-400 text-xs">—</span>}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                      {room.defaultRent ? `₹${room.defaultRent.toLocaleString('en-IN')}` : 'N/A'}
+                      {displayRent ? `₹${Number(displayRent).toLocaleString('en-IN')}` : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {room.electricityMeterNo || 'N/A'}
@@ -798,7 +802,7 @@ const Rooms = () => {
             <div className="p-6 space-y-4">
               {/* Smart toggle: show only the opposite action */}
               <div className="flex gap-3">
-                {(modalRoom.status || 'vacant') === 'vacant' ? (
+                {isRoomVacant(modalRoom) ? (
                   <button
                     type="button"
                     onClick={() => setModalStatus('occupied')}

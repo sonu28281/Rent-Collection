@@ -796,10 +796,11 @@ const Tenants = () => {
 
       {/* Floor Vacancy Bar */}
       {rooms.length > 0 && (() => {
+        const isOcc = r => r.status === 'occupied' || r.status === 'filled';
         const f1Rooms = rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106);
         const f2Rooms = rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206);
-        const f1Vacant = f1Rooms.filter(r => (r.status || 'vacant') === 'vacant').length;
-        const f2Vacant = f2Rooms.filter(r => (r.status || 'vacant') === 'vacant').length;
+        const f1Vacant = f1Rooms.filter(r => !isOcc(r)).length;
+        const f2Vacant = f2Rooms.filter(r => !isOcc(r)).length;
         return (
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className={`card py-2 px-3 border-2 ${f1Vacant > 0 ? 'border-orange-300 bg-orange-50' : 'border-green-300 bg-green-50'}`}>
@@ -807,7 +808,7 @@ const Tenants = () => {
               <div className="flex gap-0.5 mb-1">
                 {f1Rooms.map(r => (
                   <div key={r.id} title={`Room ${r.roomNumber}: ${r.status || 'vacant'}`}
-                    className={`flex-1 h-4 rounded text-[9px] font-bold flex items-center justify-center text-white ${(r.status || 'vacant') === 'vacant' ? 'bg-orange-400' : 'bg-green-500'}`}>
+                    className={`flex-1 h-4 rounded text-[9px] font-bold flex items-center justify-center text-white ${!isOcc(r) ? 'bg-orange-400' : 'bg-green-500'}`}>
                     {r.roomNumber}
                   </div>
                 ))}
@@ -822,7 +823,7 @@ const Tenants = () => {
               <div className="flex gap-0.5 mb-1">
                 {f2Rooms.map(r => (
                   <div key={r.id} title={`Room ${r.roomNumber}: ${r.status || 'vacant'}`}
-                    className={`flex-1 h-4 rounded text-[9px] font-bold flex items-center justify-center text-white ${(r.status || 'vacant') === 'vacant' ? 'bg-orange-400' : 'bg-green-500'}`}>
+                    className={`flex-1 h-4 rounded text-[9px] font-bold flex items-center justify-center text-white ${!isOcc(r) ? 'bg-orange-400' : 'bg-green-500'}`}>
                     {r.roomNumber}
                   </div>
                 ))}
