@@ -18,11 +18,16 @@ const Rooms = () => {
   const { viewMode, setViewMode, isCardView } = useResponsiveViewMode('rooms-view-mode', 'table');
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [selectedRooms, setSelectedRooms] = useState(new Set());
-  const [showStatusModal, setShowStatusModal] = useState(false);
-  const [modalRoom, setModalRoom] = useState(null);
-  const [modalStatus, setModalStatus] = useState('');
-  const [modalRemark, setModalRemark] = useState('');
   const [updating, setUpdating] = useState(false);
+  // Modal: Occupied → Vacant (dues confirmation)
+  const [vacantModal, setVacantModal] = useState(null); // room object
+  const [vacantRentCleared, setVacantRentCleared] = useState(false);
+  const [vacantElecCleared, setVacantElecCleared] = useState(false);
+  const [vacantRemark, setVacantRemark] = useState('');
+  // Modal: Vacant → Occupied (assign tenant)
+  const [occupyModal, setOccupyModal] = useState(null); // room object
+  const [occupyTenantId, setOccupyTenantId] = useState('');
+  const [occupyRemark, setOccupyRemark] = useState('');
 
   useEffect(() => {
     fetchRooms();
@@ -119,19 +124,22 @@ const Rooms = () => {
   };
 
   const openStatusModal = (room) => {
-    setModalRoom(room);
-    // Pre-select the opposite status (toggle behaviour)
-    setModalStatus(isRoomOccupied(room) ? 'vacant' : 'occupied');
-    setModalRemark('');
-    setShowStatusModal(true);
+    if (isRoomOccupied(room)) {
+      // Occupied → Vacant: show dues confirmation
+      setVacantModal(room);
+      setVacantRentCleared(false);
+      setVacantElecCleared(false);
+      setVacantRemark('');
+    } else {
+      // Vacant → Occupied: ask which tenant
+      setOccupyModal(room);
+      setOccupyTenantId('');
+      setOccupyRemark('');
+    }
   };
 
-  const closeStatusModal = () => {
-    setShowStatusModal(false);
-    setModalRoom(null);
-    setModalStatus('');
-    setModalRemark('');
-  };
+  const closeVacantModal = () => { setVacantModal(null); };
+  const closeOccupyModal = () => { setOccupyModal(null); };
 
   const updateRoomStatus = async (roomId, newStatus, remark = '') => {
     try {
@@ -166,16 +174,43 @@ const Rooms = () => {
     }
   };
 
-  const handleSaveStatus = async () => {
-    if (!modalRoom) return;
-
+  const handleMarkVacant = async () => {
+    if (!vacantModal) return;
+    if (!vacantRentCleared || !vacantElecCleared) {
+      alert('Please confirm that both rent dues and electricity dues are cleared before marking vacant.');
+      return;
+    }
     setUpdating(true);
     try {
-      await updateRoomStatus(modalRoom.id, modalStatus, modalRemark);
-      alert('Room status updated successfully!');
-      closeStatusModal();
-      fetchRooms(); // Refresh the room list
-    } catch (error) {
+      await updateRoomStatus(vacantModal.id, 'vacant', vacantRemark || 'Marked vacant by admin');
+      closeVacantModal();
+      fetchRooms();
+    } catch {
+      alert('Failed to update room status. Please try again.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleMarkOccupied = async () => {
+    if (!occupyModal) return;
+    setUpdating(true);
+    try {
+      const remark = occupyRemark || (occupyTenantId
+        ? `Assigned to tenant: ${tenants.find(t => t.id === occupyTenantId)?.name || occupyTenantId}`
+        : 'Marked occupied by admin');
+      await updateRoomStatus(occupyModal.id, 'occupied', remark);
+      // If a tenant was selected, update that tenant's roomNumber
+      if (occupyTenantId) {
+        const tenantRef = doc(db, 'tenants', occupyTenantId);
+        await updateDoc(tenantRef, {
+          roomNumber: occupyModal.roomNumber,
+          isActive: true,
+        });
+      }
+      closeOccupyModal();
+      fetchRooms();
+    } catch {
       alert('Failed to update room status. Please try again.');
     } finally {
       setUpdating(false);
@@ -666,9 +701,13 @@ const Rooms = () => {
 
                 <button
                   onClick={() => openStatusModal(room)}
-                  className="mt-3 text-primary hover:text-blue-700 font-semibold text-sm"
+                  className={`mt-3 w-full py-1.5 rounded-lg text-xs font-semibold border transition ${
+                    isVacant
+                      ? 'border-green-400 text-green-700 hover:bg-green-50'
+                      : 'border-orange-400 text-orange-700 hover:bg-orange-50'
+                  }`}
                 >
-                  Update Status
+                  {isVacant ? '✅ Mark Occupied' : '⬜ Mark Vacant'}
                 </button>
               </div>
             );
@@ -694,7 +733,6 @@ const Rooms = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meter No</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Meter</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -717,13 +755,17 @@ const Rooms = () => {
                       <div className="text-sm font-bold text-gray-900">{room.roomNumber}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        isVacant
-                          ? 'bg-gray-100 text-gray-800'
-                          : 'bg-green-100 text-green-800'
-                      }`}>
+                      <button
+                        onClick={() => openStatusModal(room)}
+                        title={isVacant ? 'Click to mark Occupied' : 'Click to mark Vacant'}
+                        className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full cursor-pointer border transition hover:shadow ${
+                          isVacant
+                            ? 'bg-gray-100 text-gray-800 border-gray-300 hover:bg-green-50 hover:text-green-800'
+                            : 'bg-green-100 text-green-800 border-green-300 hover:bg-orange-50 hover:text-orange-800'
+                        }`}
+                      >
                         {isVacant ? '⬜ Vacant' : '✅ Occupied'}
-                      </span>
+                      </button>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {!isVacant && currentTenant
@@ -746,14 +788,6 @@ const Rooms = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {room.lastStatusUpdatedAt ? fmtDate(room.lastStatusUpdatedAt) : 'Never'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button
-                        onClick={() => openStatusModal(room)}
-                        className="text-primary hover:text-blue-700 font-medium"
-                      >
-                        Update Status
-                      </button>
                     </td>
                   </tr>
                 );
@@ -789,61 +823,48 @@ const Rooms = () => {
         </div>
       )}
 
-      {/* Status Update Modal */}
-      {showStatusModal && modalRoom && (
+      {/* Modal: Occupied → Vacant (dues confirmation) */}
+      {vacantModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-800">
-                Update Room {modalRoom.roomNumber} Status
-              </h3>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              {/* Smart toggle: show only the opposite action */}
-              <div className="flex gap-3">
-                {isRoomVacant(modalRoom) ? (
-                  <button
-                    type="button"
-                    onClick={() => setModalStatus('occupied')}
-                    className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition ${
-                      modalStatus === 'occupied'
-                        ? 'bg-green-500 text-white border-green-500 shadow-lg'
-                        : 'bg-white text-green-600 border-green-300 hover:bg-green-50'
-                    }`}
-                  >
-                    ✅ Mark as Occupied
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setModalStatus('vacant')}
-                    className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition ${
-                      modalStatus === 'vacant'
-                        ? 'bg-gray-500 text-white border-gray-500 shadow-lg'
-                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    ⬜ Mark as Vacant
-                  </button>
-                )}
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">Mark Room {vacantModal.roomNumber} Vacant</h3>
+                <p className="text-sm text-gray-500">Please confirm all dues are cleared</p>
               </div>
+            </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                Current: <span className="font-bold">{modalRoom.status || 'vacant'}</span>
-                {' → '}
-                New: <span className="font-bold">{modalStatus}</span>
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+                <p className="text-sm font-semibold text-amber-800 mb-2">Dues Clearance Confirmation</p>
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={vacantRentCleared}
+                    onChange={e => setVacantRentCleared(e.target.checked)}
+                    className="w-5 h-5 rounded text-green-600"
+                  />
+                  <span className="text-sm text-amber-900">✅ All <strong>rent dues</strong> have been collected / cleared</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={vacantElecCleared}
+                    onChange={e => setVacantElecCleared(e.target.checked)}
+                    className="w-5 h-5 rounded text-green-600"
+                  />
+                  <span className="text-sm text-amber-900">✅ All <strong>electricity dues</strong> have been collected / cleared</span>
+                </label>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Remark (Optional)
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Remark (Optional)</label>
                 <textarea
-                  value={modalRemark}
-                  onChange={(e) => setModalRemark(e.target.value)}
-                  placeholder="Add notes about this status change..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  value={vacantRemark}
+                  onChange={e => setVacantRemark(e.target.value)}
+                  placeholder="e.g. Tenant left, all dues cleared..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary"
                   rows="2"
                   disabled={updating}
                 />
@@ -852,18 +873,85 @@ const Rooms = () => {
 
             <div className="px-6 py-4 border-t border-gray-200 flex gap-3">
               <button
-                onClick={closeStatusModal}
+                onClick={closeVacantModal}
                 disabled={updating}
                 className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                onClick={handleSaveStatus}
-                disabled={updating}
-                className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                onClick={handleMarkVacant}
+                disabled={updating || !vacantRentCleared || !vacantElecCleared}
+                className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition disabled:opacity-40"
               >
-                {updating ? 'Saving...' : 'Save Status'}
+                {updating ? 'Saving...' : '⬜ Mark Vacant'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Vacant → Occupied (assign tenant) */}
+      {occupyModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+              <span className="text-2xl">🏠</span>
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">Mark Room {occupyModal.roomNumber} Occupied</h3>
+                <p className="text-sm text-gray-500">Assign a tenant (or skip)</p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assign Tenant</label>
+                <select
+                  value={occupyTenantId}
+                  onChange={e => setOccupyTenantId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary"
+                  disabled={updating}
+                >
+                  <option value="">-- Select tenant (optional) --</option>
+                  {tenants
+                    .filter(t => t.isActive)
+                    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                    .map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}{t.roomNumber ? ` (Room ${t.roomNumber})` : ''}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Selecting a tenant will update their room number to {occupyModal.roomNumber}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Remark (Optional)</label>
+                <textarea
+                  value={occupyRemark}
+                  onChange={e => setOccupyRemark(e.target.value)}
+                  placeholder="e.g. New tenant moved in..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary"
+                  rows="2"
+                  disabled={updating}
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={closeOccupyModal}
+                disabled={updating}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMarkOccupied}
+                disabled={updating}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
+              >
+                {updating ? 'Saving...' : '✅ Mark Occupied'}
               </button>
             </div>
           </div>
