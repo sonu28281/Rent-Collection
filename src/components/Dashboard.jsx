@@ -568,10 +568,21 @@ const Dashboard = () => {
                                         <p className="text-xs text-indigo-700 font-semibold mt-1">Multi-room tenant ({tenant.roomCount} rooms)</p>
                                       )}
                                     </div>
-                                    <span className={`text-xs px-2 py-1 rounded font-semibold ${
-                                      isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
-                                    }`}>
-                                      {isPaid ? '✅ Paid' : '❌ Pending'}
+                                    <span
+                                      title={isPaid ? `Paid: ${tenant.paidDate} | Due was: ${tenant.dueDate}` : `Due: ${tenant.dueDate}`}
+                                      className={`text-xs px-2 py-1 rounded font-semibold cursor-default`}
+                                      style={{
+                                        backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' :
+                                                         tenant.dueStatusColor === 'orange' ? '#fed7aa' :
+                                                         tenant.dueStatusColor === 'yellow' ? '#fef08a' :
+                                                         tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
+                                        color: tenant.dueStatusColor === 'red' ? '#991b1b' :
+                                               tenant.dueStatusColor === 'orange' ? '#c2410c' :
+                                               tenant.dueStatusColor === 'yellow' ? '#a16207' :
+                                               tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
+                                      }}
+                                    >
+                                      {tenant.dueStatusText || (isPaid ? '✅ Paid' : '❌ Pending')}
                                     </span>
                                   </div>
                                   <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
@@ -581,11 +592,7 @@ const Dashboard = () => {
                                     <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
                                   </div>
                                   <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
-                                    <span>Payment: {tenant.paidDate || '-'}</span>
                                     <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
-                                    {tenant.isDelayed && (
-                                      <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
-                                    )}
                                   </div>
                                 </div>
                               );
@@ -603,7 +610,6 @@ const Dashboard = () => {
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'electricity')}>Electricity{getSortIndicator('floor1', 'electricity')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'expected')}>Expected{getSortIndicator('floor1', 'expected')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'collected')}>Collected{getSortIndicator('floor1', 'collected')}</th>
-                                    <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'date')}>Payment Date{getSortIndicator('floor1', 'date')}</th>
                                     <th className="px-3 py-2 text-center cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'status')}>Status{getSortIndicator('floor1', 'status')}</th>
                                   </tr>
                                 </thead>
@@ -645,25 +651,28 @@ const Dashboard = () => {
                                           <td className={`px-3 py-2 text-right font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>
                                             ₹{tenant.collectedAmount.toLocaleString('en-IN')}
                                           </td>
-                                          <td className="px-3 py-2">
-                                            <div className="flex items-center gap-2">
-                                              <span>{tenant.paidDate || '-'}</span>
-                                              {tenant.isDelayed && (
-                                                <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
-                                              )}
-                                            </div>
-                                          </td>
-                                          <td className="px-3 py-2 text-center">
-                                            <span className={`text-xs px-2 py-1 rounded font-semibold ${
-                                              isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
-                                            }`}>
-                                              {isPaid ? '✅ Paid' : '❌ Pending'}
+                                          <td className="px-3 py-2 text-center whitespace-nowrap">
+                                            <span
+                                              title={isPaid ? `Paid: ${tenant.paidDate} | Due was: ${tenant.dueDate}` : `Due: ${tenant.dueDate}`}
+                                              className="text-xs font-semibold px-2 py-1 rounded cursor-default"
+                                              style={{
+                                                backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' :
+                                                                 tenant.dueStatusColor === 'orange' ? '#fed7aa' :
+                                                                 tenant.dueStatusColor === 'yellow' ? '#fef08a' :
+                                                                 tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
+                                                color: tenant.dueStatusColor === 'red' ? '#991b1b' :
+                                                       tenant.dueStatusColor === 'orange' ? '#c2410c' :
+                                                       tenant.dueStatusColor === 'yellow' ? '#a16207' :
+                                                       tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
+                                              }}
+                                            >
+                                              {tenant.dueStatusText || (isPaid ? '✅ Paid' : '❌ Pending')}
                                             </span>
                                           </td>
                                         </tr>
                                         {tenant.roomCount > 1 && expanded && (
                                           <tr className="bg-indigo-50 border-b">
-                                            <td className="px-3 py-2" colSpan={8}>
+                                            <td className="px-3 py-2" colSpan={7}>
                                               <div className="text-xs font-semibold text-indigo-900 mb-2">Room-wise collected split</div>
                                               <div className="overflow-x-auto">
                                                 <table className="w-full text-xs">
@@ -733,10 +742,21 @@ const Dashboard = () => {
                                         <p className="text-xs text-indigo-700 font-semibold mt-1">Multi-room tenant ({tenant.roomCount} rooms)</p>
                                       )}
                                     </div>
-                                    <span className={`text-xs px-2 py-1 rounded font-semibold ${
-                                      isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
-                                    }`}>
-                                      {isPaid ? '✅ Paid' : '❌ Pending'}
+                                    <span
+                                      title={isPaid ? `Paid: ${tenant.paidDate} | Due was: ${tenant.dueDate}` : `Due: ${tenant.dueDate}`}
+                                      className={`text-xs px-2 py-1 rounded font-semibold cursor-default`}
+                                      style={{
+                                        backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' :
+                                                         tenant.dueStatusColor === 'orange' ? '#fed7aa' :
+                                                         tenant.dueStatusColor === 'yellow' ? '#fef08a' :
+                                                         tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
+                                        color: tenant.dueStatusColor === 'red' ? '#991b1b' :
+                                               tenant.dueStatusColor === 'orange' ? '#c2410c' :
+                                               tenant.dueStatusColor === 'yellow' ? '#a16207' :
+                                               tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
+                                      }}
+                                    >
+                                      {tenant.dueStatusText || (isPaid ? '✅ Paid' : '❌ Pending')}
                                     </span>
                                   </div>
                                   <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
@@ -746,11 +766,7 @@ const Dashboard = () => {
                                     <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
                                   </div>
                                   <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
-                                    <span>Payment: {tenant.paidDate || '-'}</span>
                                     <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
-                                    {tenant.isDelayed && (
-                                      <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
-                                    )}
                                   </div>
                                 </div>
                               );
@@ -768,7 +784,6 @@ const Dashboard = () => {
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'electricity')}>Electricity{getSortIndicator('floor2', 'electricity')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'expected')}>Expected{getSortIndicator('floor2', 'expected')}</th>
                                     <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'collected')}>Collected{getSortIndicator('floor2', 'collected')}</th>
-                                    <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'date')}>Payment Date{getSortIndicator('floor2', 'date')}</th>
                                     <th className="px-3 py-2 text-center cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'status')}>Status{getSortIndicator('floor2', 'status')}</th>
                                   </tr>
                                 </thead>
@@ -810,25 +825,28 @@ const Dashboard = () => {
                                           <td className={`px-3 py-2 text-right font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>
                                             ₹{tenant.collectedAmount.toLocaleString('en-IN')}
                                           </td>
-                                          <td className="px-3 py-2">
-                                            <div className="flex items-center gap-2">
-                                              <span>{tenant.paidDate || '-'}</span>
-                                              {tenant.isDelayed && (
-                                                <span className="text-xs bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-semibold">Delayed</span>
-                                              )}
-                                            </div>
-                                          </td>
-                                          <td className="px-3 py-2 text-center">
-                                            <span className={`text-xs px-2 py-1 rounded font-semibold ${
-                                              isPaid ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'
-                                            }`}>
-                                              {isPaid ? '✅ Paid' : '❌ Pending'}
+                                          <td className="px-3 py-2 text-center whitespace-nowrap">
+                                            <span
+                                              title={isPaid ? `Paid: ${tenant.paidDate} | Due was: ${tenant.dueDate}` : `Due: ${tenant.dueDate}`}
+                                              className="text-xs font-semibold px-2 py-1 rounded cursor-default"
+                                              style={{
+                                                backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' :
+                                                                 tenant.dueStatusColor === 'orange' ? '#fed7aa' :
+                                                                 tenant.dueStatusColor === 'yellow' ? '#fef08a' :
+                                                                 tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
+                                                color: tenant.dueStatusColor === 'red' ? '#991b1b' :
+                                                       tenant.dueStatusColor === 'orange' ? '#c2410c' :
+                                                       tenant.dueStatusColor === 'yellow' ? '#a16207' :
+                                                       tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
+                                              }}
+                                            >
+                                              {tenant.dueStatusText || (isPaid ? '✅ Paid' : '❌ Pending')}
                                             </span>
                                           </td>
                                         </tr>
                                         {tenant.roomCount > 1 && expanded && (
                                           <tr className="bg-indigo-50 border-b">
-                                            <td className="px-3 py-2" colSpan={8}>
+                                            <td className="px-3 py-2" colSpan={7}>
                                               <div className="text-xs font-semibold text-indigo-900 mb-2">Room-wise collected split</div>
                                               <div className="overflow-x-auto">
                                                 <table className="w-full text-xs">

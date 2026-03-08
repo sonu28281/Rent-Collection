@@ -296,7 +296,9 @@ export const getTodaysCollection = async () => {
     
     paymentsSnapshot.forEach((doc) => {
       const data = doc.data();
-      const paidAmount = Number(data.paidAmount) || 0;
+      // Fallback: if paidAmount is missing but status=paid, use total/totalAmount
+      const paidAmount = Number(data.paidAmount) ||
+        (data.status === 'paid' ? Number(data.total || data.totalAmount) || 0 : 0);
       
       // Skip if no paid amount
       if (paidAmount <= 0) return;
@@ -304,15 +306,20 @@ export const getTodaysCollection = async () => {
       // Check if payment was made today
       let isTodaysPayment = false;
       
-      // Check paymentDate field (format: 'YYYY-MM-DD')
-      if (data.paymentDate === today) {
+      // Check paidDate field (format: 'YYYY-MM-DD') - used by Payments.jsx & VerifyPayments.jsx
+      if (data.paidDate === today) {
         isTodaysPayment = true;
       }
       
-      // Also check paidAt field (ISO timestamp)
+      // Check paymentDate field (format: 'YYYY-MM-DD')
+      if (!isTodaysPayment && data.paymentDate === today) {
+        isTodaysPayment = true;
+      }
+      
+      // Also check paidAt field (ISO timestamp or date string)
       if (!isTodaysPayment && data.paidAt) {
-        const paidDate = new Date(data.paidAt).toISOString().split('T')[0];
-        if (paidDate === today) {
+        const paidAtDate = new Date(data.paidAt).toISOString().split('T')[0];
+        if (paidAtDate === today) {
           isTodaysPayment = true;
         }
       }
@@ -374,9 +381,11 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
           : '',
         tenantId: paymentData.tenantId || null,
         tenantNameSnapshot: paymentData.tenantNameSnapshot || paymentData.tenantName || '',
-        paidAmountValue: Number(paymentData.paidAmount) || 0,
+        paidAmountValue: Number(paymentData.paidAmount) ||
+          (paymentData.status === 'paid' ? Number(paymentData.total || paymentData.totalAmount) || 0 : 0),
         electricityValue: Number(paymentData.electricity || paymentData.electricityAmount) || 0,
-        isPaidStatus: paymentData.status === 'paid' && (Number(paymentData.paidAmount) || 0) > 0
+        isPaidStatus: paymentData.status === 'paid' &&
+          (Number(paymentData.paidAmount) || Number(paymentData.total) || Number(paymentData.totalAmount) || 0) > 0
       };
     });
 
@@ -418,7 +427,7 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
       tenantRoomNumbers.forEach((roomNumber) => {
         roomWiseMap[String(roomNumber)] = {
           roomNumber: String(roomNumber),
-          rentAmount: 0,
+          rentAmount: Number(tenant.currentRent) || 0,  // fallback: per-room expected rent
           electricityAmount: 0,
           collectedAmount: 0,
           paymentRecordsCount: 0,
@@ -435,7 +444,7 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         if (!roomWiseMap[roomKey]) {
           roomWiseMap[roomKey] = {
             roomNumber: roomKey,
-            rentAmount: 0,
+            rentAmount: Number(tenant.currentRent) || 0,
             electricityAmount: 0,
             collectedAmount: 0,
             paymentRecordsCount: 0,
@@ -445,15 +454,20 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
           };
         }
 
-        roomWiseMap[roomKey].rentAmount += Number(payment.rent || payment.rentAmount) || 0;
+        // Rent is a fixed monthly amount — use payment record value if present, else keep initialised value
+        const paymentRent = Number(payment.rent || payment.rentAmount) || 0;
+        if (paymentRent > 0) {
+          roomWiseMap[roomKey].rentAmount = paymentRent;
+        }
         roomWiseMap[roomKey].electricityAmount += Number(payment.electricity || payment.electricityAmount) || 0;
         roomWiseMap[roomKey].collectedAmount += Number(payment.paidAmountValue) || 0;
         roomWiseMap[roomKey].paymentRecordsCount += 1;
 
-        const paidAtTime = payment?.paidAt ? new Date(payment.paidAt).getTime() : 0;
+        const paidAtStr = payment?.paidAt || payment?.paidDate || '';
+        const paidAtTime = paidAtStr ? new Date(paidAtStr).getTime() : 0;
         if (payment.isPaidStatus && paidAtTime >= roomWiseMap[roomKey].latestPaidTimestamp) {
           roomWiseMap[roomKey].latestPaidTimestamp = paidAtTime;
-          roomWiseMap[roomKey].latestPaidDate = payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('en-IN') : null;
+          roomWiseMap[roomKey].latestPaidDate = paidAtStr ? new Date(paidAtStr).toLocaleDateString('en-IN') : null;
           roomWiseMap[roomKey].status = 'paid';
         }
       });
@@ -509,24 +523,59 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
       const dueDateFormatted = dueDate.toLocaleDateString('en-IN');
       
       // Payment Date (actual date when payment was made)
-      const paidDate = latestPaidRecord?.paidAt ? new Date(latestPaidRecord.paidAt).toLocaleDateString('en-IN') : null;
-      const paidDateObj = latestPaidRecord?.paidAt ? new Date(latestPaidRecord.paidAt) : null;
+      // Check paidAt (ISO timestamp from scripts) OR paidDate (string from Payments.jsx/VerifyPayments.jsx)
+      const paidAtStr = latestPaidRecord?.paidAt || latestPaidRecord?.paidDate || null;
+      const paidDate = paidAtStr ? new Date(paidAtStr).toLocaleDateString('en-IN') : null;
+      const paidDateObj = paidAtStr ? new Date(paidAtStr) : null;
       
       // Delayed Status Detection
       let isDelayed = false;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       dueDate.setHours(0, 0, 0, 0);
-      
+
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const daysUntilDue = Math.round((dueDate - today) / msPerDay);
+      let dueStatusText = '';
+      let dueStatusColor = 'gray';
+
       if (status === 'paid') {
         // If paid, check if payment was made after due date
         if (paidDateObj) {
           paidDateObj.setHours(0, 0, 0, 0);
           isDelayed = paidDateObj > dueDate;
+          const daysLate = Math.round((paidDateObj - dueDate) / msPerDay);
+          if (isDelayed) {
+            dueStatusText = daysLate === 1 ? 'Paid 1 day late' : `Paid ${daysLate} days late`;
+            dueStatusColor = 'orange';
+          } else {
+            dueStatusText = 'Paid on time';
+            dueStatusColor = 'green';
+          }
+        } else {
+          dueStatusText = 'Paid';
+          dueStatusColor = 'green';
         }
       } else {
         // If pending, check if due date has passed
         isDelayed = today > dueDate;
+        if (isDelayed) {
+          const daysOverdue = Math.abs(daysUntilDue);
+          dueStatusText = daysOverdue === 1 ? 'Delayed by 1 day' : `Delayed by ${daysOverdue} days`;
+          dueStatusColor = 'red';
+        } else if (daysUntilDue === 0) {
+          dueStatusText = 'Due today';
+          dueStatusColor = 'orange';
+        } else if (daysUntilDue === 1) {
+          dueStatusText = 'Due tomorrow';
+          dueStatusColor = 'yellow';
+        } else if (daysUntilDue > 0 && daysUntilDue <= 3) {
+          dueStatusText = `Due in ${daysUntilDue} days`;
+          dueStatusColor = 'yellow';
+        } else if (daysUntilDue > 3) {
+          dueStatusText = `Due in ${daysUntilDue} days`;
+          dueStatusColor = 'gray';
+        }
       }
       
       tenantList.push({
@@ -543,8 +592,10 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         status,
         dueDate: dueDateFormatted,
         paidDate,
-        paidTimestamp: latestPaidRecord?.paidAt ? new Date(latestPaidRecord.paidAt).getTime() : 0,
+        paidTimestamp: paidAtStr ? new Date(paidAtStr).getTime() : 0,
         isDelayed,
+        dueStatusText,
+        dueStatusColor,
         paymentMethod: latestPaidRecord ? latestPaidRecord.paymentMethod : null,
         paymentRecordsCount: uniqueTenantPayments.length,
         roomWiseSplit
