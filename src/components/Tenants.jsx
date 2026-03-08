@@ -16,7 +16,7 @@ const Tenants = () => {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingTenant, setEditingTenant] = useState(null);
-  const [filter, setFilter] = useState('all'); // all, active, inactive
+  const [filter, setFilter] = useState('active'); // active only (past tenants are on TenantHistory page)
   const [kycFilter, setKycFilter] = useState('all'); // all, verified, not_verified
   const [floorFilter, setFloorFilter] = useState('all'); // all, floor1, floor2
   const [categoryFilter, setCategoryFilter] = useState('tenants'); // tenants, applicants, checkout
@@ -549,10 +549,8 @@ const Tenants = () => {
   };
 
   const filteredTenants = tenants.filter(tenant => {
-    // Active/Inactive filter
-    let matchesActiveFilter = true;
-    if (filter === 'active') matchesActiveFilter = tenant.isActive;
-    if (filter === 'inactive') matchesActiveFilter = !tenant.isActive;
+    // Always show only active tenants — past tenants are on TenantHistory page
+    if (!tenant.isActive) return false;
 
     // KYC filter
     const isKycVerified = tenant?.kyc?.verified === true && tenant?.kyc?.verifiedBy === 'DigiLocker';
@@ -571,7 +569,7 @@ const Tenants = () => {
       matchesFloorFilter = assignedRoomNumbers.some((roomNum) => roomNum >= 201 && roomNum <= 206);
     }
     
-    return matchesActiveFilter && matchesKycFilter && matchesFloorFilter;
+    return matchesKycFilter && matchesFloorFilter;
   });
 
   const getRoomNumberValue = (roomNumber) => {
@@ -655,7 +653,7 @@ const Tenants = () => {
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
-          👥 Tenants ({stats.total})
+          👥 Tenants ({stats.active})
         </button>
         <button
           onClick={() => setCategoryFilter('applicants')}
@@ -694,8 +692,8 @@ const Tenants = () => {
         <div className="card py-3 bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-xs">Total</p>
-              <p className="text-2xl font-bold">{stats.total}</p>
+              <p className="text-blue-100 text-xs">Total Active</p>
+              <p className="text-2xl font-bold">{stats.active}</p>
             </div>
             <div className="text-3xl">👥</div>
           </div>
@@ -704,88 +702,87 @@ const Tenants = () => {
         <div className="card py-3 bg-gradient-to-br from-green-500 to-green-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-xs">Active</p>
-              <p className="text-2xl font-bold">{stats.active}</p>
+              <p className="text-green-100 text-xs">KYC Verified</p>
+              <p className="text-2xl font-bold">{stats.kycVerified}</p>
             </div>
             <div className="text-3xl">✅</div>
           </div>
         </div>
 
-        <div className="card py-3 bg-gradient-to-br from-gray-500 to-gray-600 text-white">
+        <div className="card py-3 bg-gradient-to-br from-amber-500 to-amber-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-100 text-xs">Past</p>
-              <p className="text-2xl font-bold">{stats.inactive}</p>
+              <p className="text-amber-100 text-xs">KYC Pending</p>
+              <p className="text-2xl font-bold">{stats.kycNotVerified}</p>
             </div>
-            <div className="text-3xl">📋</div>
+            <div className="text-3xl">⚠️</div>
           </div>
         </div>
       </div>
 
       {/* Filters & Tools */}
-      <div className="card mb-4 space-y-2">
-        {/* Row 1: Status + KYC filters */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span className="text-xs font-semibold text-gray-500 uppercase">Status:</span>
-          <div className="flex gap-1.5">
-            {[
-              { key: 'all', label: `All (${stats.total})`, color: 'bg-primary' },
-              { key: 'active', label: `Active (${stats.active})`, color: 'bg-green-500' },
-              { key: 'inactive', label: `Past (${stats.inactive})`, color: 'bg-gray-500' },
-            ].map(f => (
-              <button key={f.key} onClick={() => setFilter(f.key)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${filter === f.key ? `${f.color} text-white` : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-              >{f.label}</button>
-            ))}
+      <div className="card mb-4">
+        {/* Filters row */}
+        <div className="flex flex-wrap gap-4">
+
+          {/* KYC Filter */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">KYC Status</span>
+            <div className="flex gap-1.5">
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'verified', label: `✅ Verified (${stats.kycVerified})` },
+                { key: 'not_verified', label: `⚠️ Pending (${stats.kycNotVerified})` },
+              ].map(f => (
+                <button key={f.key} onClick={() => setKycFilter(f.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
+                    kycFilter === f.key
+                      ? f.key === 'verified' ? 'bg-green-600 text-white' : f.key === 'not_verified' ? 'bg-amber-600 text-white' : 'bg-emerald-500 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >{f.label}</button>
+              ))}
+            </div>
           </div>
 
-          <span className="text-gray-300 hidden sm:inline">|</span>
-
-          <span className="text-xs font-semibold text-gray-500 uppercase">KYC:</span>
-          <div className="flex gap-1.5">
-            {[
-              { key: 'all', label: 'All', color: 'bg-emerald-500' },
-              { key: 'verified', label: `✅ (${stats.kycVerified})`, color: 'bg-green-600' },
-              { key: 'not_verified', label: `⚠️ (${stats.kycNotVerified})`, color: 'bg-amber-600' },
-            ].map(f => (
-              <button key={f.key} onClick={() => setKycFilter(f.key)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${kycFilter === f.key ? `${f.color} text-white` : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-              >{f.label}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Row 2: Floor filter (desktop) + View mode */}
-        <div className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span className="text-xs font-semibold text-gray-500 uppercase">Floor:</span>
-          <div className="flex gap-1.5">
-            {[
-              { key: 'all', label: 'All', color: 'bg-purple-500' },
-              { key: 'floor1', label: `F1 (${stats.floor1})`, color: 'bg-blue-500' },
-              { key: 'floor2', label: `F2 (${stats.floor2})`, color: 'bg-indigo-500' },
-            ].map(f => (
-              <button key={f.key} onClick={() => setFloorFilter(f.key)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${floorFilter === f.key ? `${f.color} text-white` : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-              >{f.label}</button>
-            ))}
+          {/* Floor Filter (desktop only) */}
+          <div className="hidden md:flex flex-col gap-1.5">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Floor</span>
+            <div className="flex gap-1.5">
+              {[
+                { key: 'all', label: 'All Floors' },
+                { key: 'floor1', label: `🏠 Floor 1 (${stats.floor1})` },
+                { key: 'floor2', label: `🏢 Floor 2 (${stats.floor2})` },
+              ].map(f => (
+                <button key={f.key} onClick={() => setFloorFilter(f.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
+                    floorFilter === f.key
+                      ? f.key === 'floor1' ? 'bg-blue-500 text-white' : f.key === 'floor2' ? 'bg-indigo-500 text-white' : 'bg-purple-500 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >{f.label}</button>
+              ))}
+            </div>
           </div>
 
-          <span className="text-gray-300">|</span>
-
-          <span className="text-xs font-semibold text-gray-500 uppercase">View:</span>
-          <div className="flex gap-1.5">
-            <button onClick={() => setViewMode('card')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${viewMode === 'card' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            >🎴 Card</button>
-            <button onClick={() => setViewMode('table')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${viewMode === 'table' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            >📋 Table</button>
+          {/* View Mode (desktop only) */}
+          <div className="hidden md:flex flex-col gap-1.5">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">View</span>
+            <div className="flex gap-1.5">
+              <button onClick={() => setViewMode('card')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'card' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              >🎴 Card</button>
+              <button onClick={() => setViewMode('table')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'table' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              >📋 Table</button>
+            </div>
           </div>
+
         </div>
 
         {/* Merge Duplicate Tenants - collapsible */}
-        <details className="border-t border-gray-100 pt-2">
-          <summary className="cursor-pointer text-xs font-semibold text-amber-700 hover:text-amber-900 select-none">
+        <details className="border-t border-gray-100 mt-3 pt-3">
+          <summary className="cursor-pointer text-xs font-semibold text-amber-700 hover:text-amber-900 select-none inline-flex items-center gap-1">
             🧩 Merge Duplicate Tenants
           </summary>
           <div className="mt-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
@@ -808,7 +805,7 @@ const Tenants = () => {
             </div>
             <button onClick={mergeTenantAccounts} disabled={mergingTenants}
               className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 text-xs">
-              {mergingTenants ? 'Merging...' : 'Merge'}
+              {mergingTenants ? 'Merging...' : 'Merge Tenants'}
             </button>
           </div>
         </details>
@@ -818,19 +815,11 @@ const Tenants = () => {
       {filteredTenants.length === 0 ? (
         <div className="card text-center py-12">
           <div className="text-6xl mb-4">👥</div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">
-            {filter === 'all' ? 'No Tenants Yet' : `No ${filter} tenants found`}
-          </h3>
-          <p className="text-gray-600 mb-4">
-            {filter === 'all' 
-              ? 'Add your first tenant to get started'
-              : 'Try adjusting your filter'}
-          </p>
-          {filter === 'all' && (
-            <button onClick={handleAddTenant} className="btn-primary">
-              ➕ Add First Tenant
-            </button>
-          )}
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">No Active Tenants</h3>
+          <p className="text-gray-600 mb-4">Add your first tenant to get started</p>
+          <button onClick={handleAddTenant} className="btn-primary">
+            ➕ Add First Tenant
+          </button>
         </div>
       ) : (isMobileViewport || viewMode === 'card') ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
