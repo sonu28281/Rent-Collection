@@ -334,9 +334,12 @@ const Rooms = () => {
   const getRoomInfo = (room) => {
     const rn = String(room.roomNumber);
     const isVacant = isRoomVacant(room);
-    // Current tenant (occupied rooms)
+    // Current tenant (occupied rooms) — also check assignedRooms array for multi-room tenants
     const currentTenant = !isVacant
-      ? tenants.find(t => t.isActive && String(t.roomNumber) === rn)
+      ? tenants.find(t => t.isActive && (
+          String(t.roomNumber) === rn ||
+          (Array.isArray(t.assignedRooms) && t.assignedRooms.map(String).includes(rn))
+        ))
       : null;
     // Last tenant (vacant rooms)
     const pastTenants = tenants.filter(t => !t.isActive && String(t.roomNumber) === rn);
@@ -355,6 +358,94 @@ const Rooms = () => {
     if (val.seconds) return new Date(val.seconds * 1000).toLocaleDateString('en-IN');
     const d = new Date(val);
     return isNaN(d) ? String(val) : d.toLocaleDateString('en-IN');
+  };
+
+  // Build display rows: multi-room tenants (assignedRooms array) are merged into one row
+  const buildDisplayRows = (roomList) => {
+    const rows = [];
+    const handled = new Set();
+    for (const room of roomList) {
+      if (handled.has(room.id)) continue;
+      const rn = String(room.roomNumber);
+      const isVacant = isRoomVacant(room);
+      const tenant = !isVacant
+        ? tenants.find(t => t.isActive && (
+            String(t.roomNumber) === rn ||
+            (Array.isArray(t.assignedRooms) && t.assignedRooms.map(String).includes(rn))
+          ))
+        : null;
+      if (tenant && Array.isArray(tenant.assignedRooms) && tenant.assignedRooms.length > 1) {
+        // Multi-room tenant: merge all their rooms that appear in the filtered list
+        const tnRooms = tenant.assignedRooms.map(String);
+        const mergedRooms = roomList.filter(r => tnRooms.includes(String(r.roomNumber)));
+        mergedRooms.forEach(r => handled.add(r.id));
+        // Per-room rent: room.defaultRent → tenant by roomNumber → inactive tenant by username (original room)
+        const getPerRoomRent = (roomObj) => {
+          if (roomObj.defaultRent) return Number(roomObj.defaultRent);
+          const rn = String(roomObj.roomNumber);
+          const byRoomNumber = tenants.find(t => String(t.roomNumber) === rn);
+          if (byRoomNumber?.currentRent) return Number(byRoomNumber.currentRent);
+          const byUsername = tenants.find(t => String(t.username) === rn);
+          if (byUsername?.currentRent) return Number(byUsername.currentRent);
+          return 0;
+        };
+        const totalRent = mergedRooms.reduce((s, r) => s + getPerRoomRent(r), 0);
+        const getTs = (v) => v?.seconds ? v.seconds : (v ? new Date(v).getTime() / 1000 : 0);
+        const latestUpdated = mergedRooms.reduce((best, r) => {
+          if (!r.lastStatusUpdatedAt) return best;
+          return !best || getTs(r.lastStatusUpdatedAt) > getTs(best) ? r.lastStatusUpdatedAt : best;
+        }, null);
+        const latestMeter = mergedRooms.reduce((best, r) => {
+          const rm = meterReadings[String(r.roomNumber)];
+          if (!rm) return best;
+          return !best || (rm.ts || '') > (best.ts || '') ? rm : best;
+        }, null);
+        rows.push({
+          key: `multi_${tenant.id}`,
+          isMulti: true,
+          rooms: mergedRooms,
+          primaryRoom: mergedRooms[0],
+          currentTenant: tenant,
+          lastTenant: null,
+          meterInfo: latestMeter,
+          displayRent: totalRent || null,
+          isVacant: false,
+          roomLabel: mergedRooms.map(r => r.roomNumber).sort().join(' & '),
+          meterLabel: mergedRooms.map(r => r.electricityMeterNo || '—').join(', '),
+          lastUpdated: latestUpdated,
+        });
+      } else {
+        handled.add(room.id);
+        const { currentTenant, lastTenant, meterInfo } = getRoomInfo(room);
+        rows.push({
+          key: room.id,
+          isMulti: false,
+          rooms: [room],
+          primaryRoom: room,
+          currentTenant,
+          lastTenant,
+          meterInfo,
+          displayRent: room.defaultRent || currentTenant?.currentRent || null,
+          isVacant,
+          roomLabel: String(room.roomNumber),
+          meterLabel: room.electricityMeterNo || 'N/A',
+          lastUpdated: room.lastStatusUpdatedAt,
+        });
+      }
+    }
+    return rows;
+  };
+
+  // Toggle selection for all rooms in a row (handles multi-room merged rows)
+  const toggleRowSelection = (roomIds) => {
+    const newSel = new Set(selectedRooms);
+    const allSelected = roomIds.every(id => newSel.has(id));
+    if (allSelected) {
+      roomIds.forEach(id => newSel.delete(id));
+    } else {
+      roomIds.forEach(id => newSel.add(id));
+    }
+    setSelectedRooms(newSel);
   };
 
   if (loading) {
@@ -651,22 +742,23 @@ const Rooms = () => {
             />
           </div>
 
-          {filteredRooms.map((room) => {
-            const isVacant = isRoomVacant(room);
-            const { currentTenant, lastTenant, meterInfo } = getRoomInfo(room);
-            const displayRent = room.defaultRent || currentTenant?.currentRent || null;
+          {buildDisplayRows(filteredRooms).map((row) => {
+            const { key, isMulti, rooms: rowRooms, primaryRoom, currentTenant, lastTenant, meterInfo, displayRent, isVacant, roomLabel, meterLabel, lastUpdated } = row;
+            const rowIds = rowRooms.map(r => r.id);
+            const allSelected = rowIds.every(id => selectedRooms.has(id));
 
             return (
-              <div key={room.id} className={`card border ${selectedRooms.has(room.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'} p-4`}>
+              <div key={key} className={`card border ${allSelected ? 'border-blue-300 bg-blue-50' : isMulti ? 'border-indigo-200 bg-indigo-50' : 'border-gray-200'} p-4`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs text-gray-500">Room</p>
-                    <p className="text-lg font-bold text-gray-900">{room.roomNumber}</p>
+                    <p className="text-lg font-bold text-gray-900">{roomLabel}</p>
+                    {isMulti && <span className="text-xs text-indigo-600 font-semibold">🏠 Multi-room</span>}
                   </div>
                   <input
                     type="checkbox"
-                    checked={selectedRooms.has(room.id)}
-                    onChange={() => toggleRoomSelection(room.id)}
+                    checked={allSelected}
+                    onChange={() => toggleRowSelection(rowIds)}
                     className="w-4 h-4 text-primary rounded mt-1"
                   />
                 </div>
@@ -680,10 +772,10 @@ const Rooms = () => {
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <p>Rent: <span className="font-semibold text-gray-900">{displayRent ? `₹${Number(displayRent).toLocaleString('en-IN')}` : 'N/A'}</span></p>
-                  <p>Meter No: <span className="font-semibold text-gray-900">{room.electricityMeterNo || 'N/A'}</span></p>
+                  <p>Rent: <span className="font-semibold text-gray-900">{displayRent ? `₹${Number(displayRent).toLocaleString('en-IN')}` : 'N/A'}</span>{isMulti && displayRent ? <span className="text-xs text-indigo-500 ml-1">(combined)</span> : null}</p>
+                  <p>Meter No: <span className="font-semibold text-gray-900">{meterLabel}</span></p>
                   {!isVacant && currentTenant && (
-                    <p className="col-span-2">Tenant: <span className="font-semibold text-green-700">👤 {currentTenant.name}</span></p>
+                    <p className="col-span-2">Tenant: <span className="font-semibold text-green-700">👤 {currentTenant.name}</span>{isMulti && <span className="ml-1 text-xs text-indigo-600 font-semibold">· Multi-room</span>}</p>
                   )}
                   {isVacant && lastTenant && (
                     <p className="col-span-2 text-xs text-orange-700 bg-orange-50 rounded px-2 py-1">
@@ -696,11 +788,11 @@ const Rooms = () => {
                       Last Meter: <span className="font-semibold">{meterInfo.reading} units</span>
                     </p>
                   )}
-                  <p className="col-span-2 text-xs text-gray-400">Updated: {room.lastStatusUpdatedAt ? fmtDate(room.lastStatusUpdatedAt) : 'Never'}</p>
+                  <p className="col-span-2 text-xs text-gray-400">Updated: {lastUpdated ? fmtDate(lastUpdated) : 'Never'}</p>
                 </div>
 
                 <button
-                  onClick={() => openStatusModal(room)}
+                  onClick={() => openStatusModal(primaryRoom)}
                   className={`mt-3 w-full py-1.5 rounded-lg text-xs font-semibold border transition ${
                     isVacant
                       ? 'border-green-400 text-green-700 hover:bg-green-50'
@@ -736,27 +828,28 @@ const Rooms = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredRooms.map(room => {
-                const isVacant = isRoomVacant(room);
-                const { currentTenant, lastTenant, meterInfo } = getRoomInfo(room);
-                const displayRent = room.defaultRent || currentTenant?.currentRent || null;
+              {buildDisplayRows(filteredRooms).map(row => {
+                const { key, isMulti, rooms: rowRooms, primaryRoom, currentTenant, lastTenant, meterInfo, displayRent, isVacant, roomLabel, meterLabel, lastUpdated } = row;
+                const rowIds = rowRooms.map(r => r.id);
+                const allSelected = rowIds.every(id => selectedRooms.has(id));
 
                 return (
-                  <tr key={room.id} className={selectedRooms.has(room.id) ? 'bg-blue-50' : ''}>
+                  <tr key={key} className={allSelected ? 'bg-blue-50' : isMulti ? 'bg-indigo-50' : ''}>
                     <td className="px-4 py-4">
                       <input
                         type="checkbox"
-                        checked={selectedRooms.has(room.id)}
-                        onChange={() => toggleRoomSelection(room.id)}
+                        checked={allSelected}
+                        onChange={() => toggleRowSelection(rowIds)}
                         className="w-4 h-4 text-primary rounded"
                       />
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-gray-900">{room.roomNumber}</div>
+                      <div className="text-sm font-bold text-gray-900">{roomLabel}</div>
+                      {isMulti && <div className="text-xs text-indigo-600 font-semibold mt-0.5">🏠 Multi-room</div>}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
-                        onClick={() => openStatusModal(room)}
+                        onClick={() => openStatusModal(primaryRoom)}
                         title={isVacant ? 'Click to mark Occupied' : 'Click to mark Vacant'}
                         className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full cursor-pointer border transition hover:shadow ${
                           isVacant
@@ -769,7 +862,7 @@ const Rooms = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {!isVacant && currentTenant
-                        ? <span className="text-green-700 font-medium">👤 {currentTenant.name}</span>
+                        ? <span className="text-green-700 font-medium">👤 {currentTenant.name}{isMulti ? <span className="ml-1 text-xs text-indigo-600">· Multi-room</span> : null}</span>
                         : lastTenant
                           ? <span className="text-orange-600 text-xs">
                               {lastTenant.name}
@@ -779,15 +872,16 @@ const Rooms = () => {
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                       {displayRent ? `₹${Number(displayRent).toLocaleString('en-IN')}` : 'N/A'}
+                      {isMulti && displayRent ? <span className="block text-xs text-indigo-500 font-normal">(combined)</span> : null}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {room.electricityMeterNo || 'N/A'}
+                      {meterLabel}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {meterInfo?.reading != null ? `${meterInfo.reading}` : '—'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {room.lastStatusUpdatedAt ? fmtDate(room.lastStatusUpdatedAt) : 'Never'}
+                      {lastUpdated ? fmtDate(lastUpdated) : 'Never'}
                     </td>
                   </tr>
                 );
