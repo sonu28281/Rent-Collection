@@ -120,7 +120,9 @@ const Rooms = () => {
 
   const openStatusModal = (room) => {
     setModalRoom(room);
-    setModalStatus(room.status || 'vacant');
+    // Pre-select the opposite status (toggle behaviour)
+    const current = room.status || 'vacant';
+    setModalStatus(current === 'vacant' ? 'occupied' : 'vacant');
     setModalRemark('');
     setShowStatusModal(true);
   };
@@ -707,8 +709,8 @@ const Rooms = () => {
                         className="w-4 h-4 text-primary rounded"
                       />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-gray-900">Room {room.roomNumber}</div>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm font-bold text-gray-900">{room.roomNumber}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -729,8 +731,8 @@ const Rooms = () => {
                             </span>
                           : <span className="text-gray-400 text-xs">—</span>}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ₹{room.defaultRent?.toLocaleString('en-IN') || 'N/A'}
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                      {room.defaultRent ? `₹${room.defaultRent.toLocaleString('en-IN')}` : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {room.electricityMeterNo || 'N/A'}
@@ -794,19 +796,39 @@ const Rooms = () => {
             </div>
             
             <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status *
-                </label>
-                <select
-                  value={modalStatus}
-                  onChange={(e) => setModalStatus(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  disabled={updating}
-                >
-                  <option value="vacant">Vacant</option>
-                  <option value="occupied">Occupied</option>
-                </select>
+              {/* Smart toggle: show only the opposite action */}
+              <div className="flex gap-3">
+                {(modalRoom.status || 'vacant') === 'vacant' ? (
+                  <button
+                    type="button"
+                    onClick={() => setModalStatus('occupied')}
+                    className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition ${
+                      modalStatus === 'occupied'
+                        ? 'bg-green-500 text-white border-green-500 shadow-lg'
+                        : 'bg-white text-green-600 border-green-300 hover:bg-green-50'
+                    }`}
+                  >
+                    ✅ Mark as Occupied
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setModalStatus('vacant')}
+                    className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition ${
+                      modalStatus === 'vacant'
+                        ? 'bg-gray-500 text-white border-gray-500 shadow-lg'
+                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    ⬜ Mark as Vacant
+                  </button>
+                )}
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                Current: <span className="font-bold">{modalRoom.status || 'vacant'}</span>
+                {' → '}
+                New: <span className="font-bold">{modalStatus}</span>
               </div>
 
               <div>
@@ -818,18 +840,9 @@ const Rooms = () => {
                   onChange={(e) => setModalRemark(e.target.value)}
                   placeholder="Add notes about this status change..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  rows="3"
+                  rows="2"
                   disabled={updating}
                 />
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-800">
-                  <strong>Current Status:</strong> {modalRoom.status || 'vacant'}
-                </p>
-                <p className="text-sm text-blue-800 mt-1">
-                  <strong>New Status:</strong> {modalStatus}
-                </p>
               </div>
             </div>
 

@@ -1415,9 +1415,10 @@ const PaymentHistoryModal = ({ tenant, payments, electricityReadings = [], loadi
                   <thead className="bg-blue-50 sticky top-0">
                     <tr>
                       <th className="px-4 py-3 text-left font-semibold text-gray-700">Month</th>
-                      <th className="px-4 py-3 text-right font-semibold text-gray-700">Prev Reading</th>
-                      <th className="px-4 py-3 text-right font-semibold text-gray-700">Current Reading</th>
+                      <th className="px-4 py-3 text-right font-semibold text-gray-700">Prev</th>
+                      <th className="px-4 py-3 text-right font-semibold text-gray-700">Current</th>
                       <th className="px-4 py-3 text-right font-semibold text-gray-700">Units</th>
+                      <th className="px-4 py-3 text-right font-semibold text-gray-700">Rate/Unit</th>
                       <th className="px-4 py-3 text-right font-semibold text-gray-700">Charge</th>
                     </tr>
                   </thead>
@@ -1425,6 +1426,9 @@ const PaymentHistoryModal = ({ tenant, payments, electricityReadings = [], loadi
                     {electricityReadings.map((reading) => {
                       const unitsConsumed = Number(reading.unitsConsumed ?? 0);
                       const totalCharge = Number(reading.totalCharge ?? 0);
+                      const ratePerUnit = reading.ratePerUnit != null
+                        ? Number(reading.ratePerUnit)
+                        : (unitsConsumed > 0 && totalCharge > 0 ? totalCharge / unitsConsumed : null);
                       const label = reading.monthLabel || (() => {
                         const d = reading.readingDate || reading.createdAt;
                         return d ? new Date(d).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '-';
@@ -1440,6 +1444,9 @@ const PaymentHistoryModal = ({ tenant, payments, electricityReadings = [], loadi
                           <td className="px-4 py-3 text-right font-mono">{reading.previousReading ?? '-'}</td>
                           <td className="px-4 py-3 text-right font-mono text-blue-600 font-semibold">{reading.currentReading ?? '-'}</td>
                           <td className="px-4 py-3 text-right font-semibold text-blue-600">{unitsConsumed}</td>
+                          <td className="px-4 py-3 text-right text-purple-600 font-semibold">
+                            {ratePerUnit != null ? `₹${ratePerUnit.toFixed(2)}` : '-'}
+                          </td>
                           <td className="px-4 py-3 text-right font-semibold text-green-600">₹{totalCharge.toFixed(2)}</td>
                         </tr>
                       );
