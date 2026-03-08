@@ -29,6 +29,7 @@ const Tenants = () => {
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [selectedTenantHistory, setSelectedTenantHistory] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState([]);
+  const [electricityHistory, setElectricityHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [mergeTargetTenantId, setMergeTargetTenantId] = useState('');
   const [mergeSourceTenantId, setMergeSourceTenantId] = useState('');
@@ -421,10 +422,82 @@ const Tenants = () => {
         });
 
       setPaymentHistory(payments);
+
+      // Build electricity unit history from two sources:
+      // 1) electricityReadings collection (direct meter readings)
+      // 2) payments collection (meter fields embedded in each payment)
+      try {
+        const readingsRef = collection(db, 'electricityReadings');
+        const readingDocs = new Map();
+
+        // Source 1: direct electricityReadings by tenantId
+        if (tenant.id) {
+          const snap = await getDocs(query(readingsRef, where('tenantId', '==', tenant.id)));
+          snap.forEach(d => readingDocs.set(d.id, { id: d.id, ...d.data(), source: 'electricityReadings' }));
+        }
+
+        // Source 2: extract meter readings embedded in payment records
+        const toDate = (val) => {
+          if (!val) return new Date(0);
+          const d = new Date(val);
+          return isNaN(d.getTime()) ? new Date(0) : d;
+        };
+
+        payments.forEach(payment => {
+          const previousReading = Number(payment.oldReading ?? payment.previousReading);
+          const currentReading = Number(payment.currentReading ?? payment.meterReading);
+          const unitsConsumed = Number(payment.units ?? payment.unitsConsumed ?? 0);
+          const totalCharge = Number(payment.electricity ?? payment.electricityAmount ?? 0);
+
+          const validReadings = Number.isFinite(previousReading) && Number.isFinite(currentReading) && currentReading >= previousReading;
+          const validElectricity = totalCharge > 0 || unitsConsumed > 0;
+
+          if (!validReadings || !validElectricity) return;
+
+          const recordDate = payment.paidDate || payment.paymentDate || payment.createdAt || payment.paidAt;
+          const monthLabel = (payment.year && payment.month)
+            ? `${new Date(Number(payment.year), Number(payment.month) - 1, 1).toLocaleDateString('en-IN', { month: 'short' })} ${payment.year}`
+            : (recordDate ? new Date(recordDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '');
+
+          const key = `payment_${payment.id}`;
+          readingDocs.set(key, {
+            id: key,
+            tenantId: tenant.id,
+            roomNumber: tenant.roomNumber,
+            readingDate: recordDate,
+            monthLabel,
+            previousReading,
+            currentReading,
+            unitsConsumed: Number.isFinite(unitsConsumed) ? unitsConsumed : Math.max(0, currentReading - previousReading),
+            ratePerUnit: Number(payment.ratePerUnit) || null,
+            totalCharge,
+            source: 'payments',
+            year: payment.year,
+            month: payment.month,
+          });
+        });
+
+        // Deduplicate by monthLabel+currentReading+previousReading
+        const seen = new Set();
+        const readings = Array.from(readingDocs.values())
+          .sort((a, b) => toDate(b.readingDate) - toDate(a.readingDate))
+          .filter(r => {
+            const dedupeKey = `${r.monthLabel}_${r.currentReading}_${r.previousReading}`;
+            if (seen.has(dedupeKey)) return false;
+            seen.add(dedupeKey);
+            return true;
+          });
+
+        setElectricityHistory(readings);
+      } catch (elErr) {
+        console.warn('Could not fetch electricity readings:', elErr.message);
+        setElectricityHistory([]);
+      }
     } catch (err) {
       console.error('Error fetching payment history:', err);
       await showAlert('Failed to load payment history', { title: 'History Error', intent: 'error' });
       setPaymentHistory([]);
+      setElectricityHistory([]);
     } finally {
       setLoadingHistory(false);
     }
@@ -433,6 +506,7 @@ const Tenants = () => {
   const handleCloseHistory = () => {
     setSelectedTenantHistory(null);
     setPaymentHistory([]);
+    setElectricityHistory([]);
   };
 
   // ── Applicant Handlers ──
@@ -1108,6 +1182,7 @@ const Tenants = () => {
         <PaymentHistoryModal
           tenant={selectedTenantHistory}
           payments={paymentHistory}
+          electricityReadings={electricityHistory}
           loading={loadingHistory}
           onClose={handleCloseHistory}
         />
@@ -1194,12 +1269,13 @@ const Tenants = () => {
   );
 };
 
-const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
+const PaymentHistoryModal = ({ tenant, payments, electricityReadings = [], loading, onClose }) => {
+  const [activeTab, setActiveTab] = useState('payments'); // 'payments' | 'electricity'
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  
-  // Calculate totals
+
   const totalCollected = payments.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
-  
+  const totalUnits = electricityReadings.reduce((sum, r) => sum + (Number(r.unitsConsumed) || 0), 0);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-hidden flex flex-col">
@@ -1207,30 +1283,55 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold mb-1">📊 Payment History</h2>
+              <h2 className="text-2xl font-bold mb-1">📊 Tenant History</h2>
               <p className="text-blue-100">{tenant.name} - Room {tenant.roomNumber}</p>
             </div>
-            <button
-              onClick={onClose}
-              className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition"
-            >
+            <button onClick={onClose} className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-          
+
           {/* Summary Stats */}
-          <div className="grid grid-cols-2 gap-4 mt-4">
+          <div className="grid grid-cols-3 gap-3 mt-4">
             <div className="bg-white bg-opacity-20 rounded-lg p-3">
-              <p className="text-blue-100 text-sm">Total Collected</p>
-              <p className="text-2xl font-bold">₹{totalCollected.toLocaleString('en-IN')}</p>
+              <p className="text-blue-100 text-xs">Total Collected</p>
+              <p className="text-xl font-bold">₹{totalCollected.toLocaleString('en-IN')}</p>
             </div>
             <div className="bg-white bg-opacity-20 rounded-lg p-3">
-              <p className="text-blue-100 text-sm">Total Payments</p>
-              <p className="text-2xl font-bold">{payments.length}</p>
+              <p className="text-blue-100 text-xs">Total Payments</p>
+              <p className="text-xl font-bold">{payments.length}</p>
+            </div>
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <p className="text-blue-100 text-xs">Total Units</p>
+              <p className="text-xl font-bold">{totalUnits} <span className="text-sm font-normal">units</span></p>
             </div>
           </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 bg-gray-50">
+          <button
+            onClick={() => setActiveTab('payments')}
+            className={`flex-1 py-3 text-sm font-semibold transition ${
+              activeTab === 'payments'
+                ? 'border-b-2 border-blue-500 text-blue-600 bg-white'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            💰 Payment History ({payments.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('electricity')}
+            className={`flex-1 py-3 text-sm font-semibold transition ${
+              activeTab === 'electricity'
+                ? 'border-b-2 border-blue-500 text-blue-600 bg-white'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            ⚡ Electricity Unit History ({electricityReadings.length})
+          </button>
         </div>
 
         {/* Content */}
@@ -1239,80 +1340,120 @@ const PaymentHistoryModal = ({ tenant, payments, loading, onClose }) => {
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading payment history...</p>
+                <p className="text-gray-600">Loading history...</p>
               </div>
             </div>
-          ) : payments.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">📄</div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">No Payment History</h3>
-              <p className="text-gray-600">This tenant has no payment records yet.</p>
-            </div>
+          ) : activeTab === 'payments' ? (
+            payments.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">📄</div>
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">No Payment History</h3>
+                <p className="text-gray-600">This tenant has no payment records yet.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold">Period</th>
+                      <th className="px-4 py-3 text-right font-semibold">Rent</th>
+                      <th className="px-4 py-3 text-right font-semibold">Electricity</th>
+                      <th className="px-4 py-3 text-right font-semibold">Total</th>
+                      <th className="px-4 py-3 text-right font-semibold">Paid</th>
+                      <th className="px-4 py-3 text-left font-semibold">Payment Date</th>
+                      <th className="px-4 py-3 text-center font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((payment) => {
+                      const rent = payment.rent || 0;
+                      const electricity = payment.electricity || 0;
+                      const total = rent + electricity;
+                      const paid = payment.paidAmount || 0;
+                      const isPaid = payment.status === 'paid';
+                      return (
+                        <tr key={payment.id} className="border-b hover:bg-gray-50">
+                          <td className="px-4 py-3 font-semibold">
+                            {monthNames[payment.month - 1]} {payment.year}
+                          </td>
+                          <td className="px-4 py-3 text-right">₹{rent.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-3 text-right">₹{electricity.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-3 text-right font-semibold">₹{total.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-3 text-right font-bold text-green-600">
+                            ₹{paid.toLocaleString('en-IN')}
+                          </td>
+                          <td className="px-4 py-3">
+                            {payment.paymentDate || payment.paidAt
+                              ? new Date(payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
+                              : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                              isPaid && paid > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {isPaid && paid > 0 ? '✅ Paid' : '❌ Pending'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-100 sticky top-0">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Period</th>
-                    <th className="px-4 py-3 text-right font-semibold">Rent</th>
-                    <th className="px-4 py-3 text-right font-semibold">Electricity</th>
-                    <th className="px-4 py-3 text-right font-semibold">Total</th>
-                    <th className="px-4 py-3 text-right font-semibold">Paid</th>
-                    <th className="px-4 py-3 text-left font-semibold">Payment Date</th>
-                    <th className="px-4 py-3 text-center font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((payment) => {
-                    const rent = payment.rent || 0;
-                    const electricity = payment.electricity || 0;
-                    const total = rent + electricity;
-                    const paid = payment.paidAmount || 0;
-                    const isPaid = payment.status === 'paid';
-                    
-                    return (
-                      <tr key={payment.id} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3 font-semibold">
-                          {monthNames[payment.month - 1]} {payment.year}
-                        </td>
-                        <td className="px-4 py-3 text-right">₹{rent.toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-3 text-right">₹{electricity.toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-3 text-right font-semibold">₹{total.toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-3 text-right font-bold text-green-600">
-                          ₹{paid.toLocaleString('en-IN')}
-                        </td>
-                        <td className="px-4 py-3">
-                          {payment.paymentDate || payment.paidAt 
-                            ? new Date(payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
-                            : '-'
-                          }
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                            isPaid && paid > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {isPaid && paid > 0 ? '✅ Paid' : '❌ Pending'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            /* Electricity Unit History Tab */
+            electricityReadings.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">⚡</div>
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">No Electricity Records</h3>
+                <p className="text-gray-600">No meter reading records found for this tenant.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-blue-50 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">Month</th>
+                      <th className="px-4 py-3 text-right font-semibold text-gray-700">Prev Reading</th>
+                      <th className="px-4 py-3 text-right font-semibold text-gray-700">Current Reading</th>
+                      <th className="px-4 py-3 text-right font-semibold text-gray-700">Units</th>
+                      <th className="px-4 py-3 text-right font-semibold text-gray-700">Charge</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-blue-100">
+                    {electricityReadings.map((reading) => {
+                      const unitsConsumed = Number(reading.unitsConsumed ?? 0);
+                      const totalCharge = Number(reading.totalCharge ?? 0);
+                      const label = reading.monthLabel || (() => {
+                        const d = reading.readingDate || reading.createdAt;
+                        return d ? new Date(d).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '-';
+                      })();
+                      return (
+                        <tr key={reading.id} className="hover:bg-blue-50">
+                          <td className="px-4 py-3 font-semibold">
+                            {label}
+                            {reading.source === 'payments' && (
+                              <span className="ml-1 text-xs text-gray-400">(bill)</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono">{reading.previousReading ?? '-'}</td>
+                          <td className="px-4 py-3 text-right font-mono text-blue-600 font-semibold">{reading.currentReading ?? '-'}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-blue-600">{unitsConsumed}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-green-600">₹{totalCharge.toFixed(2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
           )}
         </div>
 
         {/* Footer */}
         <div className="border-t p-4 bg-gray-50 flex justify-end">
-          <button
-            onClick={onClose}
-            className="btn-primary"
-          >
-            Close
-          </button>
+          <button onClick={onClose} className="btn-primary">Close</button>
         </div>
       </div>
     </div>
