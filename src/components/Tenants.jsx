@@ -570,6 +570,18 @@ const Tenants = () => {
 
       const tenantRef = await addDoc(collection(db, 'tenants'), tenantPayload);
 
+      // Update room rent to match tenant rent
+      const roomsRef = collection(db, 'rooms');
+      const roomQuery = query(roomsRef, where('roomNumber', '==', roomNum));
+      const roomSnapshot = await getDocs(roomQuery);
+      if (!roomSnapshot.empty) {
+        await updateDoc(roomSnapshot.docs[0].ref, {
+          rent: rent,
+          currentTenantId: tenantRef.id,
+          status: 'filled'
+        });
+      }
+
       // Update application status
       await updateDoc(doc(db, 'tenantApplications', applicant.id), {
         status: 'approved',

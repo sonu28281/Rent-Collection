@@ -256,7 +256,8 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
         // Update room status for all assigned rooms
         await updateRoomStatusForAssignments(normalizedAssignedRooms, formData.isActive, {
           oldAssignedRooms,
-          tenantId: tenant.id
+          tenantId: tenant.id,
+          currentRent: parseFloat(formData.currentRent)
         });
 
         if (oldName && newName && oldName !== newName) {
@@ -286,7 +287,8 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
         // Update room status for all assigned rooms
         await updateRoomStatusForAssignments(normalizedAssignedRooms, formData.isActive, {
           oldAssignedRooms: [],
-          tenantId: newTenantRef.id
+          tenantId: newTenantRef.id,
+          currentRent: parseFloat(formData.currentRent)
         });
         
         alert('Tenant added successfully!');
@@ -446,12 +448,19 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
         const roomDoc = roomSnapshot.docs[0];
         const oldStatus = roomDoc.data().status || 'vacant';
 
-        await updateDoc(doc(db, 'rooms', roomDoc.id), {
+        const updatePayload = {
           status,
           lastStatusUpdatedAt: serverTimestamp(),
           lastStatusUpdatedBy: user?.uid || 'system',
           currentTenantId: status === 'filled' && isOccupied ? (options.tenantId || null) : null
-        });
+        };
+
+        // Sync rent from tenant to room if provided
+        if (options.currentRent !== undefined && options.currentRent !== null) {
+          updatePayload.rent = Number(options.currentRent);
+        }
+
+        await updateDoc(doc(db, 'rooms', roomDoc.id), updatePayload);
 
         await addDoc(collection(db, 'roomStatusLogs'), {
           roomId: roomDoc.id,

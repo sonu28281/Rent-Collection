@@ -67,6 +67,22 @@ export const applyRentIncrease = async (tenantId, tenantData) => {
       nextIncreaseDate: nextIncreaseDate.toISOString().split('T')[0]
     });
     
+    // Sync rent to rooms collection for all assigned rooms
+    const assignedRooms = tenantData.assignedRooms || [tenantData.roomNumber];
+    const roomsRef = collection(db, 'rooms');
+    
+    for (const roomNumber of assignedRooms) {
+      if (!roomNumber) continue;
+      
+      // Try both string and number formats
+      const roomQuery = query(roomsRef, where('roomNumber', '==', roomNumber));
+      const roomSnapshot = await getDocs(roomQuery);
+      
+      if (!roomSnapshot.empty) {
+        await updateDoc(roomSnapshot.docs[0].ref, { rent: newRent });
+      }
+    }
+    
     // Log the change
     const logId = `rent_increase_${tenantId}_${Date.now()}`;
     const logData = {
