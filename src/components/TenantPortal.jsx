@@ -2304,19 +2304,31 @@ const TenantPortal = () => {
   };
 
   const getLastMonthClosingReading = (roomNumber = null) => {
-    const roomMatch = roomNumber !== null
-      ? paymentRecords
-          .filter((record) => String(record.roomNumber) === String(roomNumber))
-          .sort((a, b) => getMonthIndex(Number(b.year), Number(b.month)) - getMonthIndex(Number(a.year), Number(a.month)))[0]
+    // Find the LAST PAYMENT where electricity was actually charged/billed (not just last month)
+    const filteredRecords = roomNumber !== null
+      ? paymentRecords.filter((record) => {
+          // Must match room number
+          if (String(record.roomNumber) !== String(roomNumber)) return false;
+          
+          // Must have electricity charged OR meter readings present
+          const hasElectricityCharge = Number(record.electricity ?? record.electricityAmount ?? 0) > 0;
+          const hasMeterReadings = Number(record.currentReading ?? record.meterReading ?? 0) > 0;
+          
+          return hasElectricityCharge || hasMeterReadings;
+        })
+      : [];
+    
+    const roomMatch = filteredRecords.length > 0
+      ? filteredRecords.sort((a, b) => getMonthIndex(Number(b.year), Number(b.month)) - getMonthIndex(Number(a.year), Number(a.month)))[0]
       : null;
 
     const roomEntry = roomNumber !== null
       ? roomsData.find((entry) => String(entry.roomNumber) === String(roomNumber))
       : room;
 
+    // Priority order: Last electricity payment reading > Room data > 0
     const candidateReadings = [
       roomMatch ? Number(roomMatch.currentReading ?? roomMatch.meterReading ?? roomMatch.oldReading ?? roomMatch.previousReading) : null,
-      getElectricityBillingHealth().snapshot?.currentReading,
       roomEntry?.currentReading,
       roomEntry?.previousReading,
       0
@@ -2327,6 +2339,30 @@ const TenantPortal = () => {
       .find((value) => Number.isFinite(value) && value >= 0);
 
     return Number.isFinite(reading) ? reading : 0;
+  };
+
+  // Prepare meter readings and open submit payment modal
+  const handleOpenSubmitPayment = () => {
+    console.log('\n🚀 Opening Submit Payment modal...');
+    
+    const prevReadings = {};
+    const currReadings = {};
+    
+    // Calculate meter readings for all rooms
+    roomsData.forEach((roomEntry) => {
+      const roomNum = String(roomEntry.roomNumber);
+      const previousReading = getLastMonthClosingReading(roomNum);
+      prevReadings[roomNum] = previousReading;
+      currReadings[roomNum] = 0; // Current reading starts at 0, user will input
+      
+      console.log(`  Room ${roomNum}: Previous Reading = ${previousReading}`);
+    });
+    
+    console.log('📊 Meter readings prepared:', { prevReadings, currReadings });
+    
+    setPreviousMeterReadings(prevReadings);
+    setCurrentMeterReadings(currReadings);
+    setShowSubmitPayment(true);
   };
 
   // Get month name
@@ -2947,7 +2983,7 @@ const TenantPortal = () => {
                   
                   {/* Submit Payment Proof Button - Always available */}
                   <button
-                    onClick={() => setShowSubmitPayment(true)}
+                    onClick={handleOpenSubmitPayment}
                     className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 active:scale-95 touch-manipulation"
                   >
                     📝 Submit Payment for Verification
@@ -3584,6 +3620,8 @@ const TenantPortal = () => {
             rooms={roomsData}
             electricityRate={globalElectricityRate}
             language={portalLanguage}
+            previousMeterReadings={previousMeterReadings}
+            currentMeterReadings={currentMeterReadings}
             onClose={() => setShowSubmitPayment(false)}
             onSuccess={() => {
               // Reload tenant data after successful submission
