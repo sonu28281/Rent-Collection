@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { getDashboardStats, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary, getTodaysCollection } from '../utils/financial';
 import ViewModeToggle from './ui/ViewModeToggle';
 import LiveDateTime from './ui/LiveDateTime';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
+import { PaymentHistoryModal } from './Tenants';
 
 const Dashboard = () => {
   const { currentUser } = useAuth();
@@ -33,6 +36,184 @@ const Dashboard = () => {
     yearly: { column: 'year', direction: 'desc' }
   });
   const [expandedSplitRows, setExpandedSplitRows] = useState({});
+  
+  // Payment history modal state
+  const [selectedTenantHistory, setSelectedTenantHistory] = useState(null);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [electricityHistory, setElectricityHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Helper function to get assigned rooms
+  const getAssignedRooms = (tenantRecord) => {
+    // Check for assignedRooms field (from Firestore tenant documents)
+    if (Array.isArray(tenantRecord?.assignedRooms) && tenantRecord.assignedRooms.length > 0) {
+      return tenantRecord.assignedRooms.map((room) => String(room));
+    }
+    // Check for roomNumbers field (from currentMonthSummary tenant objects)
+    if (Array.isArray(tenantRecord?.roomNumbers) && tenantRecord.roomNumbers.length > 0) {
+      return tenantRecord.roomNumbers.map((room) => String(room));
+    }
+    // Fallback to single roomNumber field
+    if (tenantRecord?.roomNumber !== undefined && tenantRecord?.roomNumber !== null && tenantRecord?.roomNumber !== '') {
+      return [String(tenantRecord.roomNumber)];
+    }
+    return [];
+  };
+
+  // Handle view payment history
+  const handleViewHistory = async (tenant) => {
+    console.log('🔍 Dashboard handleViewHistory called with tenant:', {
+      id: tenant.id,
+      name: tenant.name,
+      roomNumber: tenant.roomNumber,
+      roomNumbers: tenant.roomNumbers,
+      assignedRooms: tenant.assignedRooms,
+      roomCount: tenant.roomCount
+    });
+    
+    setSelectedTenantHistory(tenant);
+    setLoadingHistory(true);
+    
+    try {
+      const paymentsRef = collection(db, 'payments');
+      const assignedRooms = getAssignedRooms(tenant);
+      
+      console.log('📊 Assigned rooms for history query:', assignedRooms);
+
+      const paymentDocs = new Map();
+
+      // 1) Best match by tenantId (most reliable for current data)
+      if (tenant.id) {
+        const tenantIdQuery = query(paymentsRef, where('tenantId', '==', tenant.id));
+        const tenantIdSnapshot = await getDocs(tenantIdQuery);
+        tenantIdSnapshot.forEach((doc) => paymentDocs.set(doc.id, doc));
+      }
+
+      // 2) Fallback by assigned room numbers (supports old records with no tenantId)
+      const roomQueries = [];
+      assignedRooms.forEach((roomNumber) => {
+        roomQueries.push(query(paymentsRef, where('roomNumber', '==', roomNumber)));
+
+        const roomNumberAsNumber = Number.parseInt(roomNumber, 10);
+        if (Number.isFinite(roomNumberAsNumber)) {
+          roomQueries.push(query(paymentsRef, where('roomNumber', '==', roomNumberAsNumber)));
+        }
+      });
+
+      const roomSnapshots = await Promise.all(roomQueries.map((roomQuery) => getDocs(roomQuery)));
+      roomSnapshots.forEach((snapshot) => {
+        snapshot.forEach((doc) => paymentDocs.set(doc.id, doc));
+      });
+
+      const tenantName = (tenant.name || '').trim().toLowerCase();
+
+      const payments = Array.from(paymentDocs.values())
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((payment) => {
+          if (payment.tenantId && tenant.id && payment.tenantId === tenant.id) {
+            return true;
+          }
+
+          const snapshotName = (payment.tenantNameSnapshot || '').trim().toLowerCase();
+          const legacyName = (payment.tenantName || '').trim().toLowerCase();
+
+          return Boolean(tenantName) && (snapshotName === tenantName || legacyName === tenantName);
+        })
+        .sort((a, b) => {
+          const yearDiff = Number(b.year || 0) - Number(a.year || 0);
+          if (yearDiff !== 0) return yearDiff;
+          return Number(b.month || 0) - Number(a.month || 0);
+        });
+
+      console.log(`✅ Found ${payments.length} payment records for ${tenant.name}`);
+      console.log('Payment records:', payments.map(p => ({ month: p.month, year: p.year, room: p.roomNumber })));
+
+      setPaymentHistory(payments);
+
+      // Build electricity unit history from two sources:
+      // 1) electricityReadings collection (direct meter readings)
+      // 2) payments collection (meter fields embedded in each payment)
+      try {
+        const readingsRef = collection(db, 'electricityReadings');
+        const readingDocs = new Map();
+
+        // Source 1: direct electricityReadings by tenantId
+        if (tenant.id) {
+          const snap = await getDocs(query(readingsRef, where('tenantId', '==', tenant.id)));
+          snap.forEach(d => readingDocs.set(d.id, { id: d.id, ...d.data(), source: 'electricityReadings' }));
+        }
+
+        // Source 2: extract meter readings embedded in payment records
+        const toDate = (val) => {
+          if (!val) return new Date(0);
+          const d = new Date(val);
+          return isNaN(d.getTime()) ? new Date(0) : d;
+        };
+
+        payments.forEach(payment => {
+          const previousReading = Number(payment.oldReading ?? payment.previousReading);
+          const currentReading = Number(payment.currentReading ?? payment.meterReading);
+          const unitsConsumed = Number(payment.units ?? payment.unitsConsumed ?? 0);
+          const totalCharge = Number(payment.electricity ?? payment.electricityAmount ?? 0);
+
+          const validReadings = Number.isFinite(previousReading) && Number.isFinite(currentReading) && currentReading >= previousReading;
+          const validElectricity = totalCharge > 0 || unitsConsumed > 0;
+
+          if (!validReadings || !validElectricity) return;
+
+          const recordDate = payment.paidDate || payment.paymentDate || payment.createdAt || payment.paidAt;
+          const monthLabel = (payment.year && payment.month)
+            ? `${new Date(Number(payment.year), Number(payment.month) - 1, 1).toLocaleDateString('en-IN', { month: 'short' })} ${payment.year}`
+            : (recordDate ? new Date(recordDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '');
+
+          const key = `payment_${payment.id}`;
+          readingDocs.set(key, {
+            id: key,
+            tenantId: tenant.id,
+            roomNumber: tenant.roomNumber,
+            readingDate: recordDate,
+            monthLabel,
+            previousReading,
+            currentReading,
+            unitsConsumed: Number.isFinite(unitsConsumed) ? unitsConsumed : Math.max(0, currentReading - previousReading),
+            ratePerUnit: Number(payment.ratePerUnit) || null,
+            totalCharge,
+            source: 'payments',
+            year: payment.year,
+            month: payment.month,
+          });
+        });
+
+        // Deduplicate by monthLabel+currentReading+previousReading
+        const seen = new Set();
+        const readings = Array.from(readingDocs.values())
+          .sort((a, b) => toDate(b.readingDate) - toDate(a.readingDate))
+          .filter(r => {
+            const dedupeKey = `${r.monthLabel}_${r.currentReading}_${r.previousReading}`;
+            if (seen.has(dedupeKey)) return false;
+            seen.add(dedupeKey);
+            return true;
+          });
+
+        setElectricityHistory(readings);
+      } catch (elErr) {
+        console.warn('Could not fetch electricity readings:', elErr.message);
+        setElectricityHistory([]);
+      }
+    } catch (err) {
+      console.error('Error fetching payment history:', err);
+      setPaymentHistory([]);
+      setElectricityHistory([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleCloseHistory = () => {
+    setSelectedTenantHistory(null);
+    setPaymentHistory([]);
+    setElectricityHistory([]);
+  };
 
   const fetchMonthData = useCallback(async () => {
     try {
@@ -631,7 +812,13 @@ const Dashboard = () => {
                                             {getCompactRoomLabel(tenant)}
                                           </td>
                                           <td className="px-3 py-2">
-                                            {tenant.name}
+                                            <button
+                                              onClick={() => handleViewHistory(tenant)}
+                                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors cursor-pointer text-left"
+                                              title="View Payment History"
+                                            >
+                                              {tenant.name}
+                                            </button>
                                             {tenant.roomCount > 1 && (
                                               <div className="mt-1 flex items-center gap-2">
                                                 <span className="text-xs text-indigo-700 font-semibold">Multi-room tenant</span>
@@ -805,7 +992,13 @@ const Dashboard = () => {
                                             {getCompactRoomLabel(tenant)}
                                           </td>
                                           <td className="px-3 py-2">
-                                            {tenant.name}
+                                            <button
+                                              onClick={() => handleViewHistory(tenant)}
+                                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors cursor-pointer text-left"
+                                              title="View Payment History"
+                                            >
+                                              {tenant.name}
+                                            </button>
                                             {tenant.roomCount > 1 && (
                                               <div className="mt-1 flex items-center gap-2">
                                                 <span className="text-xs text-indigo-700 font-semibold">Multi-room tenant</span>
@@ -1000,6 +1193,16 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* Payment History Modal */}
+      {selectedTenantHistory && (
+        <PaymentHistoryModal
+          tenant={selectedTenantHistory}
+          payments={paymentHistory}
+          electricityReadings={electricityHistory}
+          loading={loadingHistory}
+          onClose={handleCloseHistory}
+        />
+      )}
 
     </div>
   );
