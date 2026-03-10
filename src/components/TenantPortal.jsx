@@ -56,6 +56,9 @@ const TenantPortal = () => {
   // UI state for collapsible cards
   const [expandedCard, setExpandedCard] = useState(null);
   
+  // History tab state (payments or meters)
+  const [historyTab, setHistoryTab] = useState('payments');
+  
   // Payment form state
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [previousMeterReadings, setPreviousMeterReadings] = useState({});
@@ -2386,6 +2389,8 @@ const TenantPortal = () => {
           id: `payment_${record.id}`,
           source: 'payment_history',
           date: record.paidDate || record.paymentDate || record.paidAt || record.createdAt || null,
+          year: record.year,
+          month: record.month,
           monthLabel: record.year && record.month ? `${getMonthName(Number(record.month))} ${record.year}` : 'Unknown',
           roomNumber: String(record.roomNumber ?? room?.roomNumber ?? tenant?.roomNumber ?? ''),
           previousReading,
@@ -2413,6 +2418,8 @@ const TenantPortal = () => {
           id: `reading_${reading.id}`,
           source: 'meter_reading',
           date: readingDate,
+          year: reading.year || (dateObj && !Number.isNaN(dateObj.getTime()) ? dateObj.getFullYear() : new Date().getFullYear()),
+          month: reading.month || (dateObj && !Number.isNaN(dateObj.getTime()) ? dateObj.getMonth() + 1 : new Date().getMonth() + 1),
           monthLabel: dateObj && !Number.isNaN(dateObj.getTime())
             ? dateObj.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
             : 'Unknown',
@@ -2942,6 +2949,12 @@ const TenantPortal = () => {
                         <p>Total: <span className="font-semibold">₹{currentMonthPayable.total.toLocaleString('en-IN')}</span></p>
                         <p>Paid: <span className="font-semibold">₹{currentMonthPayable.paid.toLocaleString('en-IN')}</span></p>
                       </div>
+                      <div className="mt-2 pt-2 border-t border-green-300">
+                        <p className="text-[10px] text-green-700 flex items-center gap-1">
+                          <span className="font-bold">⚡ Rate:</span>
+                          <span className="bg-orange-500 text-white px-2 py-0.5 rounded font-bold">₹{globalElectricityRate}/unit</span>
+                        </p>
+                      </div>
                     </div>
                   )}
 
@@ -3247,7 +3260,12 @@ const TenantPortal = () => {
               {/* Electricity Info - Mobile Optimized */}
               {(roomsData.length > 0 ? roomsData : (room ? [room] : [])).length > 0 && (
                 <div className="mt-3 sm:mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4">
-                  <h3 className="font-semibold text-yellow-900 mb-2 sm:mb-3 text-sm sm:text-base">⚡ Electricity Meter</h3>
+                  <div className="flex items-center justify-between mb-2 sm:mb-3">
+                    <h3 className="font-semibold text-yellow-900 text-sm sm:text-base">⚡ Electricity Meter</h3>
+                    <div className="bg-orange-500 text-white px-3 py-1 rounded-lg shadow-sm">
+                      <p className="text-xs font-bold">₹{globalElectricityRate}/unit</p>
+                    </div>
+                  </div>
                   <div className="space-y-2">
                     {(roomsData.length > 0 ? roomsData : (room ? [room] : [])).map((roomEntry) => (
                       <div key={String(roomEntry.roomNumber)} className="bg-white rounded-lg border border-yellow-200 p-2 sm:p-3">
@@ -3276,142 +3294,268 @@ const TenantPortal = () => {
               )}
             </div>
 
-            {/* Meter History Access - Read Only */}
-            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-              {(() => {
-                const fullTimeline = getMeterHistoryTimeline();
-                const roomTabs = (roomsData || []).map((entry) => String(entry.roomNumber));
-                const hasRoomTabs = roomTabs.length > 1;
-                const filteredTimeline = hasRoomTabs && selectedMeterRoomTab !== 'all'
-                  ? fullTimeline.filter((entry) => String(entry.roomNumber) === String(selectedMeterRoomTab))
-                  : fullTimeline;
-
-                return (
-                  <>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-800">📚 Meter Reading History</h2>
-                <span className="text-xs sm:text-sm text-gray-600">
-                  {filteredTimeline.length} record{filteredTimeline.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-
-              {hasRoomTabs && (
-                <div className="flex flex-wrap gap-2 mb-3">
+            {/* History Tabs Section - Combined Payment & Meter History */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              {/* Tabs Header */}
+              <div className="border-b border-gray-200">
+                <div className="flex">
                   <button
-                    onClick={() => setSelectedMeterRoomTab('all')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                      selectedMeterRoomTab === 'all'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    onClick={() => setHistoryTab('payments')}
+                    className={`flex-1 px-4 py-3 sm:px-6 sm:py-4 text-sm sm:text-base font-semibold transition-all ${
+                      historyTab === 'payments'
+                        ? 'bg-blue-500 text-white border-b-4 border-blue-700'
+                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                     }`}
                   >
-                    All Meters
+                    💰 Payment History
                   </button>
-                  {roomTabs.map((roomNumber) => (
-                    <button
-                      key={`meter_tab_${roomNumber}`}
-                      onClick={() => setSelectedMeterRoomTab(roomNumber)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                        selectedMeterRoomTab === roomNumber
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
-                    >
-                      MTR {roomNumber}
-                    </button>
-                  ))}
+                  <button
+                    onClick={() => setHistoryTab('meters')}
+                    className={`flex-1 px-4 py-3 sm:px-6 sm:py-4 text-sm sm:text-base font-semibold transition-all ${
+                      historyTab === 'meters'
+                        ? 'bg-blue-500 text-white border-b-4 border-blue-700'
+                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    📚 Meter Reading
+                  </button>
                 </div>
-              )}
-
-              {filteredTimeline.length === 0 ? (
-                <div className="text-center py-6 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600">No meter history available yet.</p>
-                </div>
-              ) : (
-                <div className="max-h-72 overflow-y-auto border border-gray-200 rounded-lg">
-                  <table className="w-full text-xs sm:text-sm">
-                    <thead className="bg-gray-50 sticky top-0">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
-                        <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
-                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Old</th>
-                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Current</th>
-                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Units</th>
-                        <th className="px-3 py-2 text-right font-semibold text-gray-700">Electricity</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredTimeline.map((entry) => (
-                        <tr key={entry.id} className="border-t border-gray-100">
-                          <td className="px-3 py-2 font-semibold text-gray-700">{entry.roomNumber || '-'}</td>
-                          <td className="px-3 py-2">
-                            <div className="font-semibold text-gray-800">{entry.monthLabel}</div>
-                            <div className="text-[10px] text-gray-500">
-                              {entry.source === 'meter_reading' ? 'meter record' : 'payment history'}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono">{entry.previousReading}</td>
-                          <td className="px-3 py-2 text-right font-mono">{entry.currentReading}</td>
-                          <td className="px-3 py-2 text-right">{entry.unitsConsumed}</td>
-                          <td className="px-3 py-2 text-right font-semibold">₹{Number(entry.electricityAmount || 0).toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-                  </>
-                );
-              })()}
-            </div>
-
-            {/* Payment Records - Collapsible Mobile-Friendly Cards */}
-            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-              {(() => {
-                const monthlyPaymentGroups = getMonthlyPaymentGroups();
-
-                return (
-                  <>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-800">💰 Payment History</h2>
-                <span className="text-xs sm:text-sm text-gray-600">
-                  {monthlyPaymentGroups.length} month{monthlyPaymentGroups.length !== 1 ? 's' : ''}
-                </span>
               </div>
 
-              {paymentRecords.length > 0 && (() => {
-                const summary = getPaidAmountSummary();
-                return (
-                  <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <p className="text-xs text-blue-700 font-semibold mb-1">🏠 Total Rent Paid (Till Date)</p>
-                      <p className="text-lg font-bold text-blue-900">₹{summary.rentPaid.toLocaleString('en-IN')}</p>
-                    </div>
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                      <p className="text-xs text-purple-700 font-semibold mb-1">⚡ Total Electricity Paid (Till Date)</p>
-                      <p className="text-lg font-bold text-purple-900">₹{summary.electricityPaid.toLocaleString('en-IN')}</p>
-                    </div>
-                  </div>
-                );
-              })()}
+              {/* Tab Content */}
+              <div className="p-4 sm:p-6">
+                {/* Meter Reading History Tab */}
+                {historyTab === 'meters' && (() => {
+                  const fullTimeline = getMeterHistoryTimeline();
+                  const roomTabs = (roomsData || []).map((entry) => String(entry.roomNumber));
+                  const hasRoomTabs = roomTabs.length > 1;
+                  const filteredTimeline = hasRoomTabs && selectedMeterRoomTab !== 'all'
+                    ? fullTimeline.filter((entry) => String(entry.roomNumber) === String(selectedMeterRoomTab))
+                    : fullTimeline;
 
-              {paymentRecords.length > 0 && (() => {
-                const paidWithElectricity = monthlyPaymentGroups.filter((group) => group.status === 'paid' && Number(group.totalElectricity || 0) > 0);
-                const lastElectricityPaid = paidWithElectricity[0] || null;
+                  // Calculate totals
+                  const totalElectricityPaid = filteredTimeline.reduce((sum, entry) => sum + Number(entry.electricityAmount || 0), 0);
+                  const totalUnits = filteredTimeline.reduce((sum, entry) => sum + Number(entry.unitsConsumed || 0), 0);
 
-                return (
-                  <div className="mb-4">
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                      <p className="text-xs text-green-700 font-semibold mb-1">✅ Rent + Electricity Paid</p>
-                      <p className="text-sm font-bold text-green-900">
-                        {lastElectricityPaid
-                          ? `Last: ${getMonthName(lastElectricityPaid.month)} ${lastElectricityPaid.year}`
-                          : 'No electricity-paid month yet'}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
+                  return (
+                    <>
+                      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="text-xl sm:text-2xl font-bold text-gray-800">📚 Meter Reading History</h2>
+                          <span className="bg-orange-500 text-white px-3 py-1 rounded-lg shadow-md text-xs sm:text-sm font-bold">
+                            ₹{globalElectricityRate}/unit
+                          </span>
+                        </div>
+                        <span className="text-xs sm:text-sm text-gray-600">
+                          {filteredTimeline.length} record{filteredTimeline.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+
+                      {hasRoomTabs && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          <button
+                            onClick={() => setSelectedMeterRoomTab('all')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                              selectedMeterRoomTab === 'all'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            All Meters
+                          </button>
+                          {roomTabs.map((roomNumber) => (
+                            <button
+                              key={`meter_tab_${roomNumber}`}
+                              onClick={() => setSelectedMeterRoomTab(roomNumber)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                                selectedMeterRoomTab === roomNumber
+                                  ? 'bg-indigo-600 text-white'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              MTR {roomNumber}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Summary Cards */}
+                      {filteredTimeline.length > 0 && (
+                        <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {/* Card 1: Total Electricity Paid */}
+                          <div className="bg-gradient-to-br from-yellow-500 to-orange-500 text-white rounded-lg p-4 shadow-md">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-2xl">⚡</span>
+                              <p className="text-xs font-semibold opacity-90">Total Electricity Paid</p>
+                            </div>
+                            <p className="text-2xl font-bold">₹{totalElectricityPaid.toLocaleString('en-IN')}</p>
+                            <p className="text-xs opacity-80 mt-1">Till Date</p>
+                          </div>
+
+                          {/* Card 2: Total Units Consumed */}
+                          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-lg p-4 shadow-md">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-2xl">🔌</span>
+                              <p className="text-xs font-semibold opacity-90">Total Units Consumed</p>
+                            </div>
+                            <p className="text-2xl font-bold">{totalUnits.toLocaleString('en-IN')} kWh</p>
+                            <p className="text-xs opacity-80 mt-1">Till Date</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {filteredTimeline.length === 0 ? (
+                        <div className="text-center py-6 bg-gray-50 rounded-lg">
+                          <p className="text-sm text-gray-600">No meter history available yet.</p>
+                        </div>
+                      ) : (() => {
+                        // Group meter readings by year and month
+                        const metersByYear = filteredTimeline.reduce((acc, entry) => {
+                          const year = entry.year || new Date().getFullYear();
+                          if (!acc[year]) {
+                            acc[year] = [];
+                          }
+                          acc[year].push(entry);
+                          return acc;
+                        }, {});
+
+                        // Sort years in descending order (latest first)
+                        const sortedYears = Object.keys(metersByYear).sort((a, b) => Number(b) - Number(a));
+
+                        return (
+                          <div className="space-y-4">
+                            {sortedYears.map((year) => (
+                              <div key={`meter_year_${year}`} className="space-y-2">
+                                {/* Year Header */}
+                                <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-lg shadow-md z-10">
+                                  <div className="flex items-center justify-between">
+                                    <h3 className="text-base sm:text-lg font-bold">⚡ Year {year}</h3>
+                                    <span className="text-xs sm:text-sm bg-white/20 px-2 py-1 rounded">
+                                      {metersByYear[year].length} reading{metersByYear[year].length !== 1 ? 's' : ''}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Year's Meter Reading Cards */}
+                                <div className="space-y-2">
+                                  {metersByYear[year].map((entry) => (
+                                    <div 
+                                      key={entry.id} 
+                                      className="border-2 border-indigo-200 bg-indigo-50 rounded-lg p-3"
+                                    >
+                                      {/* Card Header */}
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-lg">⚡</span>
+                                          <div>
+                                            <p className="text-sm font-bold text-indigo-900 bg-indigo-200 px-2 py-1 rounded inline-block">
+                                              {entry.monthLabel}
+                                            </p>
+                                            <p className="text-xs text-gray-600 mt-1">
+                                              Room {entry.roomNumber || '-'}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="flex items-center justify-end gap-2">
+                                            <p className="text-base font-bold text-indigo-900">₹{Number(entry.electricityAmount || 0).toFixed(2)}</p>
+                                            <p className="text-[9px] text-orange-700 font-semibold bg-orange-100 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                              {entry.unitsConsumed} Units × ₹{globalElectricityRate}
+                                            </p>
+                                          </div>
+                                          <p className="text-[10px] text-gray-500 mt-1">
+                                            {entry.source === 'meter_reading' ? 'meter record' : 'payment history'}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      {/* Meter Details Grid */}
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <div className="bg-white/70 rounded p-2">
+                                          <p className="text-[10px] text-gray-600">Previous</p>
+                                          <p className="text-sm font-mono font-bold text-gray-800">{entry.previousReading}</p>
+                                        </div>
+                                        <div className="bg-white/70 rounded p-2">
+                                          <p className="text-[10px] text-gray-600">Current</p>
+                                          <p className="text-sm font-mono font-bold text-gray-800">{entry.currentReading}</p>
+                                        </div>
+                                        <div className="bg-white/70 rounded p-2">
+                                          <p className="text-[10px] text-gray-600">Units</p>
+                                          <p className="text-sm font-bold text-indigo-900">{entry.unitsConsumed}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </>
+                  );
+                })()}
+
+                {/* Payment History Tab */}
+                {historyTab === 'payments' && (() => {
+                  const monthlyPaymentGroups = getMonthlyPaymentGroups();
+
+                  return (
+                    <>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">💰 Payment History</h2>
+                        <span className="text-xs sm:text-sm text-gray-600">
+                          {monthlyPaymentGroups.length} month{monthlyPaymentGroups.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+
+                      {paymentRecords.length > 0 && (() => {
+                        const summary = getPaidAmountSummary();
+                        const paidWithElectricity = monthlyPaymentGroups.filter((group) => group.status === 'paid' && Number(group.totalElectricity || 0) > 0);
+                        const lastElectricityPaid = paidWithElectricity[0] || null;
+                        
+                        return (
+                          <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {/* Card 1: Total Rent Paid */}
+                            <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg p-4 shadow-md">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-2xl">🏠</span>
+                                <p className="text-xs font-semibold opacity-90">Total Rent Paid</p>
+                              </div>
+                              <p className="text-2xl font-bold">₹{summary.rentPaid.toLocaleString('en-IN')}</p>
+                              <p className="text-xs opacity-80 mt-1">Till Date</p>
+                            </div>
+
+                            {/* Card 2: Total Electricity Paid */}
+                            <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg p-4 shadow-md">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-2xl">⚡</span>
+                                <p className="text-xs font-semibold opacity-90">Total Electricity Paid</p>
+                              </div>
+                              <p className="text-2xl font-bold">₹{summary.electricityPaid.toLocaleString('en-IN')}</p>
+                              <p className="text-xs opacity-80 mt-1">Till Date</p>
+                            </div>
+
+                            {/* Card 3: Last Month Paid */}
+                            <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg p-4 shadow-md">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-2xl">✅</span>
+                                <p className="text-xs font-semibold opacity-90">Last Rent+Elec Paid</p>
+                              </div>
+                              <p className="text-lg font-bold">
+                                {lastElectricityPaid
+                                  ? `${getMonthName(lastElectricityPaid.month)} ${lastElectricityPaid.year}`
+                                  : 'Not Yet'}
+                              </p>
+                              <p className="text-xs opacity-80 mt-1">
+                                {lastElectricityPaid
+                                  ? `₹${lastElectricityPaid.totalAmount.toLocaleString('en-IN')}`
+                                  : 'No payment with electricity'}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
               
               {paymentRecords.length === 0 ? (
                 <div className="text-center py-6 sm:py-8 bg-gray-50 rounded-lg">
@@ -3419,9 +3563,37 @@ const TenantPortal = () => {
                   <p className="text-gray-600 font-semibold text-sm sm:text-base">No payment records yet</p>
                   <p className="text-xs sm:text-sm text-gray-500 mt-1">Your payment history will appear here</p>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  {monthlyPaymentGroups.map((group) => {
+              ) : (() => {
+                // Group payments by year
+                const paymentsByYear = monthlyPaymentGroups.reduce((acc, group) => {
+                  const year = group.year;
+                  if (!acc[year]) {
+                    acc[year] = [];
+                  }
+                  acc[year].push(group);
+                  return acc;
+                }, {});
+
+                // Sort years in descending order (latest first)
+                const sortedYears = Object.keys(paymentsByYear).sort((a, b) => Number(b) - Number(a));
+
+                return (
+                  <div className="space-y-4">
+                    {sortedYears.map((year) => (
+                      <div key={`year_${year}`} className="space-y-2">
+                        {/* Year Header */}
+                        <div className="sticky top-0 bg-gradient-to-r from-gray-700 to-gray-800 text-white px-4 py-2 rounded-lg shadow-md z-10">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-base sm:text-lg font-bold">📅 Year {year}</h3>
+                            <span className="text-xs sm:text-sm bg-white/20 px-2 py-1 rounded">
+                              {paymentsByYear[year].length} month{paymentsByYear[year].length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Year's Payment Cards */}
+                        <div className="space-y-2">
+                          {paymentsByYear[year].map((group) => {
                     const total = group.totalAmount;
                     const isPaid = group.status === 'paid';
                     const isPending = group.status === 'pending';
@@ -3536,7 +3708,12 @@ const TenantPortal = () => {
                             {/* Meter Readings */}
                             {group.records.some((recordItem) => recordItem.oldReading || recordItem.currentReading || recordItem.units) && (
                               <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
-                                <p className="text-xs font-semibold text-yellow-900 mb-2">⚡ Meter Details:</p>
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-xs font-semibold text-yellow-900">⚡ Meter Details:</p>
+                                  <span className="text-[10px] font-bold text-orange-700 bg-orange-200 px-2 py-0.5 rounded">
+                                    @₹{globalElectricityRate}/unit
+                                  </span>
+                                </div>
                                 <div className="space-y-1 text-xs">
                                   {group.records.map((recordItem) => (
                                     <div key={`meter_${recordItem.id}`} className="grid grid-cols-4 gap-2 bg-white/70 rounded px-2 py-1">
@@ -3572,11 +3749,16 @@ const TenantPortal = () => {
                       </div>
                     );
                   })}
-                </div>
-              )}
-                  </>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 );
               })()}
+                    </>
+                  );
+                })()}
+              </div>
             </div>
 
             {/* Contact & Support Info */}
