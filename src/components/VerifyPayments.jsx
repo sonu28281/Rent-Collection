@@ -18,8 +18,22 @@ const VerifyPayments = () => {
   const [notificationPermission, setNotificationPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
   );
+  const [viewingScreenshot, setViewingScreenshot] = useState(null);
+  const [expandedSubmissions, setExpandedSubmissions] = useState(new Set());
 
   const ADMIN_NOTIFIED_KEY = 'admin_notified_submission_ids_v1';
+
+  const toggleSubmission = (submissionId) => {
+    setExpandedSubmissions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(submissionId)) {
+        newSet.delete(submissionId);
+      } else {
+        newSet.add(submissionId);
+      }
+      return newSet;
+    });
+  };
 
   const getNotifiedSubmissionIds = () => {
     try {
@@ -799,254 +813,321 @@ const VerifyPayments = () => {
               const paidAmount = Number(submission.paidAmount || 0);
               const balanceAmount = Math.max(totalPayable - paidAmount, 0);
               const isPartial = paidAmount > 0 && paidAmount < totalPayable;
+              const isExpanded = expandedSubmissions.has(submission.id);
+              const ocrBadge = getOcrBadge(submission.id);
 
               return (
             <div key={submission.id} className="bg-white rounded-lg shadow-md border-2 border-gray-200 overflow-hidden">
-              {/* Header */}
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold">{submission.tenantName}</h3>
-                  <p className="text-sm text-white text-opacity-90">
-                    Room{Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 1 ? 's' : ''} {Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 0 ? submission.roomNumbers.join(', ') : submission.roomNumber}
-                  </p>
-                </div>
-                <div className="text-right">
-                  {getStatusBadge(submission.status)}
-                  <p className="text-xs text-white text-opacity-90 mt-1">
-                    {submission.submittedAt ? new Date(submission.submittedAt).toLocaleString() : 'Awaiting submission'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Body */}
-              <div className="p-6">
-                <div className="mb-3 flex items-center gap-2">
-                  {(() => {
-                    const badge = getOcrBadge(submission.id);
-                    return (
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${badge.className}`}>
-                        OCR: {badge.text}
+              {/* Collapsed Header - Always Visible */}
+              <div 
+                onClick={() => toggleSubmission(submission.id)}
+                className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-4 cursor-pointer hover:from-blue-600 hover:to-indigo-700 transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-lg font-bold">{submission.tenantName}</h3>
+                      <span className="text-xs bg-white bg-opacity-20 px-2 py-1 rounded">
+                        Room {Array.isArray(submission.roomNumbers) && submission.roomNumbers.length > 0 ? submission.roomNumbers.join(', ') : submission.roomNumber}
                       </span>
-                    );
-                  })()}
-                  {submission.status === 'pending' && (
-                    <button
-                      type="button"
-                      onClick={() => runOcrUtrCheck(submission)}
-                      disabled={ocrChecks[submission.id]?.status === 'checking'}
-                      className="text-xs font-semibold px-3 py-1 rounded-md bg-indigo-100 text-indigo-800 hover:bg-indigo-200 disabled:opacity-60"
-                    >
-                      {ocrChecks[submission.id]?.status === 'checking' ? 'Checking...' : 'Check Screenshot UTR + Date'}
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <label className="text-xs text-gray-500 font-semibold">Payment Date</label>
-                    <p className="text-sm font-bold">{submission.paidDate || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 font-semibold">Month/Year</label>
-                    <p className="text-sm font-bold">{submission.month}/{submission.year}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 font-semibold">UTR Number</label>
-                    <p className="text-sm font-mono font-bold">{safeUtr || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 font-semibold">Rent Amount</label>
-                    <p className="text-sm font-bold">₹{submission.rentAmount?.toLocaleString('en-IN')}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 font-semibold">Electricity</label>
-                    <p className="text-sm font-bold">₹{submission.electricityAmount?.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 font-semibold">Total Paid</label>
-                    <p className="text-lg font-bold text-green-600">₹{paidAmount.toLocaleString('en-IN')}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 font-semibold">Total Payable</label>
-                    <p className="text-sm font-bold">₹{totalPayable.toLocaleString('en-IN')}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 font-semibold">Balance</label>
-                    <p className={`text-sm font-bold ${balanceAmount > 0 ? 'text-amber-700' : 'text-green-700'}`}>
-                      ₹{balanceAmount.toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 font-semibold">Meter Reading</label>
-                    <p className="text-sm font-bold">{submission.previousReading} → {submission.meterReading} ({submission.unitsConsumed} units)</p>
-                  </div>
-                </div>
-
-                {isPartial && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-                    <p className="text-sm font-semibold text-amber-900">⚠️ Partial Payment</p>
-                    <p className="text-sm text-amber-800">Paid ₹{paidAmount.toLocaleString('en-IN')} out of ₹{totalPayable.toLocaleString('en-IN')} • Balance ₹{balanceAmount.toLocaleString('en-IN')}</p>
-                  </div>
-                )}
-
-                {ocrChecks[submission.id]?.status && ocrChecks[submission.id]?.status !== 'checking' && (
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4">
-                    <p className="text-xs font-semibold text-indigo-800 mb-1">OCR UTR + Date Check</p>
-                    <p className="text-xs text-indigo-800">Entered UTR: {normalizeUtr(getSubmissionUtr(submission)) || '-'}</p>
-                    <p className="text-xs text-indigo-800">Extracted UTR: {ocrChecks[submission.id]?.extractedUtr || '-'}</p>
-                    <p className="text-xs text-indigo-800 mt-1">Submitted Payment Date: {ocrChecks[submission.id]?.enteredPaidDate || '-'}</p>
-                    <p className="text-xs text-indigo-800">Screenshot Date (OCR): {ocrChecks[submission.id]?.extractedDate || '-'}</p>
-                    <p className="text-xs text-indigo-800">Today: {ocrChecks[submission.id]?.todayDate || '-'}</p>
-                    {ocrChecks[submission.id]?.status === 'matched' && (
-                      <p className="text-xs text-green-700 mt-1 font-semibold">Date checks passed (submitted date match + today match).</p>
-                    )}
-                    {ocrChecks[submission.id]?.status === 'old_screenshot' && (
-                      <p className="text-xs text-red-700 mt-1 font-semibold">Submitted date matched, but screenshot date is not today.</p>
-                    )}
-                    {ocrChecks[submission.id]?.status === 'date_mismatch' && (
-                      <p className="text-xs text-amber-700 mt-1 font-semibold">UTR matched, but screenshot date does not match submitted payment date.</p>
-                    )}
-                    {ocrChecks[submission.id]?.status === 'date_not_found' && (
-                      <p className="text-xs text-orange-700 mt-1 font-semibold">UTR matched, but screenshot date could not be extracted by OCR.</p>
-                    )}
-                    {typeof ocrChecks[submission.id]?.confidence === 'number' && (
-                      <p className="text-xs text-indigo-700 mt-1">OCR Confidence: {ocrChecks[submission.id].confidence.toFixed(1)}%</p>
-                    )}
-                  </div>
-                )}
-
-                {Array.isArray(submission.roomBreakdown) && submission.roomBreakdown.length > 0 && (
-                  <div className="mb-4">
-                    <label className="text-xs text-gray-500 font-semibold block mb-2">Room-wise Breakdown</label>
-                    <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                      <table className="w-full text-xs sm:text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-3 py-2 text-left">Room</th>
-                            <th className="px-3 py-2 text-right">Old</th>
-                            <th className="px-3 py-2 text-right">Current</th>
-                            <th className="px-3 py-2 text-right">Units</th>
-                            <th className="px-3 py-2 text-right">Rent</th>
-                            <th className="px-3 py-2 text-right">Electricity</th>
-                            <th className="px-3 py-2 text-right">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {submission.roomBreakdown.map((entry, index) => (
-                            <tr key={`${submission.id}_room_${index}`} className="border-t border-gray-100">
-                              <td className="px-3 py-2 font-semibold">{entry.roomNumber}</td>
-                              <td className="px-3 py-2 text-right font-mono">{entry.previousReading}</td>
-                              <td className="px-3 py-2 text-right font-mono">{entry.currentReading}</td>
-                              <td className="px-3 py-2 text-right">{entry.unitsConsumed ?? Math.max(0, Number(entry.currentReading || 0) - Number(entry.previousReading || 0))}</td>
-                              <td className="px-3 py-2 text-right">₹{Number(entry.rentAmount || 0).toFixed(2)}</td>
-                              <td className="px-3 py-2 text-right">₹{Number(entry.electricityAmount || 0).toFixed(2)}</td>
-                              <td className="px-3 py-2 text-right font-semibold">₹{Number(entry.totalAmount || (Number(entry.rentAmount || 0) + Number(entry.electricityAmount || 0))).toFixed(2)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="font-semibold">₹{paidAmount.toLocaleString('en-IN')}</span>
+                      <span className="text-white text-opacity-80">•</span>
+                      <span>{submission.paidDate || 'Date N/A'}</span>
+                      <span className="text-white text-opacity-80">•</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${ocrBadge.className}`}>
+                        {ocrBadge.text}
+                      </span>
                     </div>
                   </div>
-                )}
-
-                {submission.notes && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                    <label className="text-xs text-blue-700 font-semibold">Notes</label>
-                    <p className="text-sm text-blue-900">{submission.notes}</p>
-                  </div>
-                )}
-
-                {screenshotProof && (
-                  <div className="mb-4">
-                    <label className="text-xs text-gray-500 font-semibold block mb-2">Screenshot</label>
-                    {String(screenshotProof).startsWith('data:image') ? (
-                      <a
-                        href={screenshotProof}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block"
-                      >
-                        <img
-                          src={screenshotProof}
-                          alt="Payment screenshot"
-                          className="max-h-56 w-auto rounded-lg border border-gray-300"
-                        />
-                      </a>
-                    ) : (
-                      <a 
-                        href={screenshotProof} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline text-sm"
-                      >
-                        📸 View Screenshot
-                      </a>
-                    )}
-                  </div>
-                )}
-
-                {!screenshotProof && (
-                  <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
-                    <p className="text-sm text-red-800">Screenshot proof not found in this submission.</p>
-                  </div>
-                )}
-
-                {submission.status === 'rejected' && submission.rejectionReason && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                    <label className="text-xs text-red-700 font-semibold">Rejection Reason</label>
-                    <p className="text-sm text-red-900">{submission.rejectionReason}</p>
-                  </div>
-                )}
-
-                {/* Actions */}
-                {submission.status === 'pending' && (
-                  <div className="flex gap-2 flex-wrap">
-                    {submission.awaitingSubmission ? (
-                      <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm font-semibold px-3 py-2 rounded-lg">
-                        Awaiting tenant payment submission
-                      </div>
-                    ) : (
-                      <>
-                    <button
-                      onClick={() => handleApprove(submission)}
-                      disabled={processing}
-                      className="bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
+                  <div className="flex items-center gap-3">
+                    {getStatusBadge(submission.status)}
+                    <svg 
+                      className={`w-6 h-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
                     >
-                      ✅ Approve & Record
-                    </button>
-                    {(!Array.isArray(submission.roomBreakdown) || submission.roomBreakdown.length === 0) && (
-                      <button
-                        onClick={() => handleEdit(submission)}
-                        disabled={processing}
-                        className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
-                      >
-                        ✏️ Edit
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleReject(submission)}
-                      disabled={processing}
-                      className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
-                    >
-                      ❌ Reject
-                    </button>
-                      </>
-                    )}
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                   </div>
-                )}
-
-                {submission.status !== 'pending' && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleDelete(submission)}
-                      disabled={processing}
-                      className="bg-gray-500 hover:bg-gray-600 text-white font-semibold px-4 py-2 rounded-lg transition text-sm disabled:opacity-50"
-                    >
-                      🗑️ Delete
-                    </button>
-                  </div>
-                )}
+                </div>
               </div>
+
+              {/* Expanded Details - Only When Expanded */}
+              {isExpanded && (
+                <div className="p-4">
+                  {/* Main Layout: Left Content + Right Screenshot */}
+                  <div className="flex flex-col lg:flex-row gap-4">
+                    
+                    {/* Left Side: Details */}
+                    <div className="flex-1 space-y-3">
+                      
+                      {/* OCR Check Button */}
+                      {submission.status === 'pending' && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); runOcrUtrCheck(submission); }}
+                            disabled={ocrChecks[submission.id]?.status === 'checking'}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+                          >
+                            {ocrChecks[submission.id]?.status === 'checking' ? 'Checking...' : '🔍 Check Screenshot UTR + Date'}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Payment Details Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold">Payment Date</label>
+                          <p className="text-sm font-bold">{submission.paidDate || '-'}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold">Month/Year</label>
+                          <p className="text-sm font-bold">{submission.month}/{submission.year}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold">UTR Number</label>
+                          <p className="text-xs font-mono font-bold break-all">{safeUtr || '-'}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold">Rent</label>
+                          <p className="text-sm font-bold">₹{submission.rentAmount?.toLocaleString('en-IN')}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold">Electricity</label>
+                          <p className="text-sm font-bold">
+                            ₹{submission.electricityAmount?.toFixed(2)}
+                            {submission.unitsConsumed > 0 && submission.electricityAmount > 0 && (
+                              <span className="text-[10px] text-gray-600 ml-1">
+                                ({submission.unitsConsumed} × ₹{(submission.electricityAmount / submission.unitsConsumed).toFixed(1)}/unit)
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold">Total Paid</label>
+                          <p className="text-sm font-bold text-green-600">₹{paidAmount.toLocaleString('en-IN')}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold">Total Payable</label>
+                          <p className="text-sm font-bold">₹{totalPayable.toLocaleString('en-IN')}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold">Balance</label>
+                          <p className={`text-sm font-bold ${balanceAmount > 0 ? 'text-amber-700' : 'text-green-700'}`}>
+                            ₹{balanceAmount.toLocaleString('en-IN')}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold">Meter Reading</label>
+                          <p className="text-xs font-bold">{submission.previousReading} → {submission.meterReading} ({submission.unitsConsumed} Units)</p>
+                        </div>
+                      </div>
+
+                      {/* Partial Payment Warning */}
+                      {isPartial && (
+                        <div className="bg-amber-50 border border-amber-300 rounded-lg p-2.5">
+                          <p className="text-xs font-semibold text-amber-900">⚠️ Partial Payment: ₹{paidAmount.toLocaleString('en-IN')} / ₹{totalPayable.toLocaleString('en-IN')} • Balance: ₹{balanceAmount.toLocaleString('en-IN')}</p>
+                        </div>
+                      )}
+
+                      {/* OCR Check Results with Visual Indicators */}
+                      {ocrChecks[submission.id]?.status && ocrChecks[submission.id]?.status !== 'checking' && (
+                        <div className="bg-indigo-50 border border-indigo-300 rounded-lg p-2">
+                          <p className="text-xs font-bold text-indigo-900 mb-1.5">🔍 OCR Verification:</p>
+                          
+                          {(() => {
+                            const enteredUtr = normalizeUtr(getSubmissionUtr(submission));
+                            const extractedUtr = ocrChecks[submission.id]?.extractedUtr || '';
+                            const utrMatch = enteredUtr && extractedUtr && enteredUtr === extractedUtr;
+                            
+                            const enteredDate = ocrChecks[submission.id]?.enteredPaidDate || '';
+                            const extractedDate = ocrChecks[submission.id]?.extractedDate || '';
+                            const todayDate = ocrChecks[submission.id]?.todayDate || '';
+                            const dateMatch = enteredDate && extractedDate && enteredDate === extractedDate;
+                            const todayMatch = extractedDate && todayDate && extractedDate === todayDate;
+                            
+                            return (
+                              <div className="space-y-1">
+                                {/* UTR Check - One Line */}
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm">{utrMatch ? '✅' : '❌'}</span>
+                                  <span className="text-[11px] font-semibold text-gray-700">UTR:</span>
+                                  <span className={`text-[11px] font-mono ${utrMatch ? 'text-green-700' : 'text-red-700'} flex-1 truncate`}>
+                                    {enteredUtr || '-'} {extractedUtr && `(OCR: ${extractedUtr})`}
+                                  </span>
+                                </div>
+                                
+                                {/* Payment Date Check - One Line */}
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm">{dateMatch ? '✅' : '❌'}</span>
+                                  <span className="text-[11px] font-semibold text-gray-700">Date:</span>
+                                  <span className={`text-[11px] ${dateMatch ? 'text-green-700' : 'text-red-700'}`}>
+                                    {enteredDate || '-'} {extractedDate && `(OCR: ${extractedDate})`}
+                                  </span>
+                                </div>
+                                
+                                {/* Today Date Check - One Line */}
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm">{todayMatch ? '✅' : '❌'}</span>
+                                  <span className="text-[11px] font-semibold text-gray-700">Today:</span>
+                                  <span className={`text-[11px] ${todayMatch ? 'text-green-700' : 'text-red-700'}`}>
+                                    {extractedDate || '-'} vs {todayDate || '-'}
+                                  </span>
+                                </div>
+                                
+                                {typeof ocrChecks[submission.id]?.confidence === 'number' && (
+                                  <p className="text-[10px] text-gray-600 mt-1">Confidence: {ocrChecks[submission.id].confidence.toFixed(1)}%</p>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      {/* Room Breakdown Table */}
+                      {Array.isArray(submission.roomBreakdown) && submission.roomBreakdown.length > 0 && (
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold block mb-2">Room-wise Breakdown</label>
+                          <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                            <table className="w-full text-xs">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-2 py-1.5 text-left">Room</th>
+                                  <th className="px-2 py-1.5 text-right">Old</th>
+                                  <th className="px-2 py-1.5 text-right">Current</th>
+                                  <th className="px-2 py-1.5 text-right">Units</th>
+                                  <th className="px-2 py-1.5 text-right">Rent</th>
+                                  <th className="px-2 py-1.5 text-right">Elec</th>
+                                  <th className="px-2 py-1.5 text-right">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {submission.roomBreakdown.map((entry, index) => {
+                                  const units = entry.unitsConsumed ?? Math.max(0, Number(entry.currentReading || 0) - Number(entry.previousReading || 0));
+                                  const elecAmount = Number(entry.electricityAmount || 0);
+                                  const rate = units > 0 && elecAmount > 0 ? (elecAmount / units).toFixed(1) : 0;
+                                  
+                                  return (
+                                    <tr key={`${submission.id}_room_${index}`} className="border-t border-gray-100">
+                                      <td className="px-2 py-1.5 font-semibold">{entry.roomNumber}</td>
+                                      <td className="px-2 py-1.5 text-right font-mono">{entry.previousReading}</td>
+                                      <td className="px-2 py-1.5 text-right font-mono">{entry.currentReading}</td>
+                                      <td className="px-2 py-1.5 text-right">{units} Units</td>
+                                      <td className="px-2 py-1.5 text-right">₹{Number(entry.rentAmount || 0).toFixed(0)}</td>
+                                      <td className="px-2 py-1.5 text-right">
+                                        ₹{elecAmount.toFixed(0)}
+                                        {rate > 0 && (
+                                          <div className="text-[9px] text-gray-500">({units}×₹{rate})</div>
+                                        )}
+                                      </td>
+                                      <td className="px-2 py-1.5 text-right font-semibold">₹{Number(entry.totalAmount || (Number(entry.rentAmount || 0) + elecAmount)).toFixed(0)}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Notes */}
+                      {submission.notes && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5">
+                          <label className="text-xs text-blue-700 font-semibold">Notes</label>
+                          <p className="text-xs text-blue-900">{submission.notes}</p>
+                        </div>
+                      )}
+
+                      {/* Rejection Reason */}
+                      {submission.status === 'rejected' && submission.rejectionReason && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-2.5">
+                          <label className="text-xs text-red-700 font-semibold">Rejection Reason</label>
+                          <p className="text-xs text-red-900">{submission.rejectionReason}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right Side: Screenshot */}
+                    <div className="lg:w-80 flex-shrink-0">
+                      {screenshotProof ? (
+                        <div className="sticky top-4">
+                          <label className="text-xs text-gray-500 font-semibold block mb-2">Payment Screenshot</label>
+                          <div
+                            onClick={(e) => { e.stopPropagation(); setViewingScreenshot(screenshotProof); }}
+                            className="cursor-pointer rounded-lg overflow-hidden border-2 border-gray-300 hover:border-indigo-500 transition-all bg-gray-50"
+                          >
+                            <img
+                              src={screenshotProof}
+                              alt="Payment screenshot"
+                              className="w-full max-h-80 object-contain hover:opacity-90 transition-opacity"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500 text-center mt-2">Click to view full size</p>
+                        </div>
+                      ) : (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                          <p className="text-xs text-red-800">❌ Screenshot not found</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="mt-4 pt-3 border-t border-gray-200">
+                    {submission.status === 'pending' && (
+                      <div className="flex gap-2 flex-wrap">
+                        {submission.awaitingSubmission ? (
+                          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm font-semibold px-3 py-2 rounded-lg">
+                            Awaiting tenant payment submission
+                          </div>
+                        ) : (
+                          <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleApprove(submission); }}
+                          disabled={processing}
+                          className="bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
+                        >
+                          ✅ Approve & Record
+                        </button>
+                        {(!Array.isArray(submission.roomBreakdown) || submission.roomBreakdown.length === 0) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleEdit(submission); }}
+                            disabled={processing}
+                            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
+                          >
+                            ✏️ Edit
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleReject(submission); }}
+                          disabled={processing}
+                          className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
+                        >
+                          ❌ Reject
+                        </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {submission.status !== 'pending' && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(submission); }}
+                          disabled={processing}
+                          className="bg-gray-500 hover:bg-gray-600 text-white font-semibold px-4 py-2 rounded-lg transition text-sm disabled:opacity-50"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+              </div>
+              )}
             </div>
               );
             })()
@@ -1155,6 +1236,39 @@ const VerifyPayments = () => {
                   {processing ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Screenshot Viewer Modal */}
+      {viewingScreenshot && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4"
+          onClick={() => setViewingScreenshot(null)}
+        >
+          <div 
+            className="relative max-w-full max-h-full bg-white rounded-lg shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setViewingScreenshot(null)}
+              className="absolute top-2 right-2 z-10 w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-110"
+              aria-label="Close"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            
+            {/* Screenshot image */}
+            <div className="overflow-auto max-h-[90vh]">
+              <img
+                src={viewingScreenshot}
+                alt="Payment Screenshot - Full View"
+                className="max-w-full max-h-[90vh] w-auto h-auto object-contain"
+              />
             </div>
           </div>
         </div>
