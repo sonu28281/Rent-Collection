@@ -1333,6 +1333,64 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
     });
   })() : payments;
 
+  // Group electricity readings by month+year for multi-room tenants
+  const groupedElectricityReadings = isMultiRoom ? (() => {
+    const groups = new Map();
+    
+    electricityReadings.forEach(reading => {
+      // Extract year and month from monthLabel or readingDate
+      let year, month;
+      if (reading.year && reading.month) {
+        year = reading.year;
+        month = reading.month;
+      } else if (reading.monthLabel) {
+        // Parse "Feb 2026" format
+        const parts = reading.monthLabel.split(' ');
+        if (parts.length === 2) {
+          month = monthNames.indexOf(parts[0]) + 1;
+          year = Number(parts[1]);
+        }
+      } else if (reading.readingDate) {
+        const date = new Date(reading.readingDate);
+        year = date.getFullYear();
+        month = date.getMonth() + 1;
+      }
+
+      if (!year || !month) return; // Skip if we can't determine period
+
+      const periodKey = `elec-${year}-${month}`;
+      if (!groups.has(periodKey)) {
+        groups.set(periodKey, {
+          periodKey,
+          year,
+          month,
+          readings: [],
+          totalUnits: 0,
+          totalCharge: 0,
+          avgRatePerUnit: 0
+        });
+      }
+      
+      const group = groups.get(periodKey);
+      group.readings.push(reading);
+      group.totalUnits += Number(reading.unitsConsumed || 0);
+      group.totalCharge += Number(reading.totalCharge || 0);
+    });
+    
+    // Calculate average rate per unit for each group
+    groups.forEach(group => {
+      if (group.totalUnits > 0 && group.totalCharge > 0) {
+        group.avgRatePerUnit = group.totalCharge / group.totalUnits;
+      }
+    });
+    
+    return Array.from(groups.values()).sort((a, b) => {
+      const yearDiff = Number(b.year) - Number(a.year);
+      if (yearDiff !== 0) return yearDiff;
+      return Number(b.month) - Number(a.month);
+    });
+  })() : electricityReadings;
+
   const toggleRow = (periodKey) => {
     setExpandedRows(prev => {
       const newSet = new Set(prev);
@@ -1588,34 +1646,103 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-blue-100">
-                    {electricityReadings.map((reading) => {
-                      const unitsConsumed = Number(reading.unitsConsumed ?? 0);
-                      const totalCharge = Number(reading.totalCharge ?? 0);
-                      const ratePerUnit = reading.ratePerUnit != null
-                        ? Number(reading.ratePerUnit)
-                        : (unitsConsumed > 0 && totalCharge > 0 ? totalCharge / unitsConsumed : null);
-                      const label = reading.monthLabel || (() => {
-                        const d = reading.readingDate || reading.createdAt;
-                        return d ? new Date(d).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '-';
-                      })();
-                      return (
-                        <tr key={reading.id} className="hover:bg-blue-50">
-                          <td className="px-4 py-3 font-semibold">
-                            {label}
-                            {reading.source === 'payments' && (
-                              <span className="ml-1 text-xs text-gray-400">(bill)</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-right font-mono">{reading.previousReading ?? '-'}</td>
-                          <td className="px-4 py-3 text-right font-mono text-blue-600 font-semibold">{reading.currentReading ?? '-'}</td>
-                          <td className="px-4 py-3 text-right font-semibold text-blue-600">{unitsConsumed}</td>
-                          <td className="px-4 py-3 text-right text-purple-600 font-semibold">
-                            {ratePerUnit != null ? `₹${ratePerUnit.toFixed(2)}` : '-'}
-                          </td>
-                          <td className="px-4 py-3 text-right font-semibold text-green-600">₹{totalCharge.toFixed(2)}</td>
-                        </tr>
-                      );
-                    })}
+                    {isMultiRoom ? (
+                      // Multi-room tenant: Show grouped electricity readings with expandable rows
+                      groupedElectricityReadings.map((group) => {
+                        const isExpanded = expandedRows.has(group.periodKey);
+                        const monthLabel = `${monthNames[group.month - 1]} ${group.year}`;
+                        
+                        return (
+                          <Fragment key={group.periodKey}>
+                            {/* Main row (collapsed view - shows totals) */}
+                            <tr 
+                              onClick={() => toggleRow(group.periodKey)}
+                              className="hover:bg-blue-100 cursor-pointer transition-colors"
+                            >
+                              <td className="px-4 py-3 font-semibold">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-blue-600">
+                                    {isExpanded ? '▼' : '▶'}
+                                  </span>
+                                  {monthLabel}
+                                  {group.readings.length > 1 && (
+                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-semibold">
+                                      {group.readings.length} rooms
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono">-</td>
+                              <td className="px-4 py-3 text-right font-mono">-</td>
+                              <td className="px-4 py-3 text-right font-bold text-blue-600">{group.totalUnits}</td>
+                              <td className="px-4 py-3 text-right text-purple-600 font-semibold">
+                                {group.avgRatePerUnit > 0 ? `₹${group.avgRatePerUnit.toFixed(2)}` : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold text-green-600">₹{group.totalCharge.toFixed(2)}</td>
+                            </tr>
+                            
+                            {/* Expanded rows (room-wise breakdown) */}
+                            {isExpanded && group.readings.map((reading) => {
+                              const unitsConsumed = Number(reading.unitsConsumed ?? 0);
+                              const totalCharge = Number(reading.totalCharge ?? 0);
+                              const ratePerUnit = reading.ratePerUnit != null
+                                ? Number(reading.ratePerUnit)
+                                : (unitsConsumed > 0 && totalCharge > 0 ? totalCharge / unitsConsumed : null);
+                              
+                              return (
+                                <tr key={reading.id} className="bg-blue-50">
+                                  <td className="px-4 py-2 pl-12 text-sm text-gray-700">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">🏠 Room {reading.roomNumber}</span>
+                                      {reading.source === 'payments' && (
+                                        <span className="text-xs text-gray-400">(from bill)</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-mono text-sm">{reading.previousReading ?? '-'}</td>
+                                  <td className="px-4 py-2 text-right font-mono text-blue-600 font-semibold text-sm">{reading.currentReading ?? '-'}</td>
+                                  <td className="px-4 py-2 text-right font-semibold text-blue-600 text-sm">{unitsConsumed}</td>
+                                  <td className="px-4 py-2 text-right text-purple-600 font-semibold text-sm">
+                                    {ratePerUnit != null ? `₹${ratePerUnit.toFixed(2)}` : '-'}
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-semibold text-green-600 text-sm">₹{totalCharge.toFixed(2)}</td>
+                                </tr>
+                              );
+                            })}
+                          </Fragment>
+                        );
+                      })
+                    ) : (
+                      // Single-room tenant: Show normal rows
+                      electricityReadings.map((reading) => {
+                        const unitsConsumed = Number(reading.unitsConsumed ?? 0);
+                        const totalCharge = Number(reading.totalCharge ?? 0);
+                        const ratePerUnit = reading.ratePerUnit != null
+                          ? Number(reading.ratePerUnit)
+                          : (unitsConsumed > 0 && totalCharge > 0 ? totalCharge / unitsConsumed : null);
+                        const label = reading.monthLabel || (() => {
+                          const d = reading.readingDate || reading.createdAt;
+                          return d ? new Date(d).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '-';
+                        })();
+                        return (
+                          <tr key={reading.id} className="hover:bg-blue-50">
+                            <td className="px-4 py-3 font-semibold">
+                              {label}
+                              {reading.source === 'payments' && (
+                                <span className="ml-1 text-xs text-gray-400">(bill)</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono">{reading.previousReading ?? '-'}</td>
+                            <td className="px-4 py-3 text-right font-mono text-blue-600 font-semibold">{reading.currentReading ?? '-'}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-blue-600">{unitsConsumed}</td>
+                            <td className="px-4 py-3 text-right text-purple-600 font-semibold">
+                              {ratePerUnit != null ? `₹${ratePerUnit.toFixed(2)}` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-green-600">₹{totalCharge.toFixed(2)}</td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
