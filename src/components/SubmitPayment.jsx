@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collection, addDoc, getDocs, limit, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -14,20 +14,28 @@ const SubmitPayment = ({
   onSuccess 
 }) => {
   const t = (en, hi) => (language === 'hi' ? hi : en);
-  const effectiveRooms = Array.isArray(rooms) && rooms.length > 0
-    ? rooms
-    : (room ? [room] : []);
+  
+  // Memoize effectiveRooms to prevent unnecessary re-renders
+  const effectiveRooms = useMemo(() => {
+    return Array.isArray(rooms) && rooms.length > 0
+      ? rooms
+      : (room ? [room] : []);
+  }, [rooms, room]);
 
   const isMultiRoom = effectiveRooms.length > 1;
-  const initialRoomBreakdown = effectiveRooms.map((roomEntry) => {
-    const roomKey = String(roomEntry.roomNumber);
-    return {
-      roomNumber: roomKey,
-      previousReading: Number(previousMeterReadings[roomKey] || roomEntry.currentReading || 0),
-      currentReading: 0,
-      rentAmount: Number(roomEntry.rent || 0)
-    };
-  });
+  
+  // Memoize initial room breakdown to prevent recalculation
+  const initialRoomBreakdown = useMemo(() => {
+    return effectiveRooms.map((roomEntry) => {
+      const roomKey = String(roomEntry.roomNumber);
+      return {
+        roomNumber: roomKey,
+        previousReading: Number(previousMeterReadings[roomKey] || roomEntry.currentReading || 0),
+        currentReading: 0,
+        rentAmount: Number(roomEntry.rent || 0)
+      };
+    });
+  }, [effectiveRooms, previousMeterReadings]);
 
   const initialRentAmount = initialRoomBreakdown.reduce((sum, entry) => sum + (Number(entry.rentAmount) || 0), 0);
 
@@ -46,18 +54,25 @@ const SubmitPayment = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Update formData when meter readings props change
+  // Update formData when meter readings props change (but NOT when effectiveRooms changes due to parent re-renders)
   useEffect(() => {
-    console.log('🔄 SubmitPayment - Props changed:', {
+    console.log('🔄 SubmitPayment - Meter readings props changed:', {
       previousMeterReadings,
-      currentMeterReadings,
-      effectiveRooms: effectiveRooms.map(r => r.roomNumber)
+      currentMeterReadings
     });
+
+    // Only update if we have valid previousMeterReadings with actual room data
+    const hasValidPreviousReadings = Object.keys(previousMeterReadings).length > 0;
+    
+    if (!hasValidPreviousReadings) {
+      console.log('⚠️ No valid previousMeterReadings, skipping update');
+      return;
+    }
 
     const updatedRoomBreakdown = effectiveRooms.map((roomEntry) => {
       const roomKey = String(roomEntry.roomNumber);
       const prevReading = Number(previousMeterReadings[roomKey] || roomEntry.currentReading || 0);
-      const currReading = Number(currentMeterReadings[roomKey] || roomEntry.currentReading || 0);
+      const currReading = Number(currentMeterReadings[roomKey] || 0);
       console.log(`📊 Room ${roomKey}: prev=${prevReading}, curr=${currReading}`);
       return {
         roomNumber: roomKey,
@@ -69,9 +84,10 @@ const SubmitPayment = ({
 
     setFormData((prevData) => ({
       ...prevData,
-      roomBreakdown: updatedRoomBreakdown
+      roomBreakdown: updatedRoomBreakdown,
+      previousReading: Number(previousMeterReadings[String(room?.roomNumber || '')] || room?.currentReading || 0)
     }));
-  }, [previousMeterReadings, currentMeterReadings, effectiveRooms]);
+  }, [previousMeterReadings, currentMeterReadings]);
 
   const normalizeUtr = (value) => value.replace(/\s+/g, '').toUpperCase();
 
