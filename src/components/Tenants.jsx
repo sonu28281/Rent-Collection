@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { collection, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, addDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import TenantForm from './TenantForm';
@@ -1270,12 +1270,80 @@ const Tenants = () => {
   );
 };
 
-const PaymentHistoryModal = ({ tenant, payments, electricityReadings = [], loading, onClose }) => {
+export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = [], loading, onClose }) => {
   const [activeTab, setActiveTab] = useState('payments'); // 'payments' | 'electricity'
+  const [expandedRows, setExpandedRows] = useState(new Set()); // Track expanded rows by period key
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   const totalCollected = payments.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
   const totalUnits = electricityReadings.reduce((sum, r) => sum + (Number(r.unitsConsumed) || 0), 0);
+
+  // Check if tenant has multiple rooms
+  const isMultiRoom = tenant.roomCount > 1 || 
+                      (Array.isArray(tenant.roomNumbers) && tenant.roomNumbers.length > 1) ||
+                      (Array.isArray(tenant.assignedRooms) && tenant.assignedRooms.length > 1);
+
+  // Group payments by month+year for multi-room tenants
+  const groupedPayments = isMultiRoom ? (() => {
+    const groups = new Map();
+    
+    payments.forEach(payment => {
+      const periodKey = `${payment.year}-${payment.month}`;
+      if (!groups.has(periodKey)) {
+        groups.set(periodKey, {
+          periodKey,
+          year: payment.year,
+          month: payment.month,
+          payments: [],
+          totalRent: 0,
+          totalElectricity: 0,
+          totalAmount: 0,
+          totalPaid: 0,
+          paymentDate: payment.paymentDate || payment.paidAt,
+          status: payment.status
+        });
+      }
+      
+      const group = groups.get(periodKey);
+      group.payments.push(payment);
+      group.totalRent += Number(payment.rent || 0);
+      group.totalElectricity += Number(payment.electricity || 0);
+      group.totalAmount += Number(payment.rent || 0) + Number(payment.electricity || 0);
+      group.totalPaid += Number(payment.paidAmount || 0);
+      
+      // Update status to 'paid' if any payment is paid
+      if (payment.status === 'paid') {
+        group.status = 'paid';
+      }
+      
+      // Use latest payment date
+      const paymentTime = payment.paymentDate || payment.paidAt;
+      if (paymentTime) {
+        const currentTime = group.paymentDate;
+        if (!currentTime || new Date(paymentTime) > new Date(currentTime)) {
+          group.paymentDate = paymentTime;
+        }
+      }
+    });
+    
+    return Array.from(groups.values()).sort((a, b) => {
+      const yearDiff = Number(b.year) - Number(a.year);
+      if (yearDiff !== 0) return yearDiff;
+      return Number(b.month) - Number(a.month);
+    });
+  })() : payments;
+
+  const toggleRow = (periodKey) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(periodKey)) {
+        newSet.delete(periodKey);
+      } else {
+        newSet.add(periodKey);
+      }
+      return newSet;
+    });
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1366,38 +1434,134 @@ const PaymentHistoryModal = ({ tenant, payments, electricityReadings = [], loadi
                     </tr>
                   </thead>
                   <tbody>
-                    {payments.map((payment) => {
-                      const rent = payment.rent || 0;
-                      const electricity = payment.electricity || 0;
-                      const total = rent + electricity;
-                      const paid = payment.paidAmount || 0;
-                      const isPaid = payment.status === 'paid';
-                      return (
-                        <tr key={payment.id} className="border-b hover:bg-gray-50">
-                          <td className="px-4 py-3 font-semibold">
-                            {monthNames[payment.month - 1]} {payment.year}
-                          </td>
-                          <td className="px-4 py-3 text-right">₹{rent.toLocaleString('en-IN')}</td>
-                          <td className="px-4 py-3 text-right">₹{electricity.toLocaleString('en-IN')}</td>
-                          <td className="px-4 py-3 text-right font-semibold">₹{total.toLocaleString('en-IN')}</td>
-                          <td className="px-4 py-3 text-right font-bold text-green-600">
-                            ₹{paid.toLocaleString('en-IN')}
-                          </td>
-                          <td className="px-4 py-3">
-                            {payment.paymentDate || payment.paidAt
-                              ? new Date(payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
-                              : '-'}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                              isPaid && paid > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                            }`}>
-                              {isPaid && paid > 0 ? '✅ Paid' : '❌ Pending'}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {isMultiRoom ? (
+                      // Multi-room tenant: Show grouped payments with expandable rows
+                      groupedPayments.map((group) => {
+                        const isExpanded = expandedRows.has(group.periodKey);
+                        const isPaidGroup = group.status === 'paid' && group.totalPaid > 0;
+                        
+                        return (
+                          <Fragment key={group.periodKey}>
+                            {/* Main row (collapsed view - shows totals) */}
+                            <tr 
+                              onClick={() => toggleRow(group.periodKey)}
+                              className="border-b hover:bg-blue-50 cursor-pointer transition-colors"
+                            >
+                              <td className="px-4 py-3 font-semibold">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-blue-600">
+                                    {isExpanded ? '▼' : '▶'}
+                                  </span>
+                                  {monthNames[group.month - 1]} {group.year}
+                                  {group.payments.length > 1 && (
+                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-semibold">
+                                      {group.payments.length} rooms
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold">₹{group.totalRent.toLocaleString('en-IN')}</td>
+                              <td className="px-4 py-3 text-right font-semibold">₹{group.totalElectricity.toLocaleString('en-IN')}</td>
+                              <td className="px-4 py-3 text-right font-bold">₹{group.totalAmount.toLocaleString('en-IN')}</td>
+                              <td className="px-4 py-3 text-right font-bold text-green-600">
+                                ₹{group.totalPaid.toLocaleString('en-IN')}
+                              </td>
+                              <td className="px-4 py-3">
+                                {group.paymentDate
+                                  ? new Date(group.paymentDate).toLocaleDateString('en-IN')
+                                  : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                  isPaidGroup ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {isPaidGroup ? '✅ Paid' : '❌ Pending'}
+                                </span>
+                              </td>
+                            </tr>
+                            
+                            {/* Expanded rows (room-wise breakdown) */}
+                            {isExpanded && group.payments.map((payment) => {
+                              const rent = payment.rent || 0;
+                              const electricity = payment.electricity || 0;
+                              const total = rent + electricity;
+                              const paid = payment.paidAmount || 0;
+                              const isPaid = payment.status === 'paid';
+                              const units = payment.units || payment.unitsConsumed || 0;
+                              const currentReading = payment.currentReading || payment.meterReading || 0;
+                              const previousReading = payment.previousReading || payment.oldReading || 0;
+                              
+                              return (
+                                <tr key={payment.id} className="bg-gray-50 border-b">
+                                  <td className="px-4 py-2 pl-12 text-sm text-gray-700">
+                                    <span className="font-medium">🏠 Room {payment.roomNumber}</span>
+                                  </td>
+                                  <td className="px-4 py-2 text-right text-sm">₹{rent.toLocaleString('en-IN')}</td>
+                                  <td className="px-4 py-2 text-right text-sm">
+                                    <div>₹{electricity.toLocaleString('en-IN')}</div>
+                                    {units > 0 && (
+                                      <div className="text-xs text-gray-500">
+                                        {units} units ({previousReading} → {currentReading})
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2 text-right text-sm">₹{total.toLocaleString('en-IN')}</td>
+                                  <td className="px-4 py-2 text-right text-sm text-green-600 font-semibold">
+                                    ₹{paid.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-4 py-2 text-sm">
+                                    {payment.paymentDate || payment.paidAt
+                                      ? new Date(payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
+                                      : '-'}
+                                  </td>
+                                  <td className="px-4 py-2 text-center">
+                                    <span className={`px-2 py-0.5 rounded text-xs ${
+                                      isPaid && paid > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                    }`}>
+                                      {isPaid && paid > 0 ? '✅' : '❌'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </Fragment>
+                        );
+                      })
+                    ) : (
+                      // Single-room tenant: Show normal rows
+                      payments.map((payment) => {
+                        const rent = payment.rent || 0;
+                        const electricity = payment.electricity || 0;
+                        const total = rent + electricity;
+                        const paid = payment.paidAmount || 0;
+                        const isPaid = payment.status === 'paid';
+                        return (
+                          <tr key={payment.id} className="border-b hover:bg-gray-50">
+                            <td className="px-4 py-3 font-semibold">
+                              {monthNames[payment.month - 1]} {payment.year}
+                            </td>
+                            <td className="px-4 py-3 text-right">₹{rent.toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-3 text-right">₹{electricity.toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-3 text-right font-semibold">₹{total.toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-3 text-right font-bold text-green-600">
+                              ₹{paid.toLocaleString('en-IN')}
+                            </td>
+                            <td className="px-4 py-3">
+                              {payment.paymentDate || payment.paidAt
+                                ? new Date(payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
+                                : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                isPaid && paid > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                                {isPaid && paid > 0 ? '✅ Paid' : '❌ Pending'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
