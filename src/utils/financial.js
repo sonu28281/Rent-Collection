@@ -356,9 +356,11 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
     const currentMonth = month || (now.getMonth() + 1); // 1-12
     const currentYear = year || now.getFullYear();
 
-    // Fetch all active tenants
+    // Fetch ALL tenants (active + past). Each tenant is included below only for the
+    // months they actually occupied the room (see tenure check), so a departed tenant
+    // shows in their own months and the gap before a new tenant's check-in stays vacant.
     const tenantsRef = collection(db, 'tenants');
-    const tenantsSnapshot = await getDocs(query(tenantsRef, where('isActive', '==', true)));
+    const tenantsSnapshot = await getDocs(tenantsRef);
     
     // Fetch all current month payments
     const paymentsRef = collection(db, 'payments');
@@ -409,6 +411,20 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
 
     tenantsSnapshot.forEach((doc) => {
       const tenant = doc.data();
+
+      // Tenure check: include this tenant only for months within their
+      // check-in..check-out window, so a tenant never appears in a month they
+      // did not occupy the room (and vacant gaps stay vacant).
+      const target = currentYear * 12 + (currentMonth - 1);
+      const ciDate = tenant.checkInDate ? new Date(tenant.checkInDate) : null;
+      if (ciDate && !isNaN(ciDate.getTime()) && target < ciDate.getFullYear() * 12 + ciDate.getMonth()) return;
+      const coDate = tenant.checkOutDate ? new Date(tenant.checkOutDate) : null;
+      if (coDate && !isNaN(coDate.getTime())) {
+        if (target > coDate.getFullYear() * 12 + coDate.getMonth()) return; // after check-out
+      } else if (!tenant.isActive) {
+        return; // inactive with no recorded check-out — don't leak into months
+      }
+
       const tenantRoomNumbers = getTenantRoomNumbers(tenant);
       const tenantNameNormalized = String(tenant.name || '').trim().toLowerCase();
 
