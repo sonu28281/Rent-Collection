@@ -641,67 +641,83 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Rent Status at a glance — mobile-first: who paid vs who didn't this month */}
+            {/* Rent Status at a glance — floor-wise: who paid vs who didn't this month */}
             {currentMonthSummary.allTenants && currentMonthSummary.allTenants.length > 0 && (() => {
               const isRentPaid = (t) => t.status === 'paid' && t.collectedAmount > 0;
               const roomSort = (a, b) =>
                 (Number(String(getTenantRoomLabel(a)).replace(/\D/g, '')) || 0) -
                 (Number(String(getTenantRoomLabel(b)).replace(/\D/g, '')) || 0);
-              const paidTenants = currentMonthSummary.allTenants.filter(isRentPaid).sort(roomSort);
-              const pendingTenants = currentMonthSummary.allTenants.filter((t) => !isRentPaid(t)).sort(roomSort);
+              const { floor1, floor2 } = groupTenantsByFloor(currentMonthSummary.allTenants);
+              const floorGroups = [
+                { key: 'f1', label: 'Floor 1 — Ground Floor', tenants: floor1 },
+                { key: 'f2', label: 'Floor 2 — First Floor', tenants: floor2 }
+              ];
+
+              const pendingCard = (t) => (
+                <div key={t.id} className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-mono text-xs bg-red-100 text-red-800 px-1.5 py-0.5 rounded whitespace-nowrap">{getCompactRoomLabel(t)}</span>
+                      <span className="font-semibold text-gray-900 truncate">{t.name}</span>
+                    </div>
+                    <span className="text-red-700 font-bold whitespace-nowrap">₹{Math.max((t.expectedTotal || 0) - (t.collectedAmount || 0), 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-1 text-xs">
+                    <span className="text-gray-500">Due {t.dueDate}</span>
+                    <span className="text-gray-300">•</span>
+                    <span className={`font-semibold ${t.isDelayed ? 'text-red-600' : (t.dueStatusColor === 'orange' || t.dueStatusColor === 'yellow') ? 'text-amber-600' : 'text-gray-600'}`}>{t.dueStatusText}</span>
+                  </div>
+                </div>
+              );
+
+              const paidCard = (t) => (
+                <div key={t.id} className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded whitespace-nowrap">{getCompactRoomLabel(t)}</span>
+                    <span className="font-semibold text-gray-900 truncate">{t.name}</span>
+                  </div>
+                  <span className="text-green-700 font-bold whitespace-nowrap">₹{(t.collectedAmount || 0).toLocaleString('en-IN')}</span>
+                </div>
+              );
+
               return (
                 <div className="mb-6">
                   <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">This Month&apos;s Rent Status</h3>
+                  <div className="space-y-4">
+                    {floorGroups.filter((fg) => fg.tenants.length > 0).map((fg) => {
+                      const pending = fg.tenants.filter((t) => !isRentPaid(t)).sort(roomSort);
+                      const paid = fg.tenants.filter(isRentPaid).sort(roomSort);
+                      return (
+                        <div key={fg.key} className="border border-gray-200 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-3 gap-2">
+                            <h4 className="font-bold text-gray-800">{fg.label}</h4>
+                            <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">{paid.length} paid • {pending.length} not paid</span>
+                          </div>
 
-                  {/* Not paid — most important, shown first */}
-                  <div className="mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-red-100 text-red-700 text-sm font-bold">{pendingTenants.length}</span>
-                      <span className="font-semibold text-red-700">Not Paid</span>
-                    </div>
-                    {pendingTenants.length === 0 ? (
-                      <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">All rent collected for this month.</p>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {pendingTenants.map((t) => (
-                          <div key={t.id} className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="font-mono text-xs bg-red-100 text-red-800 px-1.5 py-0.5 rounded whitespace-nowrap">{getCompactRoomLabel(t)}</span>
-                                <span className="font-semibold text-gray-900 truncate">{t.name}</span>
+                          {pending.length > 0 ? (
+                            <div className="mb-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-red-100 text-red-700 text-sm font-bold">{pending.length}</span>
+                                <span className="font-semibold text-red-700">Not Paid</span>
                               </div>
-                              <span className="text-red-700 font-bold whitespace-nowrap">₹{Math.max((t.expectedTotal || 0) - (t.collectedAmount || 0), 0).toLocaleString('en-IN')}</span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{pending.map(pendingCard)}</div>
                             </div>
-                            <div className="flex items-center gap-1.5 mt-1 text-xs">
-                              <span className="text-gray-500">Due {t.dueDate}</span>
-                              <span className="text-gray-300">•</span>
-                              <span className={`font-semibold ${t.isDelayed ? 'text-red-600' : (t.dueStatusColor === 'orange' || t.dueStatusColor === 'yellow') ? 'text-amber-600' : 'text-gray-600'}`}>{t.dueStatusText}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                          ) : (
+                            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-2 mb-3">All rent collected on this floor.</p>
+                          )}
 
-                  {/* Paid */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-green-100 text-green-700 text-sm font-bold">{paidTenants.length}</span>
-                      <span className="font-semibold text-green-700">Paid</span>
-                    </div>
-                    {paidTenants.length > 0 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {paidTenants.map((t) => (
-                          <div key={t.id} className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="font-mono text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded whitespace-nowrap">{getCompactRoomLabel(t)}</span>
-                              <span className="font-semibold text-gray-900 truncate">{t.name}</span>
+                          {paid.length > 0 && (
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-green-100 text-green-700 text-sm font-bold">{paid.length}</span>
+                                <span className="font-semibold text-green-700">Paid</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{paid.map(paidCard)}</div>
                             </div>
-                            <span className="text-green-700 font-bold whitespace-nowrap">₹{(t.collectedAmount || 0).toLocaleString('en-IN')}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
