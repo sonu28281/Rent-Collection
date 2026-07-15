@@ -523,7 +523,6 @@ const VerifyPayments = () => {
             paidDate: submission.paidDate,
             paymentMethod: 'UPI',
             utr: normalizedUtr || getSubmissionUtr(submission) || '',
-            screenshot: screenshotProof,
             notes: submission.notes,
             isMultiRoomPayment: true
           });
@@ -564,7 +563,6 @@ const VerifyPayments = () => {
           paidDate: submission.paidDate,
           paymentMethod: 'UPI',
           utr: normalizedUtr || getSubmissionUtr(submission) || '',
-          screenshot: screenshotProof,
           notes: submission.notes
         });
 

@@ -24,6 +24,13 @@ const Payments = () => {
   const [cleaningScreenshots, setCleaningScreenshots] = useState(false);
   const [downloadingHistoryZip, setDownloadingHistoryZip] = useState(false);
   const [screenshotPreview, setScreenshotPreview] = useState({ open: false, url: '', title: '' });
+  // Screenshots now live on paymentSubmissions (keyed by a payment's sourceSubmissionId),
+  // not embedded in payment docs, so payment reads stay light. Proofs load on demand.
+  const [proofCache, setProofCache] = useState({});
+  const [loadingProofId, setLoadingProofId] = useState(null);
+  const [historyProofs, setHistoryProofs] = useState([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
@@ -303,17 +310,70 @@ const Payments = () => {
 
   const getPaymentScreenshot = (payment) => payment?.screenshot || payment?.paymentScreenshot || payment?.proofScreenshot || payment?.proofImageUrl || '';
 
+  // A proof exists if embedded (legacy) or reachable via the linked submission.
+  const hasProof = (payment) => !!(getPaymentScreenshot(payment) || payment?.sourceSubmissionId);
+
+  // Resolve a payment's screenshot on demand: embedded first, else fetch the linked
+  // paymentSubmissions doc (cached). Keeps payment-list reads free of image data.
+  const loadProof = async (payment) => {
+    const embedded = getPaymentScreenshot(payment);
+    if (embedded) return embedded;
+    const subId = payment?.sourceSubmissionId;
+    if (!subId) return '';
+    if (proofCache[subId]) return proofCache[subId];
+    try {
+      const snap = await getDoc(doc(db, 'paymentSubmissions', subId));
+      const url = snap.exists() ? getPaymentScreenshot(snap.data()) : '';
+      if (url) setProofCache((prev) => ({ ...prev, [subId]: url }));
+      return url;
+    } catch (proofError) {
+      console.error('Error loading proof:', proofError);
+      return '';
+    }
+  };
+
   const openScreenshotPreview = (screenshotUrl, title = 'Payment Screenshot') => {
     if (!screenshotUrl) return;
     setScreenshotPreview({ open: true, url: screenshotUrl, title });
+  };
+
+  const openProof = async (payment, title = 'Payment Screenshot') => {
+    setLoadingProofId(payment?.id || payment?.sourceSubmissionId || 'x');
+    try {
+      const url = await loadProof(payment);
+      if (!url) { alert('Proof not available.'); return; }
+      setScreenshotPreview({ open: true, url, title });
+    } finally {
+      setLoadingProofId(null);
+    }
   };
 
   const closeScreenshotPreview = () => {
     setScreenshotPreview({ open: false, url: '', title: '' });
   };
 
-  const handleDownloadScreenshot = (payment) => {
-    const screenshotUrl = getPaymentScreenshot(payment);
+  const loadHistoryProofs = async () => {
+    if (loadingHistory) return;
+    setLoadingHistory(true);
+    try {
+      const snap = await getDocs(query(collection(db, 'paymentSubmissions'), where('status', '==', 'verified')));
+      const items = [];
+      snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (getPaymentScreenshot(data)) items.push({ id: docSnap.id, ...data });
+      });
+      setHistoryProofs(items);
+      setHistoryLoaded(true);
+    } catch (historyError) {
+      console.error('Error loading screenshot history:', historyError);
+      alert('Failed to load screenshot history.');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleDownloadScreenshot = async (payment) => {
+    const screenshotUrl = await loadProof(payment);
     if (!screenshotUrl) return;
 
     const tenantLabel = String(payment?.tenantNameSnapshot || payment?.tenantName || payment?.tenantId || 'tenant').replace(/\s+/g, '_');
@@ -331,25 +391,24 @@ const Payments = () => {
     document.body.removeChild(anchor);
   };
 
-  const handleDeleteScreenshot = async (payment) => {
-    const screenshotUrl = getPaymentScreenshot(payment);
+  // History proofs read from paymentSubmissions (which retain the screenshot),
+  // so clearing one removes it at the source.
+  const handleDeleteScreenshot = async (submissionItem) => {
+    const screenshotUrl = getPaymentScreenshot(submissionItem);
     if (!screenshotUrl) return;
 
     const ok = window.confirm(
-      `Delete screenshot proof for Room ${payment.roomNumber || '-'} (${payment.tenantNameSnapshot || payment.tenantName || 'Tenant'})?\n\nThis will remove historical proof from this payment record.`
+      `Delete screenshot proof for Room ${submissionItem.roomNumber || '-'} (${submissionItem.tenantNameSnapshot || submissionItem.tenantName || 'Tenant'})?\n\nThis will remove the stored proof image.`
     );
     if (!ok) return;
 
     try {
-      await updateDoc(doc(db, 'payments', payment.id), {
+      await updateDoc(doc(db, 'paymentSubmissions', submissionItem.id), {
         screenshot: '',
-        paymentScreenshot: '',
-        proofScreenshot: '',
-        proofImageUrl: '',
         screenshotDeletedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
-      fetchData();
+      setHistoryProofs((prev) => prev.filter((item) => item.id !== submissionItem.id));
     } catch (deleteError) {
       console.error('Error deleting screenshot proof:', deleteError);
       alert('Failed to delete screenshot. Please try again.');
@@ -374,8 +433,8 @@ const Payments = () => {
     return `${monthNames[month - 1]} ${year}`;
   };
 
-  const allPaidWithScreenshots = allPayments
-    .filter((payment) => payment.status === 'paid' && !!getPaymentScreenshot(payment))
+  const allPaidWithScreenshots = historyProofs
+    .slice()
     .sort((a, b) => getPaymentSortTime(b) - getPaymentSortTime(a));
 
   const historyMonthOptions = Array.from(
@@ -422,18 +481,17 @@ const Payments = () => {
 
     try {
       setCleaningScreenshots(true);
-      for (const payment of oldScreenshotCandidates) {
-        await updateDoc(doc(db, 'payments', payment.id), {
+      const deletedIds = [];
+      for (const item of oldScreenshotCandidates) {
+        await updateDoc(doc(db, 'paymentSubmissions', item.id), {
           screenshot: '',
-          paymentScreenshot: '',
-          proofScreenshot: '',
-          proofImageUrl: '',
           screenshotDeletedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         });
+        deletedIds.push(item.id);
       }
       alert(`✅ Deleted ${oldScreenshotCandidates.length} old screenshot(s).`);
-      fetchData();
+      setHistoryProofs((prev) => prev.filter((item) => !deletedIds.includes(item.id)));
     } catch (bulkError) {
       console.error('Error deleting old screenshots:', bulkError);
       alert('Failed to delete old screenshots. Please try again.');
@@ -715,18 +773,16 @@ const Payments = () => {
                           {(() => {
                             const monthPayments = getTenantMonthPayments(tenant);
                             const latestPayment = monthPayments.sort((a, b) => getPaymentSortTime(b) - getPaymentSortTime(a))[0];
-                            const screenshotUrl = getPaymentScreenshot(latestPayment);
-                            if (!screenshotUrl) return null;
+                            if (!hasProof(latestPayment)) return null;
                             return (
                               <div className="flex flex-wrap gap-2">
-                                <a
-                                  href={screenshotUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                <button
+                                  type="button"
+                                  onClick={() => openProof(latestPayment, `${tenant.name} • Room ${tenant.roomNumber}`)}
                                   className="text-[11px] font-semibold text-blue-700 hover:underline"
                                 >
                                   📸 View Proof
-                                </a>
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => handleDownloadScreenshot(latestPayment)}
@@ -810,8 +866,7 @@ const Payments = () => {
                   const isPaid = paymentSummary.isPaid;
                   const monthPayments = getTenantMonthPayments(tenant);
                   const latestPayment = monthPayments.sort((a, b) => getPaymentSortTime(b) - getPaymentSortTime(a))[0];
-                  const screenshotUrl = getPaymentScreenshot(latestPayment);
-                  
+
                   return (
                     <tr key={tenant.id} className={`hover:bg-gray-50 ${isPaid ? 'bg-green-50' : ''}`}>
                       <td className="px-4 py-3 font-bold text-gray-900">
@@ -835,19 +890,16 @@ const Payments = () => {
                         {isPaid ? paymentSummary.utrDisplay : '-'}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {isPaid && screenshotUrl ? (
+                        {isPaid && hasProof(latestPayment) ? (
                           <div className="flex flex-col items-center gap-1">
                             <button
                               type="button"
-                              onClick={() => openScreenshotPreview(screenshotUrl, `${tenant.name} • Room ${tenant.roomNumber}`)}
-                              className="rounded border border-gray-300 overflow-hidden hover:border-blue-500"
-                              title="Click to preview"
+                              onClick={() => openProof(latestPayment, `${tenant.name} • Room ${tenant.roomNumber}`)}
+                              disabled={loadingProofId === latestPayment?.id}
+                              className="px-2 py-1 rounded border border-gray-300 text-xs font-semibold text-blue-700 hover:border-blue-500 hover:bg-blue-50 disabled:opacity-60"
+                              title="View payment proof"
                             >
-                              <img
-                                src={screenshotUrl}
-                                alt="Payment proof thumbnail"
-                                className="w-10 h-10 object-cover"
-                              />
+                              {loadingProofId === latestPayment?.id ? '…' : '📸 View'}
                             </button>
                             <button
                               type="button"
@@ -897,47 +949,60 @@ const Payments = () => {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between mb-4">
           <div>
             <h3 className="text-xl font-bold text-gray-800">📸 Screenshot History</h3>
-            <p className="text-sm text-gray-600">Verified payment proofs from payment records (historical archive).</p>
+            <p className="text-sm text-gray-600">Verified payment proofs (loaded on demand to keep this page fast).</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full lg:w-auto">
-            <select
-              value={historyMonthFilter}
-              onChange={(e) => setHistoryMonthFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            >
-              <option value="all">All Months</option>
-              {historyMonthOptions.map((optionValue) => {
-                const [yearValue, monthValue] = optionValue.split('-');
-                return (
-                  <option key={optionValue} value={optionValue}>
-                    {monthNames[Number(monthValue) - 1]} {yearValue}
-                  </option>
-                );
-              })}
-            </select>
-
-            <select
-              value={cleanupMonths}
-              onChange={(e) => setCleanupMonths(Number(e.target.value))}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            >
-              <option value={3}>Older than 3 months</option>
-              <option value={6}>Older than 6 months</option>
-              <option value={12}>Older than 12 months</option>
-            </select>
-
+          {!historyLoaded ? (
             <button
               type="button"
-              onClick={handleBulkDeleteOldScreenshots}
-              disabled={cleaningScreenshots}
-              className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-60"
+              onClick={loadHistoryProofs}
+              disabled={loadingHistory}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 w-full lg:w-auto"
             >
-              {cleaningScreenshots ? 'Cleaning...' : `Delete Old (${oldScreenshotCandidates.length})`}
+              {loadingHistory ? 'Loading…' : '📂 Load Screenshot History'}
             </button>
-          </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full lg:w-auto">
+              <select
+                value={historyMonthFilter}
+                onChange={(e) => setHistoryMonthFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="all">All Months</option>
+                {historyMonthOptions.map((optionValue) => {
+                  const [yearValue, monthValue] = optionValue.split('-');
+                  return (
+                    <option key={optionValue} value={optionValue}>
+                      {monthNames[Number(monthValue) - 1]} {yearValue}
+                    </option>
+                  );
+                })}
+              </select>
+
+              <select
+                value={cleanupMonths}
+                onChange={(e) => setCleanupMonths(Number(e.target.value))}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value={3}>Older than 3 months</option>
+                <option value={6}>Older than 6 months</option>
+                <option value={12}>Older than 12 months</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={handleBulkDeleteOldScreenshots}
+                disabled={cleaningScreenshots}
+                className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-60"
+              >
+                {cleaningScreenshots ? 'Cleaning...' : `Delete Old (${oldScreenshotCandidates.length})`}
+              </button>
+            </div>
+          )}
         </div>
 
+        {historyLoaded && (
+        <>
         <div className="mb-4 flex justify-end">
           <button
             type="button"
@@ -1013,6 +1078,8 @@ const Payments = () => {
               </tbody>
             </table>
           </div>
+        )}
+        </>
         )}
       </div>
 
