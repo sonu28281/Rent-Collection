@@ -651,25 +651,32 @@ const Dashboard = () => {
               const pendingTenants = currentMonthSummary.allTenants.filter((t) => !isRentPaid(t)).sort(roomSort);
               return (
                 <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Is mahine ka rent status</h3>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">This Month&apos;s Rent Status</h3>
 
                   {/* Not paid — most important, shown first */}
                   <div className="mb-4">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-red-100 text-red-700 text-sm font-bold">{pendingTenants.length}</span>
-                      <span className="font-semibold text-red-700">❌ Rent nahi aaya</span>
+                      <span className="font-semibold text-red-700">Not Paid</span>
                     </div>
                     {pendingTenants.length === 0 ? (
-                      <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">🎉 Sabka rent aa gaya!</p>
+                      <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">All rent collected for this month.</p>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {pendingTenants.map((t) => (
-                          <div key={t.id} className="flex items-center justify-between gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="font-mono text-xs bg-red-100 text-red-800 px-1.5 py-0.5 rounded whitespace-nowrap">{getCompactRoomLabel(t)}</span>
-                              <span className="font-semibold text-gray-900 truncate">{t.name}</span>
+                          <div key={t.id} className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-mono text-xs bg-red-100 text-red-800 px-1.5 py-0.5 rounded whitespace-nowrap">{getCompactRoomLabel(t)}</span>
+                                <span className="font-semibold text-gray-900 truncate">{t.name}</span>
+                              </div>
+                              <span className="text-red-700 font-bold whitespace-nowrap">₹{Math.max((t.expectedTotal || 0) - (t.collectedAmount || 0), 0).toLocaleString('en-IN')}</span>
                             </div>
-                            <span className="text-red-700 font-bold whitespace-nowrap">₹{Math.max((t.expectedTotal || 0) - (t.collectedAmount || 0), 0).toLocaleString('en-IN')}</span>
+                            <div className="flex items-center gap-1.5 mt-1 text-xs">
+                              <span className="text-gray-500">Due {t.dueDate}</span>
+                              <span className="text-gray-300">•</span>
+                              <span className={`font-semibold ${t.isDelayed ? 'text-red-600' : (t.dueStatusColor === 'orange' || t.dueStatusColor === 'yellow') ? 'text-amber-600' : 'text-gray-600'}`}>{t.dueStatusText}</span>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -680,7 +687,7 @@ const Dashboard = () => {
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-green-100 text-green-700 text-sm font-bold">{paidTenants.length}</span>
-                      <span className="font-semibold text-green-700">✅ Rent aa gaya</span>
+                      <span className="font-semibold text-green-700">Paid</span>
                     </div>
                     {paidTenants.length > 0 && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

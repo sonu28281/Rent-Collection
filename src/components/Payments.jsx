@@ -1248,7 +1248,7 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
 
           <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Payment kis month ke liye hai? *
+              Payment for which month? *
             </label>
             <div className="grid grid-cols-2 gap-3">
               <select
@@ -1281,7 +1281,7 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
               const isPast = tY < nowD.getFullYear() || (tY === nowD.getFullYear() && tM < nowD.getMonth() + 1);
               return isPast ? (
                 <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  ⚠️ Aap ek <strong>purane month</strong> ({monthNames[tM - 1]} {tY}) ke liye payment record kar rahe ho — sahi hai to aage badho.
+                  ⚠️ You&apos;re recording a payment for a <strong>past month</strong> ({monthNames[tM - 1]} {tY}) — continue if that&apos;s intended.
                 </p>
               ) : null;
             })()}

@@ -304,7 +304,7 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
         ? `${error.code}: ${error.message || ''}`.trim()
         : (error?.message || 'Unknown error');
       const hint = String(error?.code || '').includes('permission-denied')
-        ? '\n\nAapki login session expire ho gayi lagti hai — logout karke dobara login karein aur phir se try karein.'
+        ? '\n\nYour login session may have expired — please log out, log in again, and retry.'
         : '';
       alert(`Failed to save tenant.\n\nReason: ${reason}${hint}`);
     } finally {
