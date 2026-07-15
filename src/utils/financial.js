@@ -70,16 +70,16 @@ export const getCurrentMonthIncome = async () => {
 /**
  * Get year-wise income summary
  */
-export const getYearlyIncomeSummary = async () => {
+export const getYearlyIncomeSummary = async (prefetchedPayments = null) => {
   try {
-    const paymentsRef = collection(db, 'payments');
-    // Get ALL payments regardless of status to show complete financial picture
-    const paymentsSnapshot = await getDocs(paymentsRef);
+    // Reuse a caller-provided payments array when available so the dashboard
+    // fetches the full collection once instead of once per aggregate.
+    const payments = prefetchedPayments ||
+      (await getDocs(collection(db, 'payments'))).docs.map((doc) => doc.data());
 
     const yearlyData = {};
 
-    paymentsSnapshot.forEach((doc) => {
-      const data = doc.data();
+    payments.forEach((data) => {
       const year = data.year;
       // Use paidAmount for actual received money (handles partial payments correctly)
       const paidAmount = Number(data.paidAmount) || 0;
@@ -196,15 +196,13 @@ export const getMonthlyIncomeByYear = async (year) => {
 /**
  * Get total lifetime income
  */
-export const getTotalLifetimeIncome = async () => {
+export const getTotalLifetimeIncome = async (prefetchedPayments = null) => {
   try {
-    const paymentsRef = collection(db, 'payments');
-    // Get ALL payments regardless of status
-    const paymentsSnapshot = await getDocs(paymentsRef);
+    const payments = prefetchedPayments ||
+      (await getDocs(collection(db, 'payments'))).docs.map((doc) => doc.data());
 
     let total = 0;
-    paymentsSnapshot.forEach((doc) => {
-      const data = doc.data();
+    payments.forEach((data) => {
       // Use paidAmount for actual received money (handles partial payments)
       const paidAmount = Number(data.paidAmount) || 0;
       
@@ -244,7 +242,7 @@ export const getOccupancyRate = async () => {
 /**
  * Get dashboard stats (all in one call for efficiency)
  */
-export const getDashboardStats = async () => {
+export const getDashboardStats = async (prefetchedPayments = null) => {
   try {
     const [
       activeTenants,
@@ -256,7 +254,7 @@ export const getDashboardStats = async () => {
       getActiveTenantCount(),
       getPendingPaymentCount(),
       getCurrentMonthIncome(),
-      getTotalLifetimeIncome(),
+      getTotalLifetimeIncome(prefetchedPayments),
       getOccupancyRate()
     ]);
 
@@ -287,48 +285,34 @@ export const getTodaysCollection = async () => {
     const now = new Date();
     const today = now.toISOString().split('T')[0]; // Format: YYYY-MM-DD
     
-    // Fetch all payments
+    // Query only today's payments (by paidDate / paymentDate) instead of scanning
+    // the whole collection. Almost no rows match today, so this avoids downloading
+    // all 1200+ payment docs (including their embedded screenshots) on every load.
     const paymentsRef = collection(db, 'payments');
-    const paymentsSnapshot = await getDocs(paymentsRef);
-    
+    const [byPaidDate, byPaymentDate] = await Promise.all([
+      getDocs(query(paymentsRef, where('paidDate', '==', today))),
+      getDocs(query(paymentsRef, where('paymentDate', '==', today)))
+    ]);
+
     let todaysCollection = 0;
     let todaysPaymentCount = 0;
-    
-    paymentsSnapshot.forEach((doc) => {
-      const data = doc.data();
-      // Fallback: if paidAmount is missing but status=paid, use total/totalAmount
-      const paidAmount = Number(data.paidAmount) ||
-        (data.status === 'paid' ? Number(data.total || data.totalAmount) || 0 : 0);
-      
-      // Skip if no paid amount
-      if (paidAmount <= 0) return;
-      
-      // Check if payment was made today
-      let isTodaysPayment = false;
-      
-      // Check paidDate field (format: 'YYYY-MM-DD') - used by Payments.jsx & VerifyPayments.jsx
-      if (data.paidDate === today) {
-        isTodaysPayment = true;
-      }
-      
-      // Check paymentDate field (format: 'YYYY-MM-DD')
-      if (!isTodaysPayment && data.paymentDate === today) {
-        isTodaysPayment = true;
-      }
-      
-      // Also check paidAt field (ISO timestamp or date string)
-      if (!isTodaysPayment && data.paidAt) {
-        const paidAtDate = new Date(data.paidAt).toISOString().split('T')[0];
-        if (paidAtDate === today) {
-          isTodaysPayment = true;
-        }
-      }
-      
-      if (isTodaysPayment) {
+    const seen = new Set();
+
+    const addSnapshot = (snapshot) => {
+      snapshot.forEach((doc) => {
+        if (seen.has(doc.id)) return;
+        seen.add(doc.id);
+        const data = doc.data();
+        const paidAmount = Number(data.paidAmount) ||
+          (data.status === 'paid' ? Number(data.total || data.totalAmount) || 0 : 0);
+        if (paidAmount <= 0) return;
         todaysCollection += paidAmount;
         todaysPaymentCount++;
-      }
-    });
+      });
+    };
+
+    addSnapshot(byPaidDate);
+    addSnapshot(byPaymentDate);
     
     return {
       amount: todaysCollection,

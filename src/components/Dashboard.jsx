@@ -227,9 +227,12 @@ const Dashboard = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      // Fetch the full payments collection once and reuse it for both income
+      // aggregates, instead of each helper fetching all payments independently.
+      const allPayments = (await getDocs(collection(db, 'payments'))).docs.map((doc) => doc.data());
       const [statsData, yearlyIncome, todaysData] = await Promise.all([
-        getDashboardStats(),
-        getYearlyIncomeSummary(),
+        getDashboardStats(allPayments),
+        getYearlyIncomeSummary(allPayments),
         getTodaysCollection()
       ]);
       
