@@ -1054,9 +1054,7 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
     paidDate: new Date().toISOString().split('T')[0],
     paymentMethod: 'UPI',
     utr: '',
-    notes: '',
-    targetMonth: currentMonth,
-    targetYear: currentYear
+    notes: ''
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -1086,24 +1084,12 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
       setSaving(true);
       setError('');
 
-      // Payment is recorded against the month/year the admin explicitly selects,
-      // NOT the currently-viewed filter — this prevents a late payment from being
-      // stamped onto the current month by mistake.
-      const targetMonth = Number(formData.targetMonth);
-      const targetYear = Number(formData.targetYear);
-
-      if (!targetMonth || targetMonth < 1 || targetMonth > 12 || !targetYear) {
-        setError('Please select a valid payment month and year');
-        setSaving(false);
-        return;
-      }
-
       const paymentsRef = collection(db, 'payments');
       const existingQuery = query(
         paymentsRef,
         where('tenantId', '==', tenant.id),
-        where('year', '==', targetYear),
-        where('month', '==', targetMonth)
+        where('year', '==', currentYear),
+        where('month', '==', currentMonth)
       );
       const existingSnapshot = await getDocs(existingQuery);
 
@@ -1123,8 +1109,8 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
           tenantId: tenant.id,
           tenantNameSnapshot: tenant.name,
           roomNumber: tenant.roomNumber,
-          year: targetYear,
-          month: targetMonth,
+          year: currentYear,
+          month: currentMonth,
           rent: tenant.currentRent || 0,
           electricity: 0,
           paidAmount: parseFloat(formData.paidAmount),
@@ -1170,7 +1156,7 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
               </span>
             </div>
             <p className="text-sm text-blue-700">
-              Payment for: {monthNames[Number(formData.targetMonth) - 1]} {formData.targetYear}
+              {monthNames[currentMonth - 1]} {currentYear}
             </p>
           </div>
 
@@ -1215,47 +1201,6 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
               <p className="text-sm text-red-700">{error}</p>
             </div>
           )}
-
-          <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Payment kis month ke liye hai? *
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <select
-                name="targetMonth"
-                value={formData.targetMonth}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
-              >
-                {monthNames.map((name, idx) => (
-                  <option key={idx + 1} value={idx + 1}>{name}</option>
-                ))}
-              </select>
-              <select
-                name="targetYear"
-                value={formData.targetYear}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
-              >
-                {[currentYear + 1, currentYear, currentYear - 1, currentYear - 2].map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
-            {(() => {
-              const nowD = new Date();
-              const tM = Number(formData.targetMonth);
-              const tY = Number(formData.targetYear);
-              const isPast = tY < nowD.getFullYear() || (tY === nowD.getFullYear() && tM < nowD.getMonth() + 1);
-              return isPast ? (
-                <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  ⚠️ Aap ek <strong>purane month</strong> ({monthNames[tM - 1]} {tY}) ke liye payment record kar rahe ho — sahi hai to aage badho.
-                </p>
-              ) : null;
-            })()}
-          </div>
 
           <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-700 mb-2">
