@@ -518,11 +518,18 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         ? tenantRoomNumbers.every((room) => paidRooms.has(String(room)))
         : false;
       
-      // Calculate expected rent with multi-room support
+      // Calculate expected rent across ALL assigned rooms. For each room use its
+      // recorded rent when a payment record exists, else fall back to the tenant's
+      // currentRent. This way a multi-room tenant missing a record for one room
+      // still shows that room's rent as expected (gap stays visible) instead of
+      // silently dropping it and appearing fully paid.
       const baseTenantRent = Number(tenant.currentRent) || 0;
-      const expectedRent = rentFromRecords > 0
-        ? rentFromRecords
-        : (tenantRoomNumbers.length > 1 ? baseTenantRent * tenantRoomNumbers.length : baseTenantRent);
+      const expectedRent = tenantRoomNumbers.length > 0
+        ? tenantRoomNumbers.reduce(
+            (sum, room) => sum + (Number(roomWiseMap[String(room)]?.rentAmount) || baseTenantRent),
+            0
+          )
+        : (rentFromRecords > 0 ? rentFromRecords : baseTenantRent);
       const expectedElectricity = totalElectricity;
       const expectedTotal = expectedRent + expectedElectricity;
       
