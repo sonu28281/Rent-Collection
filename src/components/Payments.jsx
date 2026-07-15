@@ -36,8 +36,11 @@ const Payments = () => {
       setError(null);
 
       const tenantsRef = collection(db, 'tenants');
-      const tenantsQuery = query(tenantsRef, where('isActive', '==', true));
-      const tenantsSnapshot = await getDocs(tenantsQuery);
+      // Fetch ALL tenants (active + past). The per-month view then shows only the
+      // tenant who actually lived in the room that month (see tenantInSelectedMonth),
+      // so a departed tenant appears in their own months and the gap before a new
+      // tenant's check-in shows as vacant.
+      const tenantsSnapshot = await getDocs(tenantsRef);
       const tenantsData = [];
       tenantsSnapshot.forEach((doc) => {
         tenantsData.push({ id: doc.id, ...doc.data() });
@@ -162,7 +165,34 @@ const Payments = () => {
     setSortOrder('asc');
   };
 
-  const filteredTenants = tenants.filter(tenant => {
+  // A tenant should only appear in a month they actually occupied the room:
+  // from their check-in month up to (and including) their check-out month.
+  // - Active tenant, no check-out  -> shown from check-in onward.
+  // - Past tenant with a check-out -> shown only within check-in..check-out.
+  // - Past tenant without a check-out date -> hidden (can't place them safely).
+  const tenantInSelectedMonth = (tenant) => {
+    const target = selectedYear * 12 + (selectedMonth - 1);
+
+    const ci = tenant.checkInDate ? new Date(tenant.checkInDate) : null;
+    if (ci && !isNaN(ci.getTime())) {
+      const ciIndex = ci.getFullYear() * 12 + ci.getMonth();
+      if (target < ciIndex) return false; // month is before check-in
+    }
+
+    const co = tenant.checkOutDate ? new Date(tenant.checkOutDate) : null;
+    if (co && !isNaN(co.getTime())) {
+      const coIndex = co.getFullYear() * 12 + co.getMonth();
+      if (target > coIndex) return false; // month is after check-out
+    } else if (!tenant.isActive) {
+      return false; // inactive with no recorded check-out — don't leak into months
+    }
+
+    return true;
+  };
+
+  const visibleTenants = tenants.filter(tenantInSelectedMonth);
+
+  const filteredTenants = visibleTenants.filter(tenant => {
     const { isPaid } = getTenantPaymentSummary(tenant);
     const roomString = String(tenant.roomNumber || '').trim();
     const roomDigits = roomString.replace(/\D/g, '');
@@ -210,12 +240,12 @@ const Payments = () => {
     );
   }
 
-  const paidCount = tenants.filter((tenant) => getTenantPaymentSummary(tenant).isPaid).length;
-  const pendingCount = tenants.length - paidCount;
+  const paidCount = visibleTenants.filter((tenant) => getTenantPaymentSummary(tenant).isPaid).length;
+  const pendingCount = visibleTenants.length - paidCount;
   const totalCollected = payments
     .filter(p => p.status === 'paid')
     .reduce((sum, p) => sum + (p.paidAmount || 0), 0);
-  const totalExpected = tenants.reduce((sum, t) => sum + (t.currentRent || 0), 0);
+  const totalExpected = visibleTenants.reduce((sum, t) => sum + (t.currentRent || 0), 0);
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                       'July', 'August', 'September', 'October', 'November', 'December'];
@@ -537,7 +567,7 @@ const Payments = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-blue-100 text-sm mb-1">Total Tenants</p>
-              <p className="text-3xl font-bold">{tenants.length}</p>
+              <p className="text-3xl font-bold">{visibleTenants.length}</p>
             </div>
             <div className="text-4xl">👥</div>
           </div>
@@ -585,7 +615,7 @@ const Payments = () => {
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
-            All ({tenants.length})
+            All ({visibleTenants.length})
           </button>
           <button
             onClick={() => setFilter('paid')}
