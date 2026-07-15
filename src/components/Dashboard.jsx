@@ -559,7 +559,7 @@ const Dashboard = () => {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
               <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -640,6 +640,65 @@ const Dashboard = () => {
                 ></div>
               </div>
             </div>
+
+            {/* Rent Status at a glance — mobile-first: who paid vs who didn't this month */}
+            {currentMonthSummary.allTenants && currentMonthSummary.allTenants.length > 0 && (() => {
+              const isRentPaid = (t) => t.status === 'paid' && t.collectedAmount > 0;
+              const roomSort = (a, b) =>
+                (Number(String(getTenantRoomLabel(a)).replace(/\D/g, '')) || 0) -
+                (Number(String(getTenantRoomLabel(b)).replace(/\D/g, '')) || 0);
+              const paidTenants = currentMonthSummary.allTenants.filter(isRentPaid).sort(roomSort);
+              const pendingTenants = currentMonthSummary.allTenants.filter((t) => !isRentPaid(t)).sort(roomSort);
+              return (
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Is mahine ka rent status</h3>
+
+                  {/* Not paid — most important, shown first */}
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-red-100 text-red-700 text-sm font-bold">{pendingTenants.length}</span>
+                      <span className="font-semibold text-red-700">❌ Rent nahi aaya</span>
+                    </div>
+                    {pendingTenants.length === 0 ? (
+                      <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">🎉 Sabka rent aa gaya!</p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {pendingTenants.map((t) => (
+                          <div key={t.id} className="flex items-center justify-between gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-mono text-xs bg-red-100 text-red-800 px-1.5 py-0.5 rounded whitespace-nowrap">{getCompactRoomLabel(t)}</span>
+                              <span className="font-semibold text-gray-900 truncate">{t.name}</span>
+                            </div>
+                            <span className="text-red-700 font-bold whitespace-nowrap">₹{Math.max((t.expectedTotal || 0) - (t.collectedAmount || 0), 0).toLocaleString('en-IN')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Paid */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-full bg-green-100 text-green-700 text-sm font-bold">{paidTenants.length}</span>
+                      <span className="font-semibold text-green-700">✅ Rent aa gaya</span>
+                    </div>
+                    {paidTenants.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {paidTenants.map((t) => (
+                          <div key={t.id} className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-mono text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded whitespace-nowrap">{getCompactRoomLabel(t)}</span>
+                              <span className="font-semibold text-gray-900 truncate">{t.name}</span>
+                            </div>
+                            <span className="text-green-700 font-bold whitespace-nowrap">₹{(t.collectedAmount || 0).toLocaleString('en-IN')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Floor-wise Summary */}
             {currentMonthSummary.allTenants && currentMonthSummary.allTenants.length > 0 && (() => {
