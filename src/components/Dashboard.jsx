@@ -344,6 +344,21 @@ const Dashboard = () => {
     return uniqueRooms.size;
   };
 
+  // Fixed building layout: 6 rooms per floor. Used to surface vacant rooms.
+  const FLOOR_ROOM_NUMBERS = {
+    1: ['101', '102', '103', '104', '105', '106'],
+    2: ['201', '202', '203', '204', '205', '206']
+  };
+
+  // Rooms on a floor with no tenant occupying them in the selected month.
+  const getVacantRoomsForFloor = (floorTenants, floorNum) => {
+    const occupied = new Set();
+    floorTenants.forEach((tenant) => {
+      getTenantRooms(tenant).forEach((room) => occupied.add(String(room)));
+    });
+    return (FLOOR_ROOM_NUMBERS[floorNum] || []).filter((room) => !occupied.has(String(room)));
+  };
+
   const getPrimaryRoomNumber = (tenant) => {
     const rooms = getTenantRooms(tenant);
     if (rooms.length === 0) return 0;
@@ -729,12 +744,21 @@ const Dashboard = () => {
                     const paidCount = floor1.filter(t => t.status === 'paid').length;
                     const pendingCount = floor1.filter(t => t.status !== 'paid').length;
                     const floor1RoomCount = getFloorRoomCount(floor1);
+                    const vacantRooms = getVacantRoomsForFloor(floor1, 1);
                     return (
                       <div>
                         <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
                           <span className="text-xl">🏠</span>
-                          Floor 1 - Ground Floor ({floor1RoomCount} rooms, {floor1.length} tenants: {paidCount} paid, {pendingCount} pending)
+                          Floor 1 - Ground Floor ({floor1RoomCount} occupied, {floor1.length} tenants: {paidCount} paid, {pendingCount} pending{vacantRooms.length > 0 ? `, ${vacantRooms.length} vacant` : ''})
                         </h4>
+                        {vacantRooms.length > 0 && (
+                          <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                            <span className="font-semibold text-red-600">🔴 Vacant ({vacantRooms.length}):</span>
+                            {vacantRooms.map((room) => (
+                              <span key={room} className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded font-mono text-xs">{room}</span>
+                            ))}
+                          </div>
+                        )}
                         {isCardView ? (
                           <div className="space-y-3">
                             {floor1.map((tenant) => {
@@ -909,12 +933,21 @@ const Dashboard = () => {
                     const paidCount = floor2.filter(t => t.status === 'paid').length;
                     const pendingCount = floor2.filter(t => t.status !== 'paid').length;
                     const floor2RoomCount = getFloorRoomCount(floor2);
+                    const vacantRooms = getVacantRoomsForFloor(floor2, 2);
                     return (
                       <div>
                         <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
                           <span className="text-xl">🏢</span>
-                          Floor 2 - First Floor ({floor2RoomCount} rooms, {floor2.length} tenants: {paidCount} paid, {pendingCount} pending)
+                          Floor 2 - First Floor ({floor2RoomCount} occupied, {floor2.length} tenants: {paidCount} paid, {pendingCount} pending{vacantRooms.length > 0 ? `, ${vacantRooms.length} vacant` : ''})
                         </h4>
+                        {vacantRooms.length > 0 && (
+                          <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                            <span className="font-semibold text-red-600">🔴 Vacant ({vacantRooms.length}):</span>
+                            {vacantRooms.map((room) => (
+                              <span key={room} className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded font-mono text-xs">{room}</span>
+                            ))}
+                          </div>
+                        )}
                         {isCardView ? (
                           <div className="space-y-3">
                             {floor2.map((tenant) => {
