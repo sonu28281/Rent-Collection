@@ -297,7 +297,16 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
       onSuccess();
     } catch (error) {
       console.error('Error saving tenant:', error);
-      alert('Failed to save tenant. Please try again.');
+      // Surface the real reason so a failed save is diagnosable (e.g. an expired
+      // login shows "permission-denied", a network drop shows "unavailable")
+      // instead of a generic message that hides why nothing got saved.
+      const reason = error?.code
+        ? `${error.code}: ${error.message || ''}`.trim()
+        : (error?.message || 'Unknown error');
+      const hint = String(error?.code || '').includes('permission-denied')
+        ? '\n\nAapki login session expire ho gayi lagti hai — logout karke dobara login karein aur phir se try karein.'
+        : '';
+      alert(`Failed to save tenant.\n\nReason: ${reason}${hint}`);
     } finally {
       setLoading(false);
     }
