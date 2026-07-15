@@ -33,3 +33,9 @@ dist-ssr
 .firebase/
 firebase-debug.log
 firestore-debug.log
+
+# Service account keys (secrets — never commit)
+serviceAccountKey.json
+firebase-admin-key.json
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
