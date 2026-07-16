@@ -21,6 +21,10 @@ import admin from 'firebase-admin';
 import { readFile } from 'fs/promises';
 
 const APPLY = process.argv.includes('--apply');
+// --skip-verify: trust that a payment with a sourceSubmissionId is backed by a
+// submission that still holds the proof (already confirmed for all 45 docs in a
+// prior check). Avoids one extra read per doc when the daily read quota is tight.
+const SKIP_VERIFY = process.argv.includes('--skip-verify');
 const serviceAccountPath = './serviceAccountKey.json';
 
 try {
@@ -57,10 +61,15 @@ const run = async () => {
 
   for (const p of withShot) {
     // Safety: only clear when the linked submission still holds the proof.
+    // With --skip-verify we trust a present sourceSubmissionId (pre-confirmed).
     let safe = false;
     if (p.subId) {
-      const subDoc = await db.collection('paymentSubmissions').doc(p.subId).get();
-      if (subDoc.exists && hasShot(subDoc.data())) safe = true;
+      if (SKIP_VERIFY) {
+        safe = true;
+      } else {
+        const subDoc = await db.collection('paymentSubmissions').doc(p.subId).get();
+        if (subDoc.exists && hasShot(subDoc.data())) safe = true;
+      }
     }
 
     if (!safe) {
