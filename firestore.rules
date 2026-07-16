@@ -106,5 +106,17 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if isAdmin();
     }
+
+    // Room status audit logs - written on every room assignment/checkout (admin)
+    match /roomStatusLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Payment backups created before a reset (admin only)
+    match /monthlyBackups/{backupId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
   }
 }

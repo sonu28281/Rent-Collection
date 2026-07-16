@@ -471,16 +471,22 @@ const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {
 
         await updateDoc(doc(db, 'rooms', roomDoc.id), updatePayload);
 
-        await addDoc(collection(db, 'roomStatusLogs'), {
-          roomId: roomDoc.id,
-          roomNumber,
-          oldStatus,
-          newStatus: status,
-          changedBy: user?.uid || 'system',
-          changedByEmail: user?.email || 'system',
-          changedAt: serverTimestamp(),
-          remark
-        });
+        // Audit log is best-effort: never let a log write (e.g. a missing
+        // Firestore rule) abort the room assignment or the rest of the loop.
+        try {
+          await addDoc(collection(db, 'roomStatusLogs'), {
+            roomId: roomDoc.id,
+            roomNumber,
+            oldStatus,
+            newStatus: status,
+            changedBy: user?.uid || 'system',
+            changedByEmail: user?.email || 'system',
+            changedAt: serverTimestamp(),
+            remark
+          });
+        } catch (logError) {
+          console.warn('roomStatusLogs write skipped:', logError?.code || logError?.message);
+        }
       };
 
       for (const roomNumber of roomsToAssign) {
