@@ -206,12 +206,11 @@ export const getTotalLifetimeIncome = async (prefetchedPayments = null) => {
       // Use paidAmount for actual received money (handles partial payments)
       const paidAmount = Number(data.paidAmount) || 0;
       
-      // Calculate total from rent + electricity (don't trust stored total field)
-      const rent = Number(data.rent || data.rentAmount) || 0;
-      const electricity = Number(data.electricity || data.electricityAmount) || 0;
-      const totalAmount = rent + electricity;
-      
-      total += paidAmount > 0 ? paidAmount : totalAmount;
+      // Income counts only money actually collected. When nothing was paid
+      // (paidAmount <= 0) the contribution is 0 — never the expected rent.
+      // (Previously this fell back to rent+electricity, inflating total income
+      // by every unpaid due; getYearlyIncomeSummary already skips these.)
+      total += paidAmount;
     });
 
     return total;
