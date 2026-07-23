@@ -1157,83 +1157,117 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [multiMonth, setMultiMonth] = useState(false);
+  const [monthChecks, setMonthChecks] = useState({ [`${currentYear}-${currentMonth}`]: true });
 
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                       'July', 'August', 'September', 'October', 'November', 'December'];
+
+  // Last 12 months (current + previous 11) for the multi-month picker.
+  const monthChoices = [];
+  for (let i = 0; i < 12; i++) {
+    let m = currentMonth - i;
+    let y = currentYear;
+    while (m <= 0) { m += 12; y -= 1; }
+    monthChoices.push({ key: `${y}-${m}`, label: `${monthNames[m - 1]} ${y}` });
+  }
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // Create or update a single month's paid record. Shared by single- and
+  // multi-month flows so behaviour stays identical for one month.
+  const upsertPaidMonth = async (paymentsRef, year, month, paidAmount) => {
+    const existingSnapshot = await getDocs(query(
+      paymentsRef,
+      where('tenantId', '==', tenant.id),
+      where('year', '==', year),
+      where('month', '==', month)
+    ));
+
+    if (!existingSnapshot.empty) {
+      await updateDoc(doc(db, 'payments', existingSnapshot.docs[0].id), {
+        paidAmount,
+        paidDate: formData.paidDate,
+        paymentMethod: formData.paymentMethod,
+        utr: formData.utr.trim(),
+        notes: formData.notes.trim(),
+        status: 'paid',
+        updatedAt: new Date().toISOString()
+      });
+    } else {
+      await addDoc(paymentsRef, {
+        tenantId: tenant.id,
+        tenantNameSnapshot: tenant.name,
+        roomNumber: tenant.roomNumber,
+        year,
+        month,
+        rent: tenant.currentRent || 0,
+        electricity: 0,
+        paidAmount,
+        paidDate: formData.paidDate,
+        paymentMethod: formData.paymentMethod,
+        utr: formData.utr.trim(),
+        notes: formData.notes.trim(),
+        status: 'paid',
+        createdAt: new Date().toISOString()
+      });
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!formData.paidAmount || parseFloat(formData.paidAmount) <= 0) {
-      setError('Please enter a valid amount');
-      return;
-    }
 
     if (!formData.paidDate) {
       setError('Please select payment date');
       return;
     }
 
+    if (!multiMonth && (!formData.paidAmount || parseFloat(formData.paidAmount) <= 0)) {
+      setError('Please enter a valid amount');
+      return;
+    }
+
     try {
       setSaving(true);
       setError('');
+      const paymentsRef = collection(db, 'payments');
 
-      // Payment is recorded against the month/year the admin explicitly selects,
-      // NOT the currently-viewed filter — this prevents a late payment from being
-      // stamped onto the current month by mistake.
+      // Multi-month: mark each selected month paid at the tenant's rent.
+      if (multiMonth) {
+        const selectedKeys = Object.keys(monthChecks).filter((k) => monthChecks[k]);
+        if (selectedKeys.length === 0) {
+          setError('Please select at least one month');
+          setSaving(false);
+          return;
+        }
+        const perMonth = Number(tenant.currentRent) || 0;
+        if (perMonth <= 0) {
+          setError('This tenant has no rent amount set');
+          setSaving(false);
+          return;
+        }
+        for (const key of selectedKeys) {
+          const [y, m] = key.split('-').map(Number);
+          await upsertPaidMonth(paymentsRef, y, m, perMonth);
+        }
+        alert(`✅ Recorded ${selectedKeys.length} month(s) as paid (₹${perMonth.toLocaleString('en-IN')} each).`);
+        onSuccess();
+        return;
+      }
+
+      // Single month — recorded against the explicitly selected month/year,
+      // NOT the currently-viewed filter.
       const targetMonth = Number(formData.targetMonth);
       const targetYear = Number(formData.targetYear);
-
       if (!targetMonth || targetMonth < 1 || targetMonth > 12 || !targetYear) {
         setError('Please select a valid payment month and year');
         setSaving(false);
         return;
       }
-
-      const paymentsRef = collection(db, 'payments');
-      const existingQuery = query(
-        paymentsRef,
-        where('tenantId', '==', tenant.id),
-        where('year', '==', targetYear),
-        where('month', '==', targetMonth)
-      );
-      const existingSnapshot = await getDocs(existingQuery);
-
-      if (!existingSnapshot.empty) {
-        const paymentDoc = existingSnapshot.docs[0];
-        await updateDoc(doc(db, 'payments', paymentDoc.id), {
-          paidAmount: parseFloat(formData.paidAmount),
-          paidDate: formData.paidDate,
-          paymentMethod: formData.paymentMethod,
-          utr: formData.utr.trim(),
-          notes: formData.notes.trim(),
-          status: 'paid',
-          updatedAt: new Date().toISOString()
-        });
-      } else {
-        await addDoc(paymentsRef, {
-          tenantId: tenant.id,
-          tenantNameSnapshot: tenant.name,
-          roomNumber: tenant.roomNumber,
-          year: targetYear,
-          month: targetMonth,
-          rent: tenant.currentRent || 0,
-          electricity: 0,
-          paidAmount: parseFloat(formData.paidAmount),
-          paidDate: formData.paidDate,
-          paymentMethod: formData.paymentMethod,
-          utr: formData.utr.trim(),
-          notes: formData.notes.trim(),
-          status: 'paid',
-          createdAt: new Date().toISOString()
-        });
-      }
-
+      await upsertPaidMonth(paymentsRef, targetYear, targetMonth, parseFloat(formData.paidAmount));
       alert('✅ Payment recorded successfully!');
       onSuccess();
     } catch (err) {
@@ -1267,7 +1301,7 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
               </span>
             </div>
             <p className="text-sm text-blue-700">
-              Payment for: {monthNames[Number(formData.targetMonth) - 1]} {formData.targetYear}
+              Payment for: {multiMonth ? 'Multiple months' : `${monthNames[Number(formData.targetMonth) - 1]} ${formData.targetYear}`}
             </p>
           </div>
 
@@ -1313,63 +1347,99 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
             </div>
           )}
 
-          <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Payment for which month? *
+          <div className="mb-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={multiMonth}
+                onChange={(e) => setMultiMonth(e.target.checked)}
+                className="w-4 h-4"
+              />
+              Clear multiple months at once
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              <select
-                name="targetMonth"
-                value={formData.targetMonth}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
-              >
-                {monthNames.map((name, idx) => (
-                  <option key={idx + 1} value={idx + 1}>{name}</option>
-                ))}
-              </select>
-              <select
-                name="targetYear"
-                value={formData.targetYear}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
-              >
-                {[currentYear + 1, currentYear, currentYear - 1, currentYear - 2].map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
-            {(() => {
-              const nowD = new Date();
-              const tM = Number(formData.targetMonth);
-              const tY = Number(formData.targetYear);
-              const isPast = tY < nowD.getFullYear() || (tY === nowD.getFullYear() && tM < nowD.getMonth() + 1);
-              return isPast ? (
-                <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  ⚠️ You&apos;re recording a payment for a <strong>past month</strong> ({monthNames[tM - 1]} {tY}) — continue if that&apos;s intended.
-                </p>
-              ) : null;
-            })()}
+            <p className="text-xs text-gray-500 mt-1">Use when a tenant pays several months together.</p>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Amount (₹) *
-            </label>
-            <input
-              type="number"
-              name="paidAmount"
-              value={formData.paidAmount}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              placeholder="5000"
-              min="0"
-              step="1"
-              required
-            />
-          </div>
+          {!multiMonth ? (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Payment for which month? *
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <select
+                    name="targetMonth"
+                    value={formData.targetMonth}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    {monthNames.map((name, idx) => (
+                      <option key={idx + 1} value={idx + 1}>{name}</option>
+                    ))}
+                  </select>
+                  <select
+                    name="targetYear"
+                    value={formData.targetYear}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    {[currentYear + 1, currentYear, currentYear - 1, currentYear - 2].map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+                {(() => {
+                  const nowD = new Date();
+                  const tM = Number(formData.targetMonth);
+                  const tY = Number(formData.targetYear);
+                  const isPast = tY < nowD.getFullYear() || (tY === nowD.getFullYear() && tM < nowD.getMonth() + 1);
+                  return isPast ? (
+                    <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      ⚠️ You&apos;re recording a payment for a <strong>past month</strong> ({monthNames[tM - 1]} {tY}) — continue if that&apos;s intended.
+                    </p>
+                  ) : null;
+                })()}
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Amount (₹) *
+                </label>
+                <input
+                  type="number"
+                  name="paidAmount"
+                  value={formData.paidAmount}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="5000"
+                  min="0"
+                  step="1"
+                />
+              </div>
+            </>
+          ) : (
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Select months to mark paid *
+              </label>
+              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                {monthChoices.map((c) => (
+                  <label key={c.key} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!monthChecks[c.key]}
+                      onChange={(e) => setMonthChecks((prev) => ({ ...prev, [c.key]: e.target.checked }))}
+                      className="w-4 h-4"
+                    />
+                    {c.label}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                Each selected month will be marked <strong>Paid</strong> at ₹{(Number(tenant.currentRent) || 0).toLocaleString('en-IN')} (rent). Add electricity separately via the Electricity page if needed.
+              </p>
+            </div>
+          )}
 
           <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-700 mb-2">
