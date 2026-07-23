@@ -275,6 +275,23 @@ const Payments = () => {
     }
   };
 
+  // Set of "year-month" keys this tenant has already paid — used to grey out
+  // already-cleared months in the multi-month picker.
+  const getTenantPaidMonthKeys = (tenant) => {
+    if (!tenant) return new Set();
+    const tenantName = String(tenant.name || '').trim().toLowerCase();
+    const tenantRoom = String(tenant.roomNumber || '').trim();
+    const keys = new Set();
+    allPayments.forEach((p) => {
+      if (p.status !== 'paid' || !p.year || !p.month) return;
+      const byTenantId = p.tenantId && p.tenantId === tenant.id;
+      const pName = String(p.tenantNameSnapshot || p.tenantName || '').trim().toLowerCase();
+      const byNameRoom = String(p.roomNumber || '').trim() === tenantRoom && pName === tenantName;
+      if (byTenantId || byNameRoom) keys.add(`${p.year}-${Number(p.month)}`);
+    });
+    return keys;
+  };
+
   const getPreviousPayment = (tenantId) => {
     // Get most recent payment before current month
     const tenantPayments = allPayments
@@ -1113,6 +1130,7 @@ const Payments = () => {
           currentMonth={selectedMonth}
           currentYear={selectedYear}
           previousPayment={getPreviousPayment(selectedTenant.id)}
+          paidMonthKeys={getTenantPaidMonthKeys(selectedTenant)}
           onClose={handleFormClose}
           onSuccess={handleFormSuccess}
         />
@@ -1145,7 +1163,7 @@ const Payments = () => {
   );
 };
 
-const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClose, onSuccess }) => {
+const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, paidMonthKeys, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     paidAmount: tenant.currentRent || 0,
     paidDate: new Date().toISOString().split('T')[0],
@@ -1158,19 +1176,35 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [multiMonth, setMultiMonth] = useState(false);
-  const [monthChecks, setMonthChecks] = useState({ [`${currentYear}-${currentMonth}`]: true });
+  const [monthChecks, setMonthChecks] = useState({});
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                       'July', 'August', 'September', 'October', 'November', 'December'];
 
-  // Last 12 months (current + previous 11) for the multi-month picker.
+  const paidKeys = paidMonthKeys instanceof Set ? paidMonthKeys : new Set(paidMonthKeys || []);
+
+  // Month window for the multi-month picker: from the tenant's check-in (capped
+  // at 24 months) up to the current month, flagging which are already paid.
+  // Only unpaid ("due") months are selectable.
+  const checkIn = tenant?.checkInDate ? new Date(tenant.checkInDate) : null;
+  const checkInIndex = checkIn && !isNaN(checkIn.getTime())
+    ? checkIn.getFullYear() * 12 + checkIn.getMonth()
+    : null;
   const monthChoices = [];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 24; i++) {
     let m = currentMonth - i;
     let y = currentYear;
     while (m <= 0) { m += 12; y -= 1; }
-    monthChoices.push({ key: `${y}-${m}`, label: `${monthNames[m - 1]} ${y}` });
+    const idx = y * 12 + (m - 1);
+    if (checkInIndex !== null) {
+      if (idx < checkInIndex) break;
+    } else if (i >= 12) {
+      break;
+    }
+    const key = `${y}-${m}`;
+    monthChoices.push({ key, label: `${monthNames[m - 1]} ${y}`, paid: paidKeys.has(key) });
   }
+  const dueMonths = monthChoices.filter((c) => !c.paid);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -1237,9 +1271,9 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
 
       // Multi-month: mark each selected month paid at the tenant's rent.
       if (multiMonth) {
-        const selectedKeys = Object.keys(monthChecks).filter((k) => monthChecks[k]);
+        const selectedKeys = Object.keys(monthChecks).filter((k) => monthChecks[k] && !paidKeys.has(k));
         if (selectedKeys.length === 0) {
-          setError('Please select at least one month');
+          setError('Please select at least one due month');
           setSaving(false);
           return;
         }
@@ -1422,22 +1456,41 @@ const PaymentForm = ({ tenant, currentMonth, currentYear, previousPayment, onClo
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Select months to mark paid *
               </label>
-              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
-                {monthChoices.map((c) => (
-                  <label key={c.key} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={!!monthChecks[c.key]}
-                      onChange={(e) => setMonthChecks((prev) => ({ ...prev, [c.key]: e.target.checked }))}
-                      className="w-4 h-4"
-                    />
-                    {c.label}
-                  </label>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                Each selected month will be marked <strong>Paid</strong> at ₹{(Number(tenant.currentRent) || 0).toLocaleString('en-IN')} (rent). Add electricity separately via the Electricity page if needed.
-              </p>
+              {dueMonths.length === 0 ? (
+                <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
+                  🎉 No pending months — all rent is cleared for this tenant.
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs font-semibold text-red-700 mb-2">
+                    {dueMonths.length} month{dueMonths.length > 1 ? 's' : ''} due — tick the ones being paid:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                    {monthChoices.map((c) => (
+                      c.paid ? (
+                        <div key={c.key} className="flex items-center gap-2 text-sm text-gray-400">
+                          <span className="text-green-600">✓</span>
+                          <span className="line-through">{c.label}</span>
+                          <span className="text-[10px] text-green-600 font-semibold">Paid</span>
+                        </div>
+                      ) : (
+                        <label key={c.key} className="flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!monthChecks[c.key]}
+                            onChange={(e) => setMonthChecks((prev) => ({ ...prev, [c.key]: e.target.checked }))}
+                            className="w-4 h-4"
+                          />
+                          {c.label}
+                        </label>
+                      )
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                    Each selected month will be marked <strong>Paid</strong> at ₹{(Number(tenant.currentRent) || 0).toLocaleString('en-IN')} (rent). Add electricity separately via the Electricity page if needed.
+                  </p>
+                </>
+              )}
             </div>
           )}
 
