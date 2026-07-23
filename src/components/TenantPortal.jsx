@@ -2894,6 +2894,45 @@ const TenantPortal = () => {
               );
             })()}
 
+            {(() => {
+              if (!paymentRecords || paymentRecords.length === 0) return null;
+              const paidSet = new Set(
+                paymentRecords
+                  .filter((p) => p.status === 'paid' && p.year && p.month)
+                  .map((p) => `${Number(p.year)}-${Number(p.month)}`)
+              );
+              const todayD = new Date();
+              const curIdx = todayD.getFullYear() * 12 + todayD.getMonth();
+              const ci = tenant?.checkInDate ? new Date(tenant.checkInDate) : null;
+              const ciIdx = ci && !isNaN(ci.getTime()) ? ci.getFullYear() * 12 + ci.getMonth() : curIdx;
+              const pendingMonths = [];
+              for (let idx = Math.max(ciIdx, curIdx - 23); idx <= curIdx; idx++) {
+                const y = Math.floor(idx / 12);
+                const m = (idx % 12) + 1;
+                if (!paidSet.has(`${y}-${m}`)) {
+                  pendingMonths.push({ key: `${y}-${m}`, label: `${new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'short' })} ${y}` });
+                }
+              }
+              if (pendingMonths.length === 0) return null;
+              return (
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4">
+                  <p className="text-sm font-bold text-amber-900">
+                    ⚠️ {t(`${pendingMonths.length} month${pendingMonths.length > 1 ? 's' : ''} of rent pending`, `आपके ${pendingMonths.length} महीने का किराया बाकी है`)}
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {pendingMonths.map((pm) => (
+                      <span key={pm.key} className="text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300 rounded px-2 py-1">
+                        {pm.label}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-amber-800 mt-2">
+                    {t('Please clear these pending months to stay up to date.', 'कृपया इन बकाया महीनों का किराया जमा करें।')}
+                  </p>
+                </div>
+              );
+            })()}
+
             <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
               <p className="text-sm font-bold text-red-800">
                 ⚠️ ध्यान दें: आपने payment कर दी हो तब भी, जब तक आप &quot;Submit Payment for Verification&quot; नहीं करेंगे,
