@@ -27,6 +27,7 @@ const Dashboard = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [monthlyData, setMonthlyData] = useState([]);
   const [currentMonthSummary, setCurrentMonthSummary] = useState(null);
+  const [allPaymentsData, setAllPaymentsData] = useState([]);
   const [todaysCollection, setTodaysCollection] = useState({ amount: 0, count: 0, date: '' });
   const [loading, setLoading] = useState(true);
   const { viewMode, setViewMode, isCardView } = useResponsiveViewMode('dashboard-view-mode', 'table');
@@ -230,6 +231,7 @@ const Dashboard = () => {
       // Fetch the full payments collection once and reuse it for both income
       // aggregates, instead of each helper fetching all payments independently.
       const allPayments = (await getDocs(collection(db, 'payments'))).docs.map((doc) => doc.data());
+      setAllPaymentsData(allPayments);
       const [statsData, yearlyIncome, todaysData] = await Promise.all([
         getDashboardStats(allPayments),
         getYearlyIncomeSummary(allPayments),
@@ -360,6 +362,33 @@ const Dashboard = () => {
       getTenantRooms(tenant).forEach((room) => occupied.add(String(room)));
     });
     return (FLOOR_ROOM_NUMBERS[floorNum] || []).filter((room) => !occupied.has(String(room)));
+  };
+
+  // Total pending months + amount for a tenant, from check-in to the selected
+  // month — so an unpaid tenant who owes earlier months (e.g. paid nothing last
+  // month) shows their full backlog, not just the selected month.
+  const getTenantDues = (tenant) => {
+    const rent = Number(tenant.currentRent) || Number(tenant.expectedRent) || 0;
+    const tenantName = String(tenant.name || '').trim().toLowerCase();
+    const rooms = getTenantRooms(tenant).map((r) => String(r));
+    const paidSet = new Set();
+    allPaymentsData.forEach((p) => {
+      if (p.status !== 'paid' || !p.year || !p.month) return;
+      const byId = p.tenantId && tenant.id && p.tenantId === tenant.id;
+      const pName = String(p.tenantNameSnapshot || p.tenantName || '').trim().toLowerCase();
+      const byNameRoom = rooms.includes(String(p.roomNumber)) && pName === tenantName;
+      if (byId || byNameRoom) paidSet.add(`${p.year}-${Number(p.month)}`);
+    });
+    const endIdx = selectedMonthYear * 12 + (selectedMonth - 1);
+    const ci = tenant.checkInDate ? new Date(tenant.checkInDate) : null;
+    const ciIdx = ci && !isNaN(ci.getTime()) ? ci.getFullYear() * 12 + ci.getMonth() : endIdx;
+    let months = 0;
+    for (let idx = Math.max(ciIdx, endIdx - 23); idx <= endIdx; idx++) {
+      const y = Math.floor(idx / 12);
+      const m = (idx % 12) + 1;
+      if (!paidSet.has(`${y}-${m}`)) months += 1;
+    }
+    return { months, amount: months * rent };
   };
 
   const getPrimaryRoomNumber = (tenant) => {
@@ -658,6 +687,8 @@ const Dashboard = () => {
 
               const chip = (t) => {
                 const isPaidT = isRentPaid(t);
+                const dues = isPaidT ? null : getTenantDues(t);
+                const multiDue = dues && dues.months > 1;
                 const amount = isPaidT
                   ? (t.collectedAmount || 0)
                   : Math.max((t.expectedTotal || 0) - (t.collectedAmount || 0), 0);
@@ -670,9 +701,13 @@ const Dashboard = () => {
                       <span className={`font-mono text-[10px] px-1 py-0.5 rounded ${isPaidT ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{getCompactRoomLabel(t)}</span>
                       <span className="text-xs font-semibold text-gray-900">{t.name}</span>
                       <span className={`text-xs font-bold ${isPaidT ? 'text-green-700' : 'text-red-700'}`}>₹{amount.toLocaleString('en-IN')}</span>
+                      {multiDue && (
+                        <span className="text-[9px] font-bold bg-red-200 text-red-800 px-1 py-0.5 rounded">{dues.months} mo</span>
+                      )}
                     </div>
                     {!isPaidT && (
                       <span className={`text-[10px] leading-tight ${t.isDelayed ? 'text-red-600' : (t.dueStatusColor === 'orange' || t.dueStatusColor === 'yellow') ? 'text-amber-600' : 'text-gray-500'}`}>
+                        {multiDue ? <><strong>{dues.months} months pending · ₹{dues.amount.toLocaleString('en-IN')}</strong> · </> : null}
                         Due {t.dueDate} · {t.dueStatusText}
                       </span>
                     )}

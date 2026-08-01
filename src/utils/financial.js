@@ -590,6 +590,8 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         roomNumber: tenant.roomNumber,
         roomNumbers: tenantRoomNumbers,
         roomCount: tenantRoomNumbers.length,
+        checkInDate: tenant.checkInDate || null,
+        currentRent: Number(tenant.currentRent) || 0,
         expectedRent,
         expectedElectricity,
         expectedTotal,
