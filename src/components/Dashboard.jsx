@@ -707,8 +707,9 @@ const Dashboard = () => {
                     </div>
                     {!isPaidT && (
                       <span className={`text-[10px] leading-tight ${t.isDelayed ? 'text-red-600' : (t.dueStatusColor === 'orange' || t.dueStatusColor === 'yellow') ? 'text-amber-600' : 'text-gray-500'}`}>
-                        {multiDue ? <><strong>{dues.months} months pending · ₹{dues.amount.toLocaleString('en-IN')}</strong> · </> : null}
-                        Due {t.dueDate} · {t.dueStatusText}
+                        {multiDue
+                          ? <><strong>₹{dues.amount.toLocaleString('en-IN')} total</strong> · {t.dueStatusText}</>
+                          : <>Due {t.dueDate} · {t.dueStatusText}</>}
                       </span>
                     )}
                   </div>
