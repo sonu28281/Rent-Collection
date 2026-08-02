@@ -306,7 +306,7 @@ const Electricity = () => {
                     </div>
                   </div>
                   <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                    ⚡ {tenant.electricityRateOverride || globalRate} ₹/kWh
+                    ⚡ {tenant.customElectricityRate || globalRate} ₹/kWh
                   </span>
                 </div>
 

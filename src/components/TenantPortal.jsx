@@ -2002,10 +2002,14 @@ const TenantPortal = () => {
     setExpandedCard(expandedCard === cardId ? null : cardId);
   };
 
+  // This tenant's electricity rate: their per-tenant custom rate if set, else the
+  // global rate. (Admins can set a custom ₹/unit for a specific tenant.)
+  const effectiveElectricityRate = Number(tenant?.customElectricityRate) || globalElectricityRate;
+
   // Calculate electricity amount
   const calculateElectricity = (oldReading, currentReading) => {
     const units = Math.max(0, currentReading - oldReading);
-    const ratePerUnit = globalElectricityRate; // Use global electricity rate
+    const ratePerUnit = effectiveElectricityRate;
     const electricityAmount = units * ratePerUnit;
     return { units, electricityAmount };
   };
@@ -2991,7 +2995,7 @@ const TenantPortal = () => {
                       <div className="mt-2 pt-2 border-t border-green-300">
                         <p className="text-[10px] text-green-700 flex items-center gap-1">
                           <span className="font-bold">⚡ Rate:</span>
-                          <span className="bg-orange-500 text-white px-2 py-0.5 rounded font-bold">₹{globalElectricityRate}/unit</span>
+                          <span className="bg-orange-500 text-white px-2 py-0.5 rounded font-bold">₹{effectiveElectricityRate}/unit</span>
                         </p>
                       </div>
                     </div>
@@ -3124,7 +3128,7 @@ const TenantPortal = () => {
                     })}
                   </div>
                   <p className="text-xs text-gray-600 mt-2">
-                    Previous reading is auto-filled room-wise from last month closing readings (tenant cannot edit) | Rate: ₹{globalElectricityRate}/unit
+                    Previous reading is auto-filled room-wise from last month closing readings (tenant cannot edit) | Rate: ₹{effectiveElectricityRate}/unit
                   </p>
                 </div>
 
@@ -3302,7 +3306,7 @@ const TenantPortal = () => {
                   <div className="flex items-center justify-between mb-2 sm:mb-3">
                     <h3 className="font-semibold text-yellow-900 text-sm sm:text-base">⚡ Electricity Meter</h3>
                     <div className="bg-orange-500 text-white px-3 py-1 rounded-lg shadow-sm">
-                      <p className="text-xs font-bold">₹{globalElectricityRate}/unit</p>
+                      <p className="text-xs font-bold">₹{effectiveElectricityRate}/unit</p>
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -3382,7 +3386,7 @@ const TenantPortal = () => {
                         <div className="flex items-center gap-2 flex-wrap">
                           <h2 className="text-xl sm:text-2xl font-bold text-gray-800">📚 Meter Reading History</h2>
                           <span className="bg-orange-500 text-white px-3 py-1 rounded-lg shadow-md text-xs sm:text-sm font-bold">
-                            ₹{globalElectricityRate}/unit
+                            ₹{effectiveElectricityRate}/unit
                           </span>
                         </div>
                         <span className="text-xs sm:text-sm text-gray-600">
@@ -3499,7 +3503,7 @@ const TenantPortal = () => {
                                           <div className="flex items-center justify-end gap-2">
                                             <p className="text-base font-bold text-indigo-900">₹{Number(entry.electricityAmount || 0).toFixed(2)}</p>
                                             <p className="text-[9px] text-orange-700 font-semibold bg-orange-100 px-1.5 py-0.5 rounded whitespace-nowrap">
-                                              {entry.unitsConsumed} Units × ₹{globalElectricityRate}
+                                              {entry.unitsConsumed} Units × ₹{effectiveElectricityRate}
                                             </p>
                                           </div>
                                           <p className="text-[10px] text-gray-500 mt-1">
@@ -3750,7 +3754,7 @@ const TenantPortal = () => {
                                 <div className="flex items-center justify-between mb-2">
                                   <p className="text-xs font-semibold text-yellow-900">⚡ Meter Details:</p>
                                   <span className="text-[10px] font-bold text-orange-700 bg-orange-200 px-2 py-0.5 rounded">
-                                    @₹{globalElectricityRate}/unit
+                                    @₹{effectiveElectricityRate}/unit
                                   </span>
                                 </div>
                                 <div className="space-y-1 text-xs">
@@ -3839,7 +3843,7 @@ const TenantPortal = () => {
             tenant={tenant}
             room={room}
             rooms={roomsData}
-            electricityRate={globalElectricityRate}
+            electricityRate={effectiveElectricityRate}
             language={portalLanguage}
             previousMeterReadings={previousMeterReadings}
             currentMeterReadings={currentMeterReadings}
