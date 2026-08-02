@@ -595,11 +595,11 @@ const Dashboard = () => {
               <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-blue-700 text-sm font-semibold mb-1">Expected Rent</p>
+                    <p className="text-blue-700 text-sm font-semibold mb-1">Expected Total</p>
                     <p className="text-2xl font-bold text-blue-900">
-                      ₹{currentMonthSummary.totalExpected.toLocaleString('en-IN')}
+                      ₹{currentMonthSummary.totalExpected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                     </p>
-                    <p className="text-blue-600 text-xs mt-1">Total to collect</p>
+                    <p className="text-blue-600 text-xs mt-1">Rent + electricity to collect</p>
                   </div>
                   <div className="text-3xl">💰</div>
                 </div>
