@@ -242,21 +242,22 @@ const Dashboard = () => {
       setYearlyData(yearlyIncome);
       setTodaysCollection(todaysData);
       
-      // Set selected year to current or latest year with data
+      // Set selected year to current or latest year with data (initial load only)
       if (yearlyIncome.length > 0) {
         const latestYear = yearlyIncome[0].year;
         setSelectedYear(latestYear);
       }
-      
-      // Fetch month data
-      await fetchMonthData();
-      
+
       setLoading(false);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setLoading(false);
     }
-  }, [fetchMonthData]);
+    // Runs once on mount. Month/year navigation is handled by the separate
+    // fetchMonthData effect below, so it no longer re-runs this whole fetch
+    // (which used to flash a full reload and reset the selected year).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     fetchData();
