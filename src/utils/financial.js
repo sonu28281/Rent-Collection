@@ -491,16 +491,6 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
           return secondTime - firstTime;
         })[0] || null;
 
-      const paidRooms = new Set(
-        uniqueTenantPayments
-          .filter((payment) => payment.isPaidStatus)
-          .map((payment) => String(payment.roomNumber))
-      );
-
-      const allRoomsPaid = tenantRoomNumbers.length > 0
-        ? tenantRoomNumbers.every((room) => paidRooms.has(String(room)))
-        : false;
-      
       // Calculate expected rent across ALL assigned rooms. For each room use its
       // recorded rent when a payment record exists, else fall back to the tenant's
       // currentRent. This way a multi-room tenant missing a record for one room
@@ -515,13 +505,24 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         : (rentFromRecords > 0 ? rentFromRecords : baseTenantRent);
       const expectedElectricity = totalElectricity;
       const expectedTotal = expectedRent + expectedElectricity;
-      
-      // Calculate actual collected amount
+
+      // Actual amount still owed this month.
       const dueAmount = Math.max(expectedTotal - collectedAmount, 0);
-      
-      // Payment status - Check BOTH status field AND actual collected amount
-      // A payment is only considered 'paid' if status='paid' AND paidAmount > 0
-      const status = (allRoomsPaid && collectedAmount > 0) ? 'paid' : 'pending';
+
+      // Amount-based status: fully covered = paid, some money but a shortfall =
+      // partial, nothing collected = pending. (Previously any record with
+      // status 'paid' marked the tenant fully paid regardless of amount, so
+      // under-payments and rent-only payments wrongly showed as paid; and a
+      // fully-paid multi-room tenant could stay 'pending' because only the
+      // primary room had a record.)
+      let status;
+      if (collectedAmount <= 0) {
+        status = 'pending';
+      } else if (dueAmount <= 0) {
+        status = 'paid';
+      } else {
+        status = 'partial';
+      }
       
       // Due Date Calculation (default to 5th of current month if not set)
       const dueDateOfMonth = tenant.dueDate || 5; // Default: 5th of each month
