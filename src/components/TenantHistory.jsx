@@ -918,7 +918,7 @@ const TenantHistory = () => {
 
                                   {(() => {
                                     const record = merged.records[0];
-                                    const paymentDate = record?.paidDate || record?.paymentDate;
+                                    const paymentDate = record?.paidDate || record?.paymentDate || record?.paidAt || record?.date;
                                     const submissionDate = record?.submissionDate;
                                     const verifiedAt = record?.verifiedAt;
                                     const delayDays = record?.paymentDelayDays;
@@ -1058,7 +1058,9 @@ const TenantHistory = () => {
                                   <td className="px-3 py-2 text-center text-xs">
                                     {(() => {
                                       const record = merged.records[0];
-                                      const paymentDate = record?.paidDate || record?.paymentDate;
+                                      // Fall back to paidAt/date: some records (e.g. Jan–Feb 2026,
+                                      // created by a script) store the date under paidAt, not paidDate.
+                                      const paymentDate = record?.paidDate || record?.paymentDate || record?.paidAt || record?.date;
                                       return paymentDate ? new Date(paymentDate).toLocaleDateString('en-IN') : '-';
                                     })()}
                                   </td>
