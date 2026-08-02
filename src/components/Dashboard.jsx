@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
-import { getDashboardStats, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary, getTodaysCollection } from '../utils/financial';
+import { getTotalLifetimeIncome, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary, getTodaysCollection } from '../utils/financial';
 import ViewModeToggle from './ui/ViewModeToggle';
 import LiveDateTime from './ui/LiveDateTime';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
@@ -16,13 +16,7 @@ const Dashboard = () => {
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1); // 1-12
   const [selectedMonthYear, setSelectedMonthYear] = useState(now.getFullYear());
   
-  const [stats, setStats] = useState({
-    activeTenants: 0,
-    pendingPayments: 0,
-    currentMonthIncome: 0,
-    totalIncome: 0,
-    occupancy: { occupied: 0, vacant: 12, rate: '0.0' }
-  });
+  const [stats, setStats] = useState({ totalIncome: 0 });
   const [yearlyData, setYearlyData] = useState([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [monthlyData, setMonthlyData] = useState([]);
@@ -232,13 +226,13 @@ const Dashboard = () => {
       // aggregates, instead of each helper fetching all payments independently.
       const allPayments = (await getDocs(collection(db, 'payments'))).docs.map((doc) => doc.data());
       setAllPaymentsData(allPayments);
-      const [statsData, yearlyIncome, todaysData] = await Promise.all([
-        getDashboardStats(allPayments),
+      const [totalIncome, yearlyIncome, todaysData] = await Promise.all([
+        getTotalLifetimeIncome(allPayments),
         getYearlyIncomeSummary(allPayments),
         getTodaysCollection()
       ]);
-      
-      setStats(statsData);
+
+      setStats({ totalIncome });
       setYearlyData(yearlyIncome);
       setTodaysCollection(todaysData);
       
