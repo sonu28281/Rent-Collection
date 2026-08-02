@@ -1262,9 +1262,9 @@ const Dashboard = () => {
                     <p className="text-xs text-gray-500">Year</p>
                     <p className="text-lg font-bold text-gray-900">{year.year}</p>
                     <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                      <p>Rent: <span className="font-semibold">₹{year.rentIncome.toLocaleString('en-IN')}</span></p>
-                      <p>Electricity: <span className="font-semibold">₹{year.electricityIncome.toLocaleString('en-IN')}</span></p>
-                      <p>Total: <span className="font-semibold text-green-600">₹{year.totalIncome.toLocaleString('en-IN')}</span></p>
+                      <p>Rent: <span className="font-semibold">₹{year.rentIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span></p>
+                      <p>Electricity: <span className="font-semibold">₹{year.electricityIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span></p>
+                      <p>Total: <span className="font-semibold text-green-600">₹{year.totalIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span></p>
                       <p>Payments: <span className="font-semibold">{year.paymentCount}</span></p>
                     </div>
                   </button>
@@ -1290,9 +1290,9 @@ const Dashboard = () => {
                         onClick={() => setSelectedYear(year.year)}
                       >
                         <td className="px-3 py-2 font-semibold">{year.year}</td>
-                        <td className="px-3 py-2 text-right">₹{year.rentIncome.toLocaleString('en-IN')}</td>
-                        <td className="px-3 py-2 text-right">₹{year.electricityIncome.toLocaleString('en-IN')}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-green-600">₹{year.totalIncome.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-2 text-right">₹{year.rentIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                        <td className="px-3 py-2 text-right">₹{year.electricityIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-green-600">₹{year.totalIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
                         <td className="px-3 py-2 text-center">{year.paymentCount}</td>
                       </tr>
                     ))}
