@@ -1311,7 +1311,7 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
           totalElectricity: 0,
           totalAmount: 0,
           totalPaid: 0,
-          paymentDate: payment.paymentDate || payment.paidAt,
+          paymentDate: payment.paidDate || payment.paymentDate || payment.paidAt,
           status: payment.status
         });
       }
@@ -1329,7 +1329,7 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
       }
       
       // Use latest payment date
-      const paymentTime = payment.paymentDate || payment.paidAt;
+      const paymentTime = payment.paidDate || payment.paymentDate || payment.paidAt;
       if (paymentTime) {
         const currentTime = group.paymentDate;
         if (!currentTime || new Date(paymentTime) > new Date(currentTime)) {
@@ -1580,8 +1580,8 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
                                     ₹{paid.toLocaleString('en-IN')}
                                   </td>
                                   <td className="px-4 py-2 text-sm">
-                                    {payment.paymentDate || payment.paidAt
-                                      ? new Date(payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
+                                    {payment.paidDate || payment.paymentDate || payment.paidAt
+                                      ? new Date(payment.paidDate || payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
                                       : '-'}
                                   </td>
                                   <td className="px-4 py-2 text-center">
@@ -1617,8 +1617,8 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
                               ₹{paid.toLocaleString('en-IN')}
                             </td>
                             <td className="px-4 py-3">
-                              {payment.paymentDate || payment.paidAt
-                                ? new Date(payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
+                              {payment.paidDate || payment.paymentDate || payment.paidAt
+                                ? new Date(payment.paidDate || payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
                                 : '-'}
                             </td>
                             <td className="px-4 py-3 text-center">
