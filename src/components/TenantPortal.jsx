@@ -2490,8 +2490,12 @@ const TenantPortal = () => {
       accumulator[key].totalAmount += total;
       accumulator[key].paidAmount += paidAmount;
 
-      if (record.paidAt && (!accumulator[key].paidAt || new Date(record.paidAt) > new Date(accumulator[key].paidAt))) {
-        accumulator[key].paidAt = record.paidAt;
+      // Use the best available payment date: paidDate (set by the app) first,
+      // then paymentDate/paidAt. Records from 2026-03+ store it in paidDate, so
+      // reading only paidAt hid the payment date for those months.
+      const recordPaidDate = record.paidDate || record.paymentDate || record.paidAt;
+      if (recordPaidDate && (!accumulator[key].paidAt || new Date(recordPaidDate) > new Date(accumulator[key].paidAt))) {
+        accumulator[key].paidAt = recordPaidDate;
       }
 
       if (!accumulator[key].notes && record.notes) {
