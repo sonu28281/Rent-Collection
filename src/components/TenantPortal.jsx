@@ -3673,30 +3673,39 @@ const TenantPortal = () => {
                         }`}
                       >
                         {/* Compact Header - Always Visible */}
-                        <div 
+                        <div
                           onClick={() => toggleCard(groupCardId)}
-                          className="flex items-center justify-between p-3"
+                          className="p-3"
                         >
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <span className="text-xl flex-shrink-0">
-                              {isRentElectricityPaid ? '✅' : isOnlyRentPaid ? '⚠️' : isPaid ? '✅' : isPending ? '⏳' : '❌'}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="text-sm sm:text-base font-bold text-gray-800 truncate">
-                                {getMonthName(group.month)} {group.year}
-                              </h3>
-                              <p className="text-xs text-gray-600">
-                                {paymentTypeText}
-                              </p>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <span className="text-xl flex-shrink-0">
+                                {isRentElectricityPaid ? '✅' : isOnlyRentPaid ? '⚠️' : isPaid ? '✅' : isPending ? '⏳' : '❌'}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-sm sm:text-base font-bold text-gray-800 truncate">
+                                  {getMonthName(group.month)} {group.year}
+                                </h3>
+                                <p className="text-xs text-gray-600">
+                                  {paymentTypeText}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <p className="text-base sm:text-lg font-bold text-gray-900">₹{total.toLocaleString('en-IN')}</p>
+                              <span className="text-gray-400 text-xl">
+                                {isExpanded ? '▼' : '▶'}
+                              </span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <div className="text-right">
-                              <p className="text-base sm:text-lg font-bold text-gray-900">₹{total.toLocaleString('en-IN')}</p>
-                            </div>
-                            <span className="text-gray-400 text-xl">
-                              {isExpanded ? '▼' : '▶'}
-                            </span>
+
+                          {/* Always-visible quick facts: Rent · Electricity · Paid Date */}
+                          <div className="mt-2 pt-2 border-t border-black/5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                            <span><span className="text-gray-500">Rent </span><span className="font-semibold text-gray-800">₹{Number(group.totalRent || 0).toLocaleString('en-IN')}</span></span>
+                            <span><span className="text-gray-500">Electricity </span><span className="font-semibold text-gray-800">₹{Number(group.totalElectricity || 0).toLocaleString('en-IN')}</span></span>
+                            {group.paidAt && isPaid && (
+                              <span><span className="text-gray-500">Paid </span><span className="font-semibold text-green-700">{new Date(group.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span></span>
+                            )}
                           </div>
                         </div>
                         
@@ -3709,17 +3718,10 @@ const TenantPortal = () => {
                               </div>
                             )}
 
-                            {/* Key facts in one compact grid */}
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                              {group.paidAt && isPaid && (
-                                <p><span className="text-gray-500">Paid on: </span><span className="font-semibold text-green-700">{new Date(group.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span></p>
-                              )}
-                              {group.records.some((recordItem) => recordItem.paymentMethod) && isPaid && (
-                                <p><span className="text-gray-500">Method: </span><span className="font-semibold text-gray-800">💳 {group.records.find((recordItem) => recordItem.paymentMethod)?.paymentMethod}</span></p>
-                              )}
-                              <p><span className="text-gray-500">Rent: </span><span className="font-bold text-gray-800">₹{Number(group.totalRent || 0).toLocaleString('en-IN')}</span></p>
-                              <p><span className="text-gray-500">Electricity: </span><span className="font-bold text-gray-800">₹{Number(group.totalElectricity || 0).toLocaleString('en-IN')}</span></p>
-                            </div>
+                            {/* Payment method (rent, electricity & paid date are in the header) */}
+                            {group.records.some((recordItem) => recordItem.paymentMethod) && isPaid && (
+                              <p><span className="text-gray-500">Method: </span><span className="font-semibold text-gray-800">💳 {group.records.find((recordItem) => recordItem.paymentMethod)?.paymentMethod}</span></p>
+                            )}
 
                             {/* Room-wise — only when there is more than one room */}
                             {group.records.length > 1 && (
