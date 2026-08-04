@@ -3678,7 +3678,7 @@ const TenantPortal = () => {
                           className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3"
                         >
                           {/* Month + status */}
-                          <div className="flex items-center gap-2 min-w-0 order-1">
+                          <div className="flex items-center gap-2 min-w-0 order-1 sm:w-52 sm:flex-shrink-0">
                             <span className="text-xl flex-shrink-0">
                               {isRentElectricityPaid ? '✅' : isOnlyRentPaid ? '⚠️' : isPaid ? '✅' : isPending ? '⏳' : '❌'}
                             </span>
@@ -3692,12 +3692,12 @@ const TenantPortal = () => {
                             </div>
                           </div>
 
-                          {/* Quick facts — sit in the empty middle on desktop, wrap below on mobile */}
-                          <div className="order-3 sm:order-2 w-full sm:w-auto sm:flex-1 flex flex-wrap items-center sm:justify-center gap-x-4 gap-y-0.5 text-xs">
-                            <span><span className="text-gray-500">Rent </span><span className="font-semibold text-gray-800">₹{Number(group.totalRent || 0).toLocaleString('en-IN')}</span></span>
-                            <span><span className="text-gray-500">Electricity </span><span className="font-semibold text-gray-800">₹{Number(group.totalElectricity || 0).toLocaleString('en-IN')}</span></span>
+                          {/* Quick facts — fixed-width columns so they line up across rows; wrap below on mobile */}
+                          <div className="order-3 sm:order-2 w-full sm:w-auto sm:flex-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs">
+                            <span className="sm:w-28"><span className="text-gray-500">Rent </span><span className="font-semibold text-gray-800">₹{Number(group.totalRent || 0).toLocaleString('en-IN')}</span></span>
+                            <span className="sm:w-36"><span className="text-gray-500">Electricity </span><span className="font-semibold text-gray-800">₹{Number(group.totalElectricity || 0).toLocaleString('en-IN')}</span></span>
                             {group.paidAt && isPaid && (
-                              <span><span className="text-gray-500">Paid </span><span className="font-semibold text-green-700">{new Date(group.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span></span>
+                              <span className="sm:w-40"><span className="text-gray-500">Paid </span><span className="font-semibold text-green-700">{new Date(group.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span></span>
                             )}
                           </div>
 
