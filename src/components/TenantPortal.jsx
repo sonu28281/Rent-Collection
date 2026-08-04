@@ -3700,96 +3700,67 @@ const TenantPortal = () => {
                           </div>
                         </div>
                         
-                        {/* Expanded Details - Show on Click */}
+                        {/* Expanded Details - Show on Click (compact) */}
                         {isExpanded && (
-                          <div className="px-3 pb-3 space-y-3 border-t border-gray-200 pt-3">
+                          <div className="px-3 pb-2 pt-2 border-t border-gray-200 space-y-2 text-xs">
                             {isOnlyRentPaid && (
-                              <div className="bg-amber-50 border border-amber-200 rounded p-2">
-                                <p className="text-xs font-semibold text-amber-900">
-                                  ⚠️ Rent payment received for this month. Electricity bill is still pending.
-                                </p>
+                              <div className="bg-amber-50 border border-amber-200 rounded px-2 py-1 font-semibold text-amber-900">
+                                ⚠️ Rent received for this month. Electricity still pending.
                               </div>
                             )}
 
-                            {/* Payment Date */}
-                            {group.paidAt && isPaid && (
-                              <div className="bg-white/50 rounded p-2">
-                                <p className="text-xs text-gray-600 mb-1">Payment Date:</p>
-                                <p className="text-sm font-semibold text-green-700">
-                                  {new Date(group.paidAt).toLocaleDateString('en-IN', {
-                                    day: 'numeric',
-                                    month: 'short',
-                                    year: 'numeric'
-                                  })}
-                                </p>
-                              </div>
-                            )}
-                            
-                            {/* Breakdown */}
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="bg-white/50 rounded p-2">
-                                <p className="text-xs text-gray-600 mb-1">Rent</p>
-                                <p className="font-bold text-gray-800 text-sm">₹{Number(group.totalRent || 0).toLocaleString('en-IN')}</p>
-                              </div>
-                              <div className="bg-white/50 rounded p-2">
-                                <p className="text-xs text-gray-600 mb-1">Electricity</p>
-                                <p className="font-bold text-gray-800 text-sm">₹{Number(group.totalElectricity || 0).toLocaleString('en-IN')}</p>
-                              </div>
+                            {/* Key facts in one compact grid */}
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                              {group.paidAt && isPaid && (
+                                <p><span className="text-gray-500">Paid on: </span><span className="font-semibold text-green-700">{new Date(group.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span></p>
+                              )}
+                              {group.records.some((recordItem) => recordItem.paymentMethod) && isPaid && (
+                                <p><span className="text-gray-500">Method: </span><span className="font-semibold text-gray-800">💳 {group.records.find((recordItem) => recordItem.paymentMethod)?.paymentMethod}</span></p>
+                              )}
+                              <p><span className="text-gray-500">Rent: </span><span className="font-bold text-gray-800">₹{Number(group.totalRent || 0).toLocaleString('en-IN')}</span></p>
+                              <p><span className="text-gray-500">Electricity: </span><span className="font-bold text-gray-800">₹{Number(group.totalElectricity || 0).toLocaleString('en-IN')}</span></p>
                             </div>
 
-                            {/* Room-wise Breakdown */}
-                            <div className="bg-indigo-50 border border-indigo-200 rounded p-2">
-                              <p className="text-xs font-semibold text-indigo-900 mb-2">🏠 Room-wise Breakout:</p>
-                              <div className="space-y-1">
-                                {group.records.map((recordItem) => (
-                                  <div key={`room_break_${recordItem.id}`} className="grid grid-cols-4 gap-2 text-xs bg-white/70 rounded px-2 py-1">
-                                    <p className="font-semibold text-indigo-900">Room {recordItem.roomNumber || '-'}</p>
-                                    <p>Rent ₹{Number(recordItem.rent || 0).toFixed(2)}</p>
-                                    <p>Elec ₹{Number(recordItem.electricity || 0).toFixed(2)}</p>
-                                    <p className="font-semibold">Total ₹{(Number(recordItem.rent || 0) + Number(recordItem.electricity || 0)).toFixed(2)}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                            
-                            {/* Meter Readings */}
-                            {group.records.some((recordItem) => recordItem.oldReading || recordItem.currentReading || recordItem.units) && (
-                              <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
-                                <div className="flex items-center justify-between mb-2">
-                                  <p className="text-xs font-semibold text-yellow-900">⚡ Meter Details:</p>
-                                  <span className="text-[10px] font-bold text-orange-700 bg-orange-200 px-2 py-0.5 rounded">
-                                    @₹{effectiveElectricityRate}/unit
-                                  </span>
-                                </div>
-                                <div className="space-y-1 text-xs">
+                            {/* Room-wise — only when there is more than one room */}
+                            {group.records.length > 1 && (
+                              <div className="bg-indigo-50 border border-indigo-200 rounded px-2 py-1">
+                                <p className="font-semibold text-indigo-900 mb-1">🏠 Room-wise</p>
+                                <div className="space-y-1">
                                   {group.records.map((recordItem) => (
-                                    <div key={`meter_${recordItem.id}`} className="grid grid-cols-4 gap-2 bg-white/70 rounded px-2 py-1">
-                                      <p className="font-semibold text-yellow-900">R{recordItem.roomNumber || '-'}</p>
-                                      <p>Prev {recordItem.oldReading || 0}</p>
-                                      <p>Curr {recordItem.currentReading || 0}</p>
-                                      <p>Units {recordItem.units || recordItem.unitsConsumed || 0}</p>
+                                    <div key={`room_break_${recordItem.id}`} className="grid grid-cols-4 gap-2 bg-white/70 rounded px-2 py-0.5">
+                                      <span className="font-semibold text-indigo-900">Room {recordItem.roomNumber || '-'}</span>
+                                      <span>Rent ₹{Number(recordItem.rent || 0).toFixed(0)}</span>
+                                      <span>Elec ₹{Number(recordItem.electricity || 0).toFixed(0)}</span>
+                                      <span className="font-semibold">₹{(Number(recordItem.rent || 0) + Number(recordItem.electricity || 0)).toFixed(0)}</span>
                                     </div>
                                   ))}
                                 </div>
                               </div>
                             )}
-                            
-                            {/* Payment Method */}
-                            {group.records.some((recordItem) => recordItem.paymentMethod) && isPaid && (
-                              <div className="bg-white/50 rounded p-2">
-                                <p className="text-xs text-gray-600 mb-1">Payment Method:</p>
-                                <p className="text-sm font-semibold text-gray-800">
-                                  💳 {group.records.find((recordItem) => recordItem.paymentMethod)?.paymentMethod}
-                                </p>
+
+                            {/* Meter Readings */}
+                            {group.records.some((recordItem) => recordItem.oldReading || recordItem.currentReading || recordItem.units) && (
+                              <div className="bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
+                                <div className="flex items-center justify-between mb-1">
+                                  <p className="font-semibold text-yellow-900">⚡ Meter</p>
+                                  <span className="text-[10px] font-bold text-orange-700 bg-orange-200 px-1.5 py-0.5 rounded">@₹{effectiveElectricityRate}/unit</span>
+                                </div>
+                                <div className="space-y-1">
+                                  {group.records.map((recordItem) => (
+                                    <div key={`meter_${recordItem.id}`} className="grid grid-cols-4 gap-2 bg-white/70 rounded px-2 py-0.5">
+                                      <span className="font-semibold text-yellow-900">R{recordItem.roomNumber || '-'}</span>
+                                      <span>Prev {recordItem.oldReading || 0}</span>
+                                      <span>Curr {recordItem.currentReading || 0}</span>
+                                      <span>Units {recordItem.units || recordItem.unitsConsumed || 0}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             )}
-                            
+
                             {/* Notes */}
                             {group.notes && (
-                              <div className="bg-white/50 rounded p-2">
-                                <p className="text-xs text-gray-600 mb-1">📝 Note:</p>
-                                <p className="text-sm text-gray-700 italic">{group.notes}</p>
-                              </div>
+                              <p><span className="text-gray-500">📝 Note: </span><span className="italic text-gray-700">{group.notes}</span></p>
                             )}
                           </div>
                         )}
