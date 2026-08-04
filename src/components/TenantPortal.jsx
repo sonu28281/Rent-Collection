@@ -2725,8 +2725,8 @@ const TenantPortal = () => {
             <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
               <span className="text-2xl sm:text-3xl flex-shrink-0">🏠</span>
               <div className="min-w-0 flex-1">
-                <h1 className="text-base sm:text-xl font-bold text-gray-800 truncate">Tenant Portal</h1>
-                <p className="text-xs sm:text-sm text-gray-600 truncate">Room {tenant?.roomNumber} - {tenant?.name}</p>
+                <h1 className="text-base sm:text-xl font-bold text-gray-800 truncate leading-tight">{tenant?.name || 'Tenant Portal'}</h1>
+                <p className="text-xs sm:text-sm text-gray-600 truncate">Room {tenant?.roomNumber || '-'} · Tenant Portal</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
@@ -2746,15 +2746,6 @@ const TenantPortal = () => {
                   </button>
                 );
               })()}
-              {notificationPermission !== 'granted' && (
-                <button
-                  type="button"
-                  onClick={requestNotificationPermission}
-                  className="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 font-semibold py-2 px-3 rounded-lg text-xs sm:text-sm whitespace-nowrap"
-                >
-                  🔔 Notify On
-                </button>
-              )}
               <button
                 type="button"
                 onClick={togglePortalLanguage}
