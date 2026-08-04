@@ -3672,40 +3672,41 @@ const TenantPortal = () => {
                           'border-gray-300 bg-gray-50 hover:bg-gray-100'
                         }`}
                       >
-                        {/* Compact Header - Always Visible */}
+                        {/* Compact Header - Always Visible (single row; facts fill the empty middle) */}
                         <div
                           onClick={() => toggleCard(groupCardId)}
-                          className="p-3"
+                          className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3"
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <span className="text-xl flex-shrink-0">
-                                {isRentElectricityPaid ? '✅' : isOnlyRentPaid ? '⚠️' : isPaid ? '✅' : isPending ? '⏳' : '❌'}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <h3 className="text-sm sm:text-base font-bold text-gray-800 truncate">
-                                  {getMonthName(group.month)} {group.year}
-                                </h3>
-                                <p className="text-xs text-gray-600">
-                                  {paymentTypeText}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <p className="text-base sm:text-lg font-bold text-gray-900">₹{total.toLocaleString('en-IN')}</p>
-                              <span className="text-gray-400 text-xl">
-                                {isExpanded ? '▼' : '▶'}
-                              </span>
+                          {/* Month + status */}
+                          <div className="flex items-center gap-2 min-w-0 order-1">
+                            <span className="text-xl flex-shrink-0">
+                              {isRentElectricityPaid ? '✅' : isOnlyRentPaid ? '⚠️' : isPaid ? '✅' : isPending ? '⏳' : '❌'}
+                            </span>
+                            <div className="min-w-0">
+                              <h3 className="text-sm sm:text-base font-bold text-gray-800 truncate">
+                                {getMonthName(group.month)} {group.year}
+                              </h3>
+                              <p className="text-xs text-gray-600 truncate">
+                                {paymentTypeText}
+                              </p>
                             </div>
                           </div>
 
-                          {/* Always-visible quick facts: Rent · Electricity · Paid Date */}
-                          <div className="mt-2 pt-2 border-t border-black/5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                          {/* Quick facts — sit in the empty middle on desktop, wrap below on mobile */}
+                          <div className="order-3 sm:order-2 w-full sm:w-auto sm:flex-1 flex flex-wrap items-center sm:justify-center gap-x-4 gap-y-0.5 text-xs">
                             <span><span className="text-gray-500">Rent </span><span className="font-semibold text-gray-800">₹{Number(group.totalRent || 0).toLocaleString('en-IN')}</span></span>
                             <span><span className="text-gray-500">Electricity </span><span className="font-semibold text-gray-800">₹{Number(group.totalElectricity || 0).toLocaleString('en-IN')}</span></span>
                             {group.paidAt && isPaid && (
                               <span><span className="text-gray-500">Paid </span><span className="font-semibold text-green-700">{new Date(group.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span></span>
                             )}
+                          </div>
+
+                          {/* Total + arrow */}
+                          <div className="flex items-center gap-2 flex-shrink-0 ml-auto order-2 sm:order-3">
+                            <p className="text-base sm:text-lg font-bold text-gray-900">₹{total.toLocaleString('en-IN')}</p>
+                            <span className="text-gray-400 text-xl">
+                              {isExpanded ? '▼' : '▶'}
+                            </span>
                           </div>
                         </div>
                         
