@@ -2731,6 +2731,21 @@ const TenantPortal = () => {
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
               <LiveDateTime className="hidden sm:block" />
+              {/* KYC status chip (red = incomplete, green = verified) */}
+              {(() => {
+                const kycProgress = getKycStepProgress();
+                const kycDone = kycProgress.overall.stepsCompleted === kycProgress.overall.totalSteps;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/kyc')}
+                    title={kycDone ? t('KYC Verified', 'KYC सत्यापित') : `KYC Incomplete (${kycProgress.overall.stepsCompleted}/${kycProgress.overall.totalSteps})`}
+                    className={`font-semibold py-2 px-3 rounded-lg text-xs sm:text-sm whitespace-nowrap transition-colors ${kycDone ? 'bg-green-100 hover:bg-green-200 text-green-800' : 'bg-red-100 hover:bg-red-200 text-red-800'}`}
+                  >
+                    {kycDone ? '🟢 KYC' : '🔴 KYC'}
+                  </button>
+                );
+              })()}
               {notificationPermission !== 'granted' && (
                 <button
                   type="button"
@@ -2768,35 +2783,7 @@ const TenantPortal = () => {
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">
-            {/* KYC Status Banner */}
-            {(() => {
-              const kycProgress = getKycStepProgress();
-              const kycDone = kycProgress.overall.stepsCompleted === kycProgress.overall.totalSteps;
-              return !kycDone ? (
-                <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-300 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-bold text-red-800">🔴 KYC Incomplete ({kycProgress.overall.stepsCompleted}/{kycProgress.overall.totalSteps} steps done)</p>
-                      <p className="text-xs text-red-700 mt-0.5">
-                        {t('Complete KYC to verify your identity.', 'अपनी पहचान की पुष्टि करने के लिए KYC पूरा करें।')}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => navigate('/kyc')}
-                      className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg text-xs transition-colors whitespace-nowrap"
-                    >
-                      {t('Complete KYC →', 'KYC पूरा करें →')}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2">
-                  <p className="text-xs font-semibold text-green-800">✅ {t('KYC Verified', 'KYC सत्यापित')}</p>
-                </div>
-              );
-            })()}
-
-            {/* DigiLocker KYC section removed - now integrated into Tenant KYC Profile below */}
+            {/* KYC status moved to the header chip (red/green) */}
 
             {/* Checkout Request Button - Show if tenant is active and hasn't requested checkout */}
             {tenant?.status !== 'checkout_requested' && tenant?.status !== 'inactive' && tenant?.isActive !== false && (
