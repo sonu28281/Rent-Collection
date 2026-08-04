@@ -170,6 +170,15 @@
   force = true
   conditions = {Host = ["tenants.callvia.in"]}
 
+# The tenant portal must only be reachable on tenants.callvia.in. On the admin
+# domain, send /tenant-portal to the admin login instead of rendering it.
+[[redirects]]
+  from = "/tenant-portal"
+  to = "/login"
+  status = 301
+  force = true
+  conditions = {Host = ["admin.callvia.in"]}
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
