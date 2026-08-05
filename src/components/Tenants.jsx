@@ -821,53 +821,48 @@ const Tenants = () => {
         </div>
       </div>
 
-      {/* Floor Vacancy Bar */}
-      {rooms.length > 0 && (() => {
-        const isOcc = r => r.status === 'occupied' || r.status === 'filled';
-        const f1Rooms = rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106);
-        const f2Rooms = rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206);
-        const f1Vacant = f1Rooms.filter(r => !isOcc(r)).length;
-        const f2Vacant = f2Rooms.filter(r => !isOcc(r)).length;
-        return (
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className={`card py-2 px-3 border-2 ${f1Vacant > 0 ? 'border-orange-300 bg-orange-50' : 'border-green-300 bg-green-50'}`}>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Ground Floor (101–106)</p>
-              <div className="flex gap-0.5 mb-1">
-                {f1Rooms.map(r => (
+      {/* Occupancy overview + filters + tools — merged into one card */}
+      <div className="card mb-4 !p-0 overflow-hidden">
+        {/* Occupancy */}
+        {rooms.length > 0 && (() => {
+          const isOcc = r => r.status === 'occupied' || r.status === 'filled';
+          const byNum = (a, b) => a.roomNumber - b.roomNumber;
+          const f1Rooms = rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106).sort(byNum);
+          const f2Rooms = rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206).sort(byNum);
+          const f1Vacant = f1Rooms.filter(r => !isOcc(r)).length;
+          const f2Vacant = f2Rooms.filter(r => !isOcc(r)).length;
+          const strip = (label, roomsArr, vacant) => (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide">{label}</p>
+                <span className={`text-xs font-bold ${vacant > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400'}`}>
+                  {vacant > 0 ? `🔓 ${vacant} vacant` : '✅ Full'}
+                  <span className="font-normal text-gray-400 dark:text-slate-500 ml-1">({roomsArr.length - vacant}/{roomsArr.length})</span>
+                </span>
+              </div>
+              <div className="flex gap-1">
+                {roomsArr.map(r => (
                   <div key={r.id} title={`Room ${r.roomNumber}: ${r.status || 'vacant'}`}
-                    className={`flex-1 h-4 rounded text-[9px] font-bold flex items-center justify-center text-white ${!isOcc(r) ? 'bg-orange-400' : 'bg-green-500'}`}>
+                    className={`flex-1 h-6 rounded-md text-[10px] font-bold flex items-center justify-center text-white shadow-sm ${!isOcc(r) ? 'bg-gradient-to-b from-orange-400 to-orange-500' : 'bg-gradient-to-b from-green-400 to-emerald-500'}`}>
                     {r.roomNumber}
                   </div>
                 ))}
               </div>
-              <p className={`text-sm font-bold ${f1Vacant > 0 ? 'text-orange-700' : 'text-green-700'}`}>
-                {f1Vacant > 0 ? `🔓 ${f1Vacant} vacant` : '✅ All occupied'}
-                <span className="text-xs font-normal text-gray-500 ml-1">({f1Rooms.length - f1Vacant}/{f1Rooms.length} occupied)</span>
-              </p>
             </div>
-            <div className={`card py-2 px-3 border-2 ${f2Vacant > 0 ? 'border-orange-300 bg-orange-50' : 'border-green-300 bg-green-50'}`}>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">First Floor (201–206)</p>
-              <div className="flex gap-0.5 mb-1">
-                {f2Rooms.map(r => (
-                  <div key={r.id} title={`Room ${r.roomNumber}: ${r.status || 'vacant'}`}
-                    className={`flex-1 h-4 rounded text-[9px] font-bold flex items-center justify-center text-white ${!isOcc(r) ? 'bg-orange-400' : 'bg-green-500'}`}>
-                    {r.roomNumber}
-                  </div>
-                ))}
+          );
+          return (
+            <div className="px-4 pt-3 pb-4">
+              <h3 className="text-sm font-bold text-gray-700 dark:text-slate-200 flex items-center gap-2 mb-3">🏘️ Occupancy Overview</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {strip('Ground Floor · 101–106', f1Rooms, f1Vacant)}
+                {strip('First Floor · 201–206', f2Rooms, f2Vacant)}
               </div>
-              <p className={`text-sm font-bold ${f2Vacant > 0 ? 'text-orange-700' : 'text-green-700'}`}>
-                {f2Vacant > 0 ? `🔓 ${f2Vacant} vacant` : '✅ All occupied'}
-                <span className="text-xs font-normal text-gray-500 ml-1">({f2Rooms.length - f2Vacant}/{f2Rooms.length} occupied)</span>
-              </p>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
-      {/* Filters & Tools */}
-      <div className="card mb-4">
         {/* Filters row */}
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-4 px-4 py-3 border-t border-gray-100 dark:border-slate-700">
 
           {/* KYC Filter */}
           <div className="flex flex-col gap-1.5">
@@ -925,22 +920,22 @@ const Tenants = () => {
         </div>
 
         {/* Merge Duplicate Tenants - collapsible */}
-        <details className="border-t border-gray-100 mt-3 pt-3">
-          <summary className="cursor-pointer text-xs font-semibold text-amber-700 hover:text-amber-900 select-none inline-flex items-center gap-1">
+        <details className="border-t border-gray-100 dark:border-slate-700 px-4 py-3">
+          <summary className="cursor-pointer text-xs font-semibold text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 select-none inline-flex items-center gap-1">
             🧩 Merge Duplicate Tenants
           </summary>
-          <div className="mt-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
-            <p className="text-xs text-amber-800 mb-2">Source tenant deactivated, records move to target.</p>
+          <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
+            <p className="text-xs text-amber-800 dark:text-amber-300 mb-2">Source tenant deactivated, records move to target.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
               <select value={mergeTargetTenantId} onChange={(e) => setMergeTargetTenantId(e.target.value)} disabled={mergingTenants}
-                className="w-full px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white">
+                className="w-full px-2 py-1.5 text-xs border border-amber-300 dark:border-amber-800 rounded-lg bg-white dark:text-slate-100">
                 <option value="">Target (keep)</option>
                 {tenants.map((t) => (
                   <option key={`target_${t.id}`} value={t.id}>{t.name} ({getAssignedRooms(t).join(', ') || '-'}) {t.isActive ? '' : '[Past]'}</option>
                 ))}
               </select>
               <select value={mergeSourceTenantId} onChange={(e) => setMergeSourceTenantId(e.target.value)} disabled={mergingTenants}
-                className="w-full px-2 py-1.5 text-xs border border-amber-300 rounded-lg bg-white">
+                className="w-full px-2 py-1.5 text-xs border border-amber-300 dark:border-amber-800 rounded-lg bg-white dark:text-slate-100">
                 <option value="">Source (merge into target)</option>
                 {tenants.map((t) => (
                   <option key={`source_${t.id}`} value={t.id}>{t.name} ({getAssignedRooms(t).join(', ') || '-'}) {t.isActive ? '' : '[Past]'}</option>
