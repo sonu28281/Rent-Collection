@@ -875,7 +875,7 @@ const TenantHistory = () => {
                         )}
 
                         {historyViewMode === 'card' || isMobileViewport ? (
-                          <div className="space-y-3">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
                             {mergeRecordsByMonth(records).map((merged) => {
                               const total = merged.totalRent + merged.totalElectricity;
                               const balance = merged.totalRent + merged.totalElectricity - merged.totalPaid;
