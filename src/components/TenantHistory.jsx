@@ -322,20 +322,26 @@ const TenantHistory = () => {
       const stats = calculateStats(history);
       setStats(stats);
 
-      // Fetch meter history for this tenant (all IDs)
-      try {
-        const readingsRef = collection(db, 'electricityReadings');
-        const allReadings = [];
-        for (const tid of tenantIds) {
-          const readingQuery = query(readingsRef, where('tenantId', '==', tid));
-          const readingsSnapshot = await getDocs(readingQuery);
-          readingsSnapshot.docs.forEach(doc => allReadings.push({ id: doc.id, ...doc.data() }));
-        }
-        setMeterHistory(allReadings);
-      } catch (error) {
-        console.log('No meter history found for this tenant:', error.message);
-        setMeterHistory([]);
-      }
+      // Meter readings live on the payment records themselves (oldReading /
+      // currentReading / units / electricity), not in a separate collection, so
+      // derive the meter history from them. (The electricityReadings collection
+      // is empty.)
+      const derivedMeter = history
+        .filter((p) => Number(p.currentReading ?? p.meterReading ?? 0) > 0 || Number(p.units ?? p.unitsConsumed ?? 0) > 0)
+        .map((p) => ({
+          id: `meter_${p.id}`,
+          roomNumber: p.roomNumber,
+          previousReading: Number(p.oldReading ?? p.previousReading ?? 0),
+          currentReading: Number(p.currentReading ?? p.meterReading ?? 0),
+          unitsConsumed: Number(p.unitsConsumed ?? p.units ?? 0),
+          totalCharge: Number(p.electricity ?? p.electricityAmount ?? 0),
+          ratePerUnit: p.ratePerUnit,
+          year: p.year,
+          month: p.month,
+          readingDate: p.paidDate || p.paymentDate || p.paidAt || (p.year && p.month ? `${p.year}-${String(p.month).padStart(2, '0')}-01` : null),
+          createdAt: p.createdAt
+        }));
+      setMeterHistory(derivedMeter);
       
     } catch (error) {
       console.error('Error loading tenant history:', error);
