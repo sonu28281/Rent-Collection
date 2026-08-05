@@ -755,7 +755,7 @@ const Dashboard = () => {
                           </div>
                         )}
                         {isCardView ? (
-                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-stretch">
                             {floor1.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
@@ -959,7 +959,7 @@ const Dashboard = () => {
                           </div>
                         )}
                         {isCardView ? (
-                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-stretch">
                             {floor2.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
