@@ -786,6 +786,15 @@ const Dashboard = () => {
                                       {tenant.dueStatusText || (isPaid ? '✅ Paid' : '❌ Pending')}
                                     </span>
                                   </div>
+                                  {(() => {
+                                    const dues = getTenantDues(tenant);
+                                    if (dues.months <= 1) return null;
+                                    return (
+                                      <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800 px-2.5 py-1.5 text-xs font-bold text-red-700 dark:text-red-300">
+                                        ⚠️ {dues.months} months pending · ₹{dues.amount.toLocaleString('en-IN')} rent backlog
+                                      </div>
+                                    );
+                                  })()}
                                   <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                                     <p>Rent: <span className="font-semibold">₹{tenant.expectedRent.toLocaleString('en-IN')}</span></p>
                                     <p>Electricity: <span className="font-semibold text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</span></p>
@@ -990,6 +999,15 @@ const Dashboard = () => {
                                       {tenant.dueStatusText || (isPaid ? '✅ Paid' : '❌ Pending')}
                                     </span>
                                   </div>
+                                  {(() => {
+                                    const dues = getTenantDues(tenant);
+                                    if (dues.months <= 1) return null;
+                                    return (
+                                      <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800 px-2.5 py-1.5 text-xs font-bold text-red-700 dark:text-red-300">
+                                        ⚠️ {dues.months} months pending · ₹{dues.amount.toLocaleString('en-IN')} rent backlog
+                                      </div>
+                                    );
+                                  })()}
                                   <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                                     <p>Rent: <span className="font-semibold">₹{tenant.expectedRent.toLocaleString('en-IN')}</span></p>
                                     <p>Electricity: <span className="font-semibold text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</span></p>
