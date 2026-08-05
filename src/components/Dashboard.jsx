@@ -676,12 +676,12 @@ const Dashboard = () => {
                   </h3>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {[
-                      { stats: floor1Stats, icon: '🏠', title: 'Floor 1 · Ground Floor', grad: 'from-indigo-500 to-blue-500', ring: 'border-indigo-200/70' },
-                      { stats: floor2Stats, icon: '🏢', title: 'Floor 2 · First Floor', grad: 'from-fuchsia-500 to-purple-500', ring: 'border-fuchsia-200/70' }
+                      { stats: floor1Stats, icon: '🏠', title: 'Floor 1 · Ground Floor', grad: 'from-indigo-500 to-blue-500', ring: 'border-indigo-400 dark:border-indigo-500/70' },
+                      { stats: floor2Stats, icon: '🏢', title: 'Floor 2 · First Floor', grad: 'from-fuchsia-500 to-purple-500', ring: 'border-fuchsia-400 dark:border-fuchsia-500/70' }
                     ].map((f) => {
                       const pct = f.stats.totalExpected > 0 ? (f.stats.totalCollected / f.stats.totalExpected) * 100 : 0;
                       return (
-                        <div key={f.title} className={`overflow-hidden rounded-2xl border ${f.ring} dark:border-slate-700 bg-white shadow-sm hover:shadow-md transition-all duration-300`}>
+                        <div key={f.title} className={`overflow-hidden rounded-2xl border-2 ${f.ring} bg-white shadow-sm hover:shadow-md transition-all duration-300`}>
                           <div className={`flex items-center gap-3 bg-gradient-to-r ${f.grad} px-4 py-3 text-white`}>
                             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20 text-xl">{f.icon}</span>
                             <h4 className="font-bold">{f.title}</h4>
