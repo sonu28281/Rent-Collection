@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, doc, query, where, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, query, where, getDocs, serverTimestamp, writeBatch } from '../utils/firestoreCounted';
 import { db, auth } from '../firebase';
 
 const TenantForm = ({ tenant, rooms, tenants, onClose, onSuccess }) => {

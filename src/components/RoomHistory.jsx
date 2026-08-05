@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 
 const RoomHistory = () => {

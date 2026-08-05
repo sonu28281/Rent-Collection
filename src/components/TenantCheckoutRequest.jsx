@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { doc, setDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, collection, serverTimestamp } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 
 const TenantCheckoutRequest = ({ tenant, room, onClose, onSuccess }) => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { collection, getDocs, updateDoc, doc, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, query, where, orderBy } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 
 const UpdateCheckInDates = () => {

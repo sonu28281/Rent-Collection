@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import { isValidRoomNumber } from '../utils/roomValidation';
 

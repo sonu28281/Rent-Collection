@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 
 const BankAccounts = () => {
@@ -367,6 +367,6 @@ const BankAccountForm = ({ account, onClose, onSuccess }) => {
 };
 
 // Import setDoc
-import { setDoc } from 'firebase/firestore';
+import { setDoc } from '../utils/firestoreCounted';
 
 export default BankAccounts;

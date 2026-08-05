@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { collection, query, where, getDocs, limit, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, doc, getDoc, setDoc } from '../utils/firestoreCounted';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import SubmitPayment from './SubmitPayment';

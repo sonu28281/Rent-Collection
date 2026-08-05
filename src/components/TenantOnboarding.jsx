@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, addDoc, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, getDoc, serverTimestamp } from '../utils/firestoreCounted';
 import Tesseract from 'tesseract.js';
 import { Html5Qrcode } from 'html5-qrcode';
 import { parseAadhaarQr, crossVerify, formatQrDataForDisplay, maskAadhaar } from '../utils/aadhaarQrParser';

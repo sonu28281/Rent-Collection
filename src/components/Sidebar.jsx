@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import LanguageSwitcher from './LanguageSwitcher';
+import QuotaMeter from './QuotaMeter';
 
 const Sidebar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -267,6 +268,9 @@ const Sidebar = () => {
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 flex-shrink-0">
+          <div className="mb-2">
+            <QuotaMeter />
+          </div>
           <div className="mb-3">
             <LanguageSwitcher />
           </div>

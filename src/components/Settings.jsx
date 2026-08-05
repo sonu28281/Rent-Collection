@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 
 const Settings = () => {

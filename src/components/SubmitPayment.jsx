@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { collection, addDoc, getDocs, limit, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, limit, query, where } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 
 const SubmitPayment = ({ 

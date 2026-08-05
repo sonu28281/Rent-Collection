@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment } from 'react';
-import { collection, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, addDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, addDoc, setDoc } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import TenantForm from './TenantForm';
 import AdminCheckoutPanel from './AdminCheckoutPanel';

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { getTotalLifetimeIncome, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary, getTodaysCollection } from '../utils/financial';

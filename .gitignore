@@ -39,3 +39,6 @@ serviceAccountKey.json
 firebase-admin-key.json
 *serviceAccount*.json
 *-firebase-adminsdk-*.json
+
+# Private business/strategy docs (keep out of the public repo)
+SAAS_ROADMAP.md

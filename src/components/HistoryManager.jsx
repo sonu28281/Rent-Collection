@@ -11,7 +11,7 @@ import {
   writeBatch,
   getDocs,
   serverTimestamp 
-} from 'firebase/firestore';
+} from '../utils/firestoreCounted';
 import { db, auth } from '../firebase';
 import Papa from 'papaparse';
 

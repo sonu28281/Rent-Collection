@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { collection, query, where, getDocs, doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, deleteDoc, serverTimestamp } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import { VALID_ROOM_NUMBERS, MAX_ROOMS, isValidRoomNumber } from '../utils/roomValidation';
 

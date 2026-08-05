@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, doc, query, where } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import { useDialog } from './ui/DialogProvider';
 

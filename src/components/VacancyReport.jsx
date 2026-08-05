@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 
 const VacancyReport = () => {

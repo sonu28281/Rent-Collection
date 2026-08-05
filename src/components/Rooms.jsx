@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment } from 'react';
-import { collection, getDocs, query, orderBy, where, doc, updateDoc, addDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, where, doc, updateDoc, addDoc, writeBatch, serverTimestamp } from '../utils/firestoreCounted';
 import { db, auth } from '../firebase';
 import { validateRoomCount } from '../utils/roomValidation';
 import { useDialog } from './ui/DialogProvider';

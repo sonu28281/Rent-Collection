@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Papa from 'papaparse';
-import { collection, doc, setDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, query, where, updateDoc } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import { useDialog } from './ui/DialogProvider';
 

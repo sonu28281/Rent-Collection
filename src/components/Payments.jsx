@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, addDoc, query, where, updateDoc, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, where, updateDoc, doc, getDoc, setDoc } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import ViewModeToggle from './ui/ViewModeToggle';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';

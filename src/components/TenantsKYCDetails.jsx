@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, query, orderBy, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, setDoc } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
 import Tesseract from 'tesseract.js';

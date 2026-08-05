@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, orderBy, query } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 
 const Maintenance = () => {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, doc, getDocs, limit, query, where, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, limit, query, where, writeBatch } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import Papa from 'papaparse';
 import jsPDF from 'jspdf';
