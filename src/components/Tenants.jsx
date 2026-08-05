@@ -1844,146 +1844,80 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc }) => 
   };
   
   return (
-    <div className={`card p-4 border-2 transition-all ${
-      isActive 
-        ? 'border-green-300 bg-green-50' 
-        : 'border-gray-300 bg-gray-50'
+    <div className={`rounded-xl border border-l-4 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-200 ${
+      !isActive ? 'border-l-gray-400 opacity-90' : isKycVerified ? 'border-l-green-500' : 'border-l-amber-500'
     }`}>
       {/* Header - Name & Status */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
-          <h3 className="text-lg font-bold text-gray-800 mb-2">
-            {tenant.name}
-          </h3>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-              isActive
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-500 text-white'
-            }`}>
-              {isActive ? '✅ Active' : '📋 Past'}
-            </span>
-            {assignedRooms.length > 0 && (
-              <span className="px-3 py-1 rounded-full text-sm font-semibold bg-blue-500 text-white">
-                🏠 Room {assignedRooms.join(', ')}
-              </span>
-            )}
-            {duration && (
-              <span className="px-3 py-1 rounded-full text-sm font-semibold bg-purple-500 text-white">
-                🕐 {duration}
-              </span>
-            )}
-            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-              isKycVerified ? 'bg-green-600 text-white' : 'bg-amber-500 text-white'
-            }`}>
-              {isKycVerified ? '🛡️ KYC Verified' : '🛡️ KYC Pending'}
-            </span>
-          </div>
+      <div className="px-4 pt-3 pb-2">
+        <h3 className="text-base font-bold text-gray-800 dark:text-slate-100 truncate">{tenant.name}</h3>
+        <div className="mt-1.5 flex items-center gap-1 flex-wrap">
+          <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${isActive ? 'bg-green-500 text-white' : 'bg-gray-500 text-white'}`}>
+            {isActive ? '✅ Active' : '📋 Past'}
+          </span>
+          {assignedRooms.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500 text-white">🏠 {assignedRooms.join(', ')}</span>
+          )}
+          {duration && (
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-500 text-white">🕐 {duration}</span>
+          )}
+          <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${isKycVerified ? 'bg-green-600 text-white' : 'bg-amber-500 text-white'}`}>
+            {isKycVerified ? '🛡️ Verified' : '🛡️ KYC Pending'}
+          </span>
         </div>
       </div>
 
-      {/* Tenant Information */}
-      <div className="space-y-2 mb-3">
-        <div className="flex items-center justify-between py-2 border-b border-gray-300">
-          <span className="text-sm font-medium text-gray-600">📱 Phone</span>
-          <span className="text-sm font-semibold text-gray-800">{tenant.phone || '-'}</span>
+      {/* Tenant Information — compact 2-column grid */}
+      <div className="px-4 pb-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm border-t border-gray-100 dark:border-slate-700 pt-2.5">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <span className="text-gray-500 dark:text-slate-400 whitespace-nowrap">📱 Phone</span>
+          <span className="font-semibold text-gray-800 dark:text-slate-100 truncate">{tenant.phone || '-'}</span>
         </div>
-        
-        {tenant.currentRent && (
-          <div className="flex items-center justify-between py-2 border-b border-gray-300">
-            <span className="text-sm font-medium text-gray-600">💵 Monthly Rent</span>
-            <span className="text-sm font-semibold text-gray-800">
-              ₹{tenant.currentRent.toLocaleString('en-IN')}
-            </span>
-          </div>
-        )}
-        
-        {tenant.dueDate && (
-          <div className="flex items-center justify-between py-2 border-b border-gray-300">
-            <span className="text-sm font-medium text-gray-600">📅 Due Date</span>
-            <span className="text-sm font-semibold text-orange-700">
-              {tenant.dueDate} of every month
-            </span>
-          </div>
-        )}
-        
-        {tenant.checkInDate && (
-          <div className="flex items-center justify-between py-2 border-b border-gray-300">
-            <span className="text-sm font-medium text-gray-600">📅 Check-in Date</span>
-            <span className="text-sm font-semibold text-gray-800">
-              {new Date(tenant.checkInDate).toLocaleDateString('en-IN')}
-            </span>
-          </div>
-        )}
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <span className="text-gray-500 dark:text-slate-400 whitespace-nowrap">💵 Rent</span>
+          <span className="font-semibold text-gray-800 dark:text-slate-100">{tenant.currentRent ? `₹${tenant.currentRent.toLocaleString('en-IN')}` : '-'}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <span className="text-gray-500 dark:text-slate-400 whitespace-nowrap">📅 Due</span>
+          <span className="font-semibold text-orange-600 dark:text-orange-400">{tenant.dueDate ? `${tenant.dueDate} of mo.` : '-'}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <span className="text-gray-500 dark:text-slate-400 whitespace-nowrap">📅 Check-in</span>
+          <span className="font-semibold text-gray-800 dark:text-slate-100">{tenant.checkInDate ? new Date(tenant.checkInDate).toLocaleDateString('en-IN') : '-'}</span>
+        </div>
       </div>
 
-      {/* Quick Actions - Simplified */}
-      <div className="grid grid-cols-2 gap-2 mb-3">
+      {/* Login credentials — compact */}
+      <div className="mx-4 mt-2 flex items-center justify-between rounded-lg bg-blue-50 dark:bg-slate-700/60 border border-blue-100 dark:border-slate-600 px-3 py-1.5 text-xs">
+        <span><span className="text-blue-600 dark:text-blue-300 font-semibold">User </span><span className="font-mono font-bold text-blue-900 dark:text-blue-100">{tenant.username || primaryRoom}</span></span>
+        <span><span className="text-blue-600 dark:text-blue-300 font-semibold">Pass </span><span className="font-mono font-bold text-blue-900 dark:text-blue-100">{tenant.password || 'password'}</span></span>
+      </div>
+
+      {/* Primary actions */}
+      <div className="px-4 mt-2.5 grid grid-cols-2 gap-2">
         <button
-          onClick={() => {
-            const portalUrl = `${window.location.origin}/tenant-portal`;
-            window.open(portalUrl, '_blank');
-          }}
-          className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-3 rounded-lg font-bold transition-all text-sm shadow-md"
+          onClick={() => window.open(`${window.location.origin}/tenant-portal`, '_blank')}
+          className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-3 py-2 rounded-lg font-semibold transition-all text-xs shadow-sm"
           title="Open Tenant Portal"
         >
-          🚀 Tenant Portal
+          🚀 Portal
         </button>
-        <button 
-          onClick={copyCredentials} 
-          className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 rounded-lg font-bold transition-all text-sm shadow-md"
+        <button
+          onClick={copyCredentials}
+          className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-2 rounded-lg font-semibold transition-all text-xs shadow-sm"
           title="Copy Login Details"
         >
           📋 Copy Login
         </button>
       </div>
 
-      {/* Login Credentials - Compact */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3">
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-blue-600 font-semibold">User:</span>
-            <span className="font-mono font-bold text-blue-900">{tenant.username || primaryRoom}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-blue-600 font-semibold">Pass:</span>
-            <span className="font-mono font-bold text-blue-900">{tenant.password || 'password'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Action Buttons - Minimized */}
-      <div className={`grid gap-2 ${isKycVerified ? 'grid-cols-2' : 'grid-cols-3'}`}>
-        <button 
-          onClick={onViewHistory} 
-          className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg font-semibold transition text-xs border border-purple-300"
-          title="View History"
-        >
-          📊 History
-        </button>
-        <button 
-          onClick={onEdit} 
-          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg font-semibold transition text-xs border border-blue-300"
-          title="Edit Tenant"
-        >
-          ✏️ Edit
-        </button>
+      {/* Secondary actions — small icon buttons */}
+      <div className="px-4 py-3 mt-2 flex items-center gap-2 border-t border-gray-100 dark:border-slate-700">
+        <button onClick={onViewHistory} title="View History" className="flex-1 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-1.5 rounded-lg font-semibold transition text-xs">📊 History</button>
+        <button onClick={onEdit} title="Edit Tenant" className="flex-1 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-1.5 rounded-lg font-semibold transition text-xs">✏️ Edit</button>
         {isKycVerified && (
-          <button 
-            onClick={onResetKyc} 
-            className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-2 rounded-lg font-semibold transition text-xs border border-orange-300"
-            title="Reset KYC"
-          >
-            🔄 Reset KYC
-          </button>
+          <button onClick={onResetKyc} title="Reset KYC" className="flex-1 bg-orange-50 dark:bg-orange-950/40 hover:bg-orange-100 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 px-2 py-1.5 rounded-lg font-semibold transition text-xs">🔄 KYC</button>
         )}
-        <button 
-          onClick={onDelete} 
-          className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg font-semibold transition text-xs border border-red-300"
-          title="Delete Tenant"
-        >
-          🗑️ Delete
-        </button>
+        <button onClick={onDelete} title="Delete Tenant" className="flex-1 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 px-2 py-1.5 rounded-lg font-semibold transition text-xs">🗑️ Delete</button>
       </div>
     </div>
   );
