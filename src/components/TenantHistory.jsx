@@ -24,17 +24,28 @@ const TenantHistory = () => {
     { num: 10, name: 'Oct' }, { num: 11, name: 'Nov' }, { num: 12, name: 'Dec' }
   ];
 
-  const formatMonthYear = (dateLike) => {
-    if (!dateLike) return '-';
+  // Robustly turn any stored date value into a Date. Imported (pre-2026) records
+  // store paymentDate/date as Firestore Timestamp OBJECTS, not strings — passing
+  // those straight to new Date() yields "Invalid Date", which is why old rows
+  // showed blank readings and "Invalid Date". Handle Timestamps, {seconds}, and
+  // plain strings uniformly.
+  const toDateObj = (dateLike) => {
+    if (!dateLike) return null;
+    if (typeof dateLike === 'object' && typeof dateLike.toDate === 'function') return dateLike.toDate();
+    if (typeof dateLike === 'object' && dateLike.seconds !== undefined) return new Date(dateLike.seconds * 1000);
     const date = new Date(dateLike);
-    if (Number.isNaN(date.getTime())) return '-';
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const formatMonthYear = (dateLike) => {
+    const date = toDateObj(dateLike);
+    if (!date) return '-';
     return `${MONTHS[date.getMonth()]?.name} ${date.getFullYear()}`;
   };
 
   const formatDate = (dateLike) => {
-    if (!dateLike) return '-';
-    const date = new Date(dateLike);
-    if (Number.isNaN(date.getTime())) return '-';
+    const date = toDateObj(dateLike);
+    if (!date) return '-';
     return date.toLocaleDateString('en-IN');
   };
 
@@ -871,10 +882,9 @@ const TenantHistory = () => {
                               const roomList = merged.rooms.map(r => r.roomNumber).sort((a, b) => a - b);
                               
                               // Get meter readings for this month if available
-                              const monthMeterReadings = meterHistory.filter(m => {
-                                const mDate = new Date(m.readingDate || m.createdAt);
-                                return mDate.getMonth() + 1 === merged.month && mDate.getFullYear() === merged.year;
-                              });
+                              const monthMeterReadings = meterHistory.filter(m =>
+                                Number(m.year) === merged.year && Number(m.month) === merged.month
+                              );
                               
                               let statusColor = 'bg-green-100 text-green-800';
                               let statusText = 'Paid';
@@ -951,13 +961,13 @@ const TenantHistory = () => {
                                         <p className="text-xs font-semibold text-gray-600 mb-2">📅 Payment Timeline:</p>
                                         <div className="space-y-1 text-xs">
                                           {paymentDate && (
-                                            <p>💳 Payment: <span className="font-semibold">{new Date(paymentDate).toLocaleDateString('en-IN')}</span></p>
+                                            <p>💳 Payment: <span className="font-semibold">{formatDate(paymentDate)}</span></p>
                                           )}
                                           {submissionDate && (
-                                            <p>📝 Submitted: <span className="font-semibold">{new Date(submissionDate).toLocaleDateString('en-IN')}</span></p>
+                                            <p>📝 Submitted: <span className="font-semibold">{formatDate(submissionDate)}</span></p>
                                           )}
                                           {verifiedAt && (
-                                            <p>✅ Verified: <span className="font-semibold">{new Date(verifiedAt).toLocaleDateString('en-IN')}</span></p>
+                                            <p>✅ Verified: <span className="font-semibold">{formatDate(verifiedAt)}</span></p>
                                           )}
                                           {delayDays !== undefined && (
                                             <p>⏱️ Delay: <span className={`font-semibold ${isOnTime ? 'text-green-600' : 'text-red-600'}`}>
@@ -1034,19 +1044,17 @@ const TenantHistory = () => {
                                   </td>
                                   <td className="px-3 py-2 text-right font-mono text-sm">
                                     {(() => {
-                                      const monthMeter = meterHistory.find(m => {
-                                        const mDate = new Date(m.readingDate || m.createdAt);
-                                        return mDate.getMonth() + 1 === merged.month && mDate.getFullYear() === merged.year;
-                                      });
+                                      const monthMeter = meterHistory.find(m =>
+                                        Number(m.year) === merged.year && Number(m.month) === merged.month
+                                      );
                                       return monthMeter ? monthMeter.previousReading : '-';
                                     })()}
                                   </td>
                                   <td className="px-3 py-2 text-right font-mono text-sm">
                                     {(() => {
-                                      const monthMeter = meterHistory.find(m => {
-                                        const mDate = new Date(m.readingDate || m.createdAt);
-                                        return mDate.getMonth() + 1 === merged.month && mDate.getFullYear() === merged.year;
-                                      });
+                                      const monthMeter = meterHistory.find(m =>
+                                        Number(m.year) === merged.year && Number(m.month) === merged.month
+                                      );
                                       return monthMeter ? monthMeter.currentReading : '-';
                                     })()}
                                   </td>
@@ -1081,21 +1089,21 @@ const TenantHistory = () => {
                                       // Fall back to paidAt/date: some records (e.g. Jan–Feb 2026,
                                       // created by a script) store the date under paidAt, not paidDate.
                                       const paymentDate = record?.paidDate || record?.paymentDate || record?.paidAt || record?.date;
-                                      return paymentDate ? new Date(paymentDate).toLocaleDateString('en-IN') : '-';
+                                      return formatDate(paymentDate);
                                     })()}
                                   </td>
                                   <td className="px-3 py-2 text-center text-xs">
                                     {(() => {
                                       const record = merged.records[0];
                                       const submissionDate = record?.submissionDate;
-                                      return submissionDate ? new Date(submissionDate).toLocaleDateString('en-IN') : '-';
+                                      return formatDate(submissionDate);
                                     })()}
                                   </td>
                                   <td className="px-3 py-2 text-center text-xs">
                                     {(() => {
                                       const record = merged.records[0];
                                       const verifiedAt = record?.verifiedAt;
-                                      return verifiedAt ? new Date(verifiedAt).toLocaleDateString('en-IN') : '-';
+                                      return formatDate(verifiedAt);
                                     })()}
                                   </td>
                                   <td className="px-3 py-2 text-center text-xs font-semibold">
