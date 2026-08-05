@@ -858,7 +858,7 @@ const Dashboard = () => {
                           </div>
                         )}
                         {isCardView ? (
-                          <div className="space-y-3">
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
                             {floor1.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
@@ -897,6 +897,18 @@ const Dashboard = () => {
                                   <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
                                     <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
                                   </div>
+                                  {tenant.meterReadings && tenant.meterReadings.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-gray-200/70 space-y-0.5">
+                                      {tenant.meterReadings.map((reading, idx) => (
+                                        <div key={idx} className="flex items-center gap-1.5 text-xs text-gray-600">
+                                          <span>⚡</span>
+                                          {tenant.roomCount > 1 && <span className="font-semibold text-gray-500">R{reading.roomNumber}</span>}
+                                          <span>Prev <span className="font-semibold text-gray-800">{reading.previousReading}</span> → Curr <span className="font-semibold text-gray-800">{reading.currentReading}</span></span>
+                                          {reading.unitsConsumed > 0 && <span className="text-blue-700 font-semibold">({reading.unitsConsumed} units)</span>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -1047,7 +1059,7 @@ const Dashboard = () => {
                           </div>
                         )}
                         {isCardView ? (
-                          <div className="space-y-3">
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
                             {floor2.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
@@ -1086,6 +1098,18 @@ const Dashboard = () => {
                                   <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
                                     <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
                                   </div>
+                                  {tenant.meterReadings && tenant.meterReadings.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-gray-200/70 space-y-0.5">
+                                      {tenant.meterReadings.map((reading, idx) => (
+                                        <div key={idx} className="flex items-center gap-1.5 text-xs text-gray-600">
+                                          <span>⚡</span>
+                                          {tenant.roomCount > 1 && <span className="font-semibold text-gray-500">R{reading.roomNumber}</span>}
+                                          <span>Prev <span className="font-semibold text-gray-800">{reading.previousReading}</span> → Curr <span className="font-semibold text-gray-800">{reading.currentReading}</span></span>
+                                          {reading.unitsConsumed > 0 && <span className="text-blue-700 font-semibold">({reading.unitsConsumed} units)</span>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}

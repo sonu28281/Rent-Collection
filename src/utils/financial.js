@@ -585,9 +585,20 @@ export const getCurrentMonthDetailedSummary = async (month = null, year = null) 
         }
       }
       
+      // Current-month meter readings, per assigned room that has a record.
+      const meterReadings = uniqueTenantPayments
+        .map((payment) => ({
+          roomNumber: payment.roomNumber,
+          previousReading: Number(payment.oldReading ?? payment.previousReading ?? 0),
+          currentReading: Number(payment.currentReading ?? payment.meterReading ?? 0),
+          unitsConsumed: Number(payment.units ?? payment.unitsConsumed ?? 0),
+        }))
+        .filter((reading) => reading.currentReading > 0 || reading.unitsConsumed > 0);
+
       tenantList.push({
         id: doc.id,
         name: tenant.name,
+        meterReadings,
         roomNumber: tenant.roomNumber,
         roomNumbers: tenantRoomNumbers,
         roomCount: tenantRoomNumbers.length,
