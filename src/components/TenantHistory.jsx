@@ -888,96 +888,112 @@ const TenantHistory = () => {
                               
                               let statusColor = 'bg-green-100 text-green-800';
                               let statusText = 'Paid';
+                              let headerBg = 'bg-green-50 border-green-100';
                               if (merged.statuses.has('unpaid')) {
                                 statusColor = 'bg-red-100 text-red-800';
                                 statusText = 'Unpaid';
+                                headerBg = 'bg-red-50 border-red-100';
                               } else if (merged.statuses.has('partial')) {
                                 statusColor = 'bg-yellow-100 text-yellow-800';
                                 statusText = merged.statuses.size > 1 ? 'Mixed' : 'Partial';
+                                headerBg = 'bg-yellow-50 border-yellow-100';
                               }
 
                               return (
-                                <div key={merged.monthKey} className="rounded-lg border border-gray-200 p-3 bg-white">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="text-xs text-gray-500">Month</p>
-                                      <p className="font-semibold text-gray-900">{MONTHS[merged.month - 1]?.name} {merged.year}</p>
+                                <div key={merged.monthKey} className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                                  {/* Header row with status-based background */}
+                                  <div className={`flex items-center justify-between gap-2 px-3 py-2 border-b ${headerBg}`}>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-bold text-gray-900 text-sm">{MONTHS[merged.month - 1]?.name} {merged.year}</span>
+                                      {roomList.map((room) => (
+                                        <span
+                                          key={room}
+                                          className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                            room < 200
+                                              ? 'bg-green-100 text-green-700'
+                                              : 'bg-purple-100 text-purple-700'
+                                          }`}
+                                        >
+                                          {room}
+                                        </span>
+                                      ))}
                                     </div>
-                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${statusColor}`}>
                                       {statusText}
                                     </span>
                                   </div>
 
-                                  <div className="mt-2 flex gap-1 flex-wrap">
-                                    {roomList.map((room) => (
-                                      <span 
-                                        key={room}
-                                        className={`px-2 py-1 rounded text-xs font-semibold ${
-                                          room < 200
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'bg-purple-100 text-purple-700'
-                                        }`}
-                                      >
-                                        Room {room}
-                                      </span>
-                                    ))}
-                                  </div>
-
-                                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                                    <p>Rent: <span className="font-semibold">₹{merged.totalRent.toLocaleString('en-IN')}</span></p>
-                                    <p>Paid: <span className="font-semibold">₹{merged.totalPaid.toLocaleString('en-IN')}</span></p>
-                                    <p>Units: <span className="font-semibold text-blue-600">{merged.totalUnits}</span></p>
-                                    <p>Electricity: <span className="font-semibold">₹{merged.totalElectricity.toLocaleString('en-IN')}</span></p>
-                                    <p>Total: <span className="font-semibold">₹{total.toLocaleString('en-IN')}</span></p>
-                                    <p>Balance: <span className={`font-semibold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>₹{Math.abs(balance).toLocaleString('en-IN')}</span></p>
-                                  </div>
-
-                                  {monthMeterReadings.length > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-gray-200">
-                                      <p className="text-xs font-semibold text-gray-600 mb-2">⚡ Meter Readings:</p>
-                                      <div className="grid grid-cols-2 gap-2 text-xs">
-                                        {monthMeterReadings.map((reading, idx) => (
-                                          <div key={idx} className="bg-blue-50 p-2 rounded">
-                                            <p className="text-gray-600">Prev: <span className="font-semibold">{reading.previousReading}</span></p>
-                                            <p className="text-gray-600">Curr: <span className="font-semibold">{reading.currentReading}</span></p>
-                                          </div>
-                                        ))}
-                                      </div>
+                                  {/* Body */}
+                                  <div className="p-3">
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                                      <p>Rent: <span className="font-semibold">₹{merged.totalRent.toLocaleString('en-IN')}</span></p>
+                                      <p>Paid: <span className="font-semibold">₹{merged.totalPaid.toLocaleString('en-IN')}</span></p>
+                                      <p>Units: <span className="font-semibold text-blue-600">{merged.totalUnits}</span></p>
+                                      <p>Electricity: <span className="font-semibold">₹{merged.totalElectricity.toLocaleString('en-IN')}</span></p>
+                                      <p>Total: <span className="font-semibold">₹{total.toLocaleString('en-IN')}</span></p>
+                                      <p>Balance: <span className={`font-semibold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>₹{Math.abs(balance).toLocaleString('en-IN')}</span></p>
                                     </div>
-                                  )}
 
-                                  {(() => {
-                                    const record = merged.records[0];
-                                    const paymentDate = record?.paidDate || record?.paymentDate || record?.paidAt || record?.date;
-                                    const submissionDate = record?.submissionDate;
-                                    const verifiedAt = record?.verifiedAt;
-                                    const delayDays = record?.paymentDelayDays;
-                                    const isOnTime = record?.isPaymentOnTime;
-                                    
-                                    if (!paymentDate && !submissionDate && !verifiedAt) return null;
-                                    
-                                    return (
-                                      <div className="mt-3 pt-3 border-t border-gray-200">
-                                        <p className="text-xs font-semibold text-gray-600 mb-2">📅 Payment Timeline:</p>
-                                        <div className="space-y-1 text-xs">
-                                          {paymentDate && (
-                                            <p>💳 Payment: <span className="font-semibold">{formatDate(paymentDate)}</span></p>
-                                          )}
-                                          {submissionDate && (
-                                            <p>📝 Submitted: <span className="font-semibold">{formatDate(submissionDate)}</span></p>
-                                          )}
-                                          {verifiedAt && (
-                                            <p>✅ Verified: <span className="font-semibold">{formatDate(verifiedAt)}</span></p>
-                                          )}
-                                          {delayDays !== undefined && (
-                                            <p>⏱️ Delay: <span className={`font-semibold ${isOnTime ? 'text-green-600' : 'text-red-600'}`}>
-                                              {isOnTime ? 'On-Time' : `${delayDays} days`}
-                                            </span></p>
-                                          )}
+                                    {(() => {
+                                      const record = merged.records[0];
+                                      const paymentDate = record?.paidDate || record?.paymentDate || record?.paidAt || record?.date;
+                                      const submissionDate = record?.submissionDate;
+                                      const verifiedAt = record?.verifiedAt;
+                                      const delayDays = record?.paymentDelayDays;
+                                      const isOnTime = record?.isPaymentOnTime;
+                                      const hasMeter = monthMeterReadings.length > 0;
+                                      const hasTimeline = !!(paymentDate || submissionDate || verifiedAt || delayDays !== undefined);
+
+                                      if (!hasMeter && !hasTimeline) return null;
+
+                                      return (
+                                        <div className="mt-3 pt-3 border-t border-gray-200 grid grid-cols-2 gap-3">
+                                          {/* Meter Readings */}
+                                          <div>
+                                            {hasMeter && (
+                                              <>
+                                                <p className="text-xs font-semibold text-gray-600 mb-1">⚡ Meter Readings</p>
+                                                <div className="space-y-1">
+                                                  {monthMeterReadings.map((reading, idx) => (
+                                                    <div key={idx} className="bg-blue-50 rounded px-2 py-1 text-xs">
+                                                      <span className="text-gray-500">Prev</span> <span className="font-semibold">{reading.previousReading}</span>
+                                                      <span className="mx-1 text-gray-400">→</span>
+                                                      <span className="text-gray-500">Curr</span> <span className="font-semibold">{reading.currentReading}</span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </>
+                                            )}
+                                          </div>
+
+                                          {/* Payment Timeline */}
+                                          <div>
+                                            {hasTimeline && (
+                                              <>
+                                                <p className="text-xs font-semibold text-gray-600 mb-1">📅 Payment Timeline</p>
+                                                <div className="space-y-0.5 text-xs">
+                                                  {paymentDate && (
+                                                    <p>💳 Payment: <span className="font-semibold">{formatDate(paymentDate)}</span></p>
+                                                  )}
+                                                  {submissionDate && (
+                                                    <p>📝 Submitted: <span className="font-semibold">{formatDate(submissionDate)}</span></p>
+                                                  )}
+                                                  {verifiedAt && (
+                                                    <p>✅ Verified: <span className="font-semibold">{formatDate(verifiedAt)}</span></p>
+                                                  )}
+                                                  {delayDays !== undefined && (
+                                                    <p>⏱️ Delay: <span className={`font-semibold ${isOnTime ? 'text-green-600' : 'text-red-600'}`}>
+                                                      {isOnTime ? 'On-Time' : `${delayDays} days`}
+                                                    </span></p>
+                                                  )}
+                                                </div>
+                                              </>
+                                            )}
+                                          </div>
                                         </div>
-                                      </div>
-                                    );
-                                  })()}
+                                      );
+                                    })()}
+                                  </div>
                                 </div>
                               );
                             })}
