@@ -613,13 +613,13 @@ const Rooms = () => {
         </div>
       </div>
 
-      {/* Filter and Bulk Actions */}
-      <div className="card mb-6 space-y-3">
-        {/* Status & Floor Filters */}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+      {/* Filters + view + select-all — merged */}
+      <div className="card mb-6 !p-0 overflow-hidden">
+        {/* Status & Floor Filters + view toggle */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
           {/* Status Filters */}
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">Status:</span>
+            <span className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mr-1">Status:</span>
             <button
               onClick={() => setFilter('all')}
               className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
@@ -654,7 +654,7 @@ const Rooms = () => {
 
           {/* Floor Filters */}
           <div className="hidden md:flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">Floor:</span>
+            <span className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mr-1">Floor:</span>
             <button
               onClick={() => setFloorFilter('all')}
               className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
@@ -686,32 +686,51 @@ const Rooms = () => {
               First ({stats.floor2})
             </button>
           </div>
+
+          {/* View toggle — pushed right */}
+          <div className="hidden md:block ml-auto">
+            <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
+          </div>
         </div>
 
-        <div className="hidden md:block">
-          <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
-        </div>
+        {/* Select All (card / mobile view only) */}
+        {(isMobileViewport || isCardView) && (
+          <label className="flex items-center justify-between gap-2 cursor-pointer px-4 py-2.5 border-t border-gray-100 dark:border-slate-700 bg-gray-50/70 dark:bg-slate-800/40">
+            <span className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-slate-200">
+              <input
+                type="checkbox"
+                checked={selectedRooms.size === filteredRooms.length && filteredRooms.length > 0}
+                onChange={toggleSelectAll}
+                className="w-4 h-4 text-primary rounded"
+              />
+              Select All
+            </span>
+            {selectedRooms.size > 0 && (
+              <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">{selectedRooms.size} selected</span>
+            )}
+          </label>
+        )}
 
         {/* Bulk Actions */}
         {selectedRooms.size > 0 && (
-          <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <span className="font-semibold text-blue-900">
+          <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-t border-gray-100 dark:border-slate-700 bg-blue-50 dark:bg-blue-950/30">
+            <span className="font-semibold text-blue-900 dark:text-blue-200 text-sm">
               {selectedRooms.size} room(s) selected
             </span>
-            <div className="flex gap-2">
+            <div className="flex gap-2 ml-auto">
               <button
                 onClick={() => handleBulkUpdate('vacant')}
                 disabled={updating}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition disabled:opacity-50"
+                className="px-3 py-1.5 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition disabled:opacity-50"
               >
-                Mark as Vacant
+                Mark Vacant
               </button>
               <button
                 onClick={() => handleBulkUpdate('occupied')}
                 disabled={updating}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition disabled:opacity-50"
+                className="px-3 py-1.5 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition disabled:opacity-50"
               >
-                Mark as Occupied
+                Mark Occupied
               </button>
             </div>
           </div>
@@ -740,16 +759,6 @@ const Rooms = () => {
         </div>
       ) : (isMobileViewport || isCardView) ? (
         <div>
-          <div className="card py-2.5 px-4 flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Select All</span>
-            <input
-              type="checkbox"
-              checked={selectedRooms.size === filteredRooms.length && filteredRooms.length > 0}
-              onChange={toggleSelectAll}
-              className="w-4 h-4 text-primary rounded"
-            />
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
           {buildDisplayRows(filteredRooms).map((row) => {
             const { key, isMulti, rooms: rowRooms, primaryRoom, currentTenant, lastTenant, meterInfo, displayRent, isVacant, roomLabel, meterLabel, lastUpdated } = row;
