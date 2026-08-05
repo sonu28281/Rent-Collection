@@ -758,9 +758,15 @@ const Rooms = () => {
           )}
         </div>
       ) : (isMobileViewport || isCardView) ? (
-        <div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
-          {buildDisplayRows(filteredRooms).map((row) => {
+        <div className="space-y-5">
+          {(() => {
+            const allRows = buildDisplayRows(filteredRooms);
+            const floorOf = (row) => Number(row.primaryRoom?.roomNumber ?? row.rooms?.[0]?.roomNumber ?? 0) >= 200 ? 2 : 1;
+            const groups = [
+              { id: 1, label: 'Floor 1 · Ground Floor', icon: '🏠', grad: 'from-indigo-500 to-blue-500', rows: allRows.filter(r => floorOf(r) === 1) },
+              { id: 2, label: 'Floor 2 · First Floor', icon: '🏢', grad: 'from-fuchsia-500 to-purple-500', rows: allRows.filter(r => floorOf(r) === 2) },
+            ].filter(g => g.rows.length > 0);
+            const renderCard = (row) => {
             const { key, isMulti, rooms: rowRooms, primaryRoom, currentTenant, lastTenant, meterInfo, displayRent, isVacant, roomLabel, meterLabel, lastUpdated } = row;
             const rowIds = rowRooms.map(r => r.id);
             const allSelected = rowIds.every(id => selectedRooms.has(id));
@@ -860,8 +866,20 @@ const Rooms = () => {
                 </div>
               </div>
             );
-          })}
-          </div>
+            };
+            return groups.map((g) => (
+              <div key={g.id}>
+                <div className={`mb-3 flex items-center gap-3 rounded-xl bg-gradient-to-r ${g.grad} px-4 py-2.5 text-white shadow-sm`}>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-lg">{g.icon}</span>
+                  <p className="font-bold">{g.label}</p>
+                  <span className="ml-auto text-xs font-semibold bg-white/20 rounded-full px-2 py-0.5">{g.rows.length} {g.rows.length === 1 ? 'room' : 'rooms'}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
+                  {g.rows.map(renderCard)}
+                </div>
+              </div>
+            ));
+          })()}
         </div>
       ) : (
         <div className="card overflow-x-auto">
