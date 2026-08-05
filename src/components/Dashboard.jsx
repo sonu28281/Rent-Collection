@@ -1169,21 +1169,28 @@ const Dashboard = () => {
             ) : yearlyData.length === 0 ? (
               <p className="text-gray-500 text-sm">No payment data yet. Import historical data or record new payments.</p>
             ) : isCardView ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {yearlyData.map((year) => (
                   <button
                     key={year.year}
                     type="button"
-                    className={`text-left rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${selectedYear === year.year ? 'border-indigo-300 bg-indigo-50 ring-2 ring-indigo-200 shadow-sm dark:bg-indigo-950/40 dark:border-indigo-700 dark:ring-indigo-800' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                    className={`group text-left rounded-xl border p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${selectedYear === year.year ? 'border-indigo-300 bg-indigo-50 ring-2 ring-indigo-200 shadow-sm dark:bg-indigo-950/40 dark:border-indigo-700 dark:ring-indigo-800' : 'border-gray-200 dark:border-slate-700 bg-white hover:bg-gray-50'}`}
                     onClick={() => setSelectedYear(year.year)}
                   >
-                    <p className="text-xs text-gray-500">Year</p>
-                    <p className="text-lg font-bold text-gray-900">{year.year}</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                      <p>Rent: <span className="font-semibold">₹{year.rentIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span></p>
-                      <p>Electricity: <span className="font-semibold">₹{year.electricityIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span></p>
-                      <p>Total: <span className="font-semibold text-green-600">₹{year.totalIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span></p>
-                      <p>Payments: <span className="font-semibold">{year.paymentCount}</span></p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">Year</p>
+                        <p className="text-2xl font-extrabold text-gray-900 dark:text-slate-100 leading-none">{year.year}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">Total</p>
+                        <p className="text-lg font-bold text-green-600 dark:text-green-400 leading-tight">₹{year.totalIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                      </div>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-slate-700 flex items-center gap-2.5 text-xs text-gray-500 dark:text-slate-400 flex-wrap">
+                      <span title="Rent income">🏠 ₹{year.rentIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                      <span title="Electricity income">⚡ ₹{year.electricityIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                      <span className="ml-auto inline-flex items-center gap-1 font-semibold text-gray-600 dark:text-slate-300">{year.paymentCount} <span className="font-normal text-gray-400 dark:text-slate-500">pmts</span></span>
                     </div>
                   </button>
                 ))}
