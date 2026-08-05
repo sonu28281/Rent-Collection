@@ -652,7 +652,7 @@ const Dashboard = () => {
             </div>
 
             {/* Collection Progress */}
-            <div className="mb-6 rounded-2xl border border-gray-200/80 bg-white p-4 shadow-sm">
+            <div className="mb-6 rounded-2xl border border-gray-200/80 dark:border-slate-700 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-semibold text-gray-700 flex items-center gap-2"><span className="text-lg">📈</span> Collection Progress</span>
                 <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-sm font-bold text-emerald-700 ring-1 ring-emerald-200">
@@ -696,7 +696,7 @@ const Dashboard = () => {
                     ].map((f) => {
                       const pct = f.stats.totalExpected > 0 ? (f.stats.totalCollected / f.stats.totalExpected) * 100 : 0;
                       return (
-                        <div key={f.title} className={`overflow-hidden rounded-2xl border ${f.ring} bg-white shadow-sm hover:shadow-md transition-all duration-300`}>
+                        <div key={f.title} className={`overflow-hidden rounded-2xl border ${f.ring} dark:border-slate-700 bg-white shadow-sm hover:shadow-md transition-all duration-300`}>
                           <div className={`flex items-center gap-3 bg-gradient-to-r ${f.grad} px-4 py-3 text-white`}>
                             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20 text-xl">{f.icon}</span>
                             <h4 className="font-bold">{f.title}</h4>
