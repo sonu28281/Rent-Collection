@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getEffectiveTheme, setTheme, THEME_EVENT } from '../utils/theme';
 
-// Segmented light/dark switch for the sidebar footer.
+// Single toggle button: in light mode it offers "Dark", in dark mode it offers
+// "Light" — only the mode you can switch TO is shown.
 const ThemeToggle = () => {
   const [theme, setThemeState] = useState(getEffectiveTheme());
 
@@ -11,34 +12,22 @@ const ThemeToggle = () => {
     return () => window.removeEventListener(THEME_EVENT, sync);
   }, []);
 
-  const choose = (next) => {
+  const isDark = theme === 'dark';
+  const toggle = () => {
+    const next = isDark ? 'light' : 'dark';
     setTheme(next);
     setThemeState(next);
   };
 
   return (
-    <div className="flex items-center rounded-full bg-gray-100 dark:bg-slate-700 p-0.5 text-xs font-semibold">
-      <button
-        type="button"
-        onClick={() => choose('light')}
-        aria-pressed={theme === 'light'}
-        className={`flex-1 flex items-center justify-center gap-1 rounded-full px-2 py-1 transition ${
-          theme === 'light' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500 dark:text-slate-300'
-        }`}
-      >
-        ☀️ Light
-      </button>
-      <button
-        type="button"
-        onClick={() => choose('dark')}
-        aria-pressed={theme === 'dark'}
-        className={`flex-1 flex items-center justify-center gap-1 rounded-full px-2 py-1 transition ${
-          theme === 'dark' ? 'bg-slate-800 text-indigo-300 shadow-sm' : 'text-gray-500 dark:text-slate-300'
-        }`}
-      >
-        🌙 Dark
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={toggle}
+      title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      className="flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-slate-600 bg-gray-100 dark:bg-slate-700 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-600 transition"
+    >
+      {isDark ? <>☀️ <span>Light</span></> : <>🌙 <span>Dark</span></>}
+    </button>
   );
 };
 

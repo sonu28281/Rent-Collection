@@ -27,12 +27,15 @@ const QuotaMeter = ({ compact = false }) => {
   if (compact) {
     return (
       <div
-        className="flex items-center gap-1.5 rounded-full bg-gray-100 dark:bg-slate-700 px-2.5 py-1 text-xs"
+        className="flex items-center gap-2 rounded-full border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/60 px-2.5 py-1"
         title={`Reads today (est.): ${usage.reads.toLocaleString('en-IN')} / ${LIMITS.reads.toLocaleString('en-IN')}. Browser-local estimate, resets ~12:30 PM IST.`}
       >
-        <span className={`h-2 w-2 rounded-full ${dotColor}`} />
-        <span className="text-gray-500 dark:text-slate-300 hidden sm:inline">Reads</span>
-        <span className={`font-semibold ${textColor}`}>{pct}%</span>
+        <span className="text-xs">📊</span>
+        <span className="text-[11px] text-gray-500 dark:text-slate-300 hidden md:inline">Reads</span>
+        <div className="h-1.5 w-16 rounded-full bg-gray-200 dark:bg-slate-600 overflow-hidden">
+          <div className={`h-full rounded-full ${barColor} transition-all duration-500`} style={{ width: `${pct}%` }} />
+        </div>
+        <span className={`text-xs font-semibold tabular-nums ${textColor}`}>{pct}%</span>
       </div>
     );
   }

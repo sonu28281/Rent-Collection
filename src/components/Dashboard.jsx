@@ -3,6 +3,7 @@ import { collection, getDocs, query, where } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { getTotalLifetimeIncome, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary, getTodaysCollection } from '../utils/financial';
+import { setCollectionProgress } from '../utils/collectionProgress';
 import ViewModeToggle from './ui/ViewModeToggle';
 import LiveDateTime from './ui/LiveDateTime';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
@@ -263,6 +264,16 @@ const Dashboard = () => {
       fetchMonthlyData(selectedYear);
     }
   }, [selectedYear]);
+
+  // Publish this month's collection progress for the global top bar.
+  useEffect(() => {
+    if (currentMonthSummary) {
+      setCollectionProgress({
+        collected: currentMonthSummary.totalCollected || 0,
+        expected: currentMonthSummary.totalExpected || 0,
+      });
+    }
+  }, [currentMonthSummary]);
 
   // Refetch when selected month/year changes
   useEffect(() => {
@@ -648,32 +659,6 @@ const Dashboard = () => {
                   </div>
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/70 text-2xl shadow-inner ring-1 ring-purple-200 group-hover:scale-110 transition-transform">💵</div>
                 </div>
-              </div>
-            </div>
-
-            {/* Collection Progress */}
-            <div className="mb-6 rounded-2xl border border-gray-200/80 dark:border-slate-700 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold text-gray-700 flex items-center gap-2"><span className="text-lg">📈</span> Collection Progress</span>
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-sm font-bold text-emerald-700 ring-1 ring-emerald-200">
-                  {currentMonthSummary.totalExpected > 0
-                    ? ((currentMonthSummary.totalCollected / currentMonthSummary.totalExpected) * 100).toFixed(1)
-                    : 0}%
-                </span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-3.5 overflow-hidden ring-1 ring-inset ring-gray-200">
-                <div
-                  className="bg-gradient-to-r from-green-400 via-emerald-500 to-teal-500 h-full rounded-full transition-all duration-700 ease-out shadow-[0_0_8px_rgba(16,185,129,0.5)]"
-                  style={{
-                    width: currentMonthSummary.totalExpected > 0
-                      ? `${Math.min((currentMonthSummary.totalCollected / currentMonthSummary.totalExpected) * 100, 100)}%`
-                      : '0%'
-                  }}
-                ></div>
-              </div>
-              <div className="mt-2 flex justify-between text-xs text-gray-500">
-                <span>Collected ₹{currentMonthSummary.totalCollected.toLocaleString('en-IN')}</span>
-                <span>Target ₹{currentMonthSummary.totalExpected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
               </div>
             </div>
 
@@ -1242,7 +1227,7 @@ const Dashboard = () => {
                 type="button"
                 onClick={() => setShowMonthly((v) => !v)}
                 aria-expanded={showMonthly}
-                className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-slate-50 to-gray-100 px-4 py-3 text-left transition hover:from-slate-100 hover:to-gray-200"
+                className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-slate-50 to-gray-100 dark:from-slate-700 dark:to-slate-700 px-4 py-3 text-left transition hover:from-slate-100 hover:to-gray-200 dark:hover:from-slate-600 dark:hover:to-slate-600"
               >
                 <span className="font-semibold text-gray-700 flex items-center gap-2">
                   📅 Monthly Breakdown · {selectedYear}
