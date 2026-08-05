@@ -880,22 +880,33 @@ const Dashboard = () => {
                                             ₹{tenant.collectedAmount.toLocaleString('en-IN')}
                                           </td>
                                           <td className="px-3 py-2 text-center whitespace-nowrap">
-                                            <span
-                                              title={isPaid ? `Paid: ${tenant.paidDate} | Due was: ${tenant.dueDate}` : `Due: ${tenant.dueDate}`}
-                                              className="text-xs font-semibold px-2 py-1 rounded cursor-default"
-                                              style={{
-                                                backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' :
-                                                                 tenant.dueStatusColor === 'orange' ? '#fed7aa' :
-                                                                 tenant.dueStatusColor === 'yellow' ? '#fef08a' :
-                                                                 tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
-                                                color: tenant.dueStatusColor === 'red' ? '#991b1b' :
-                                                       tenant.dueStatusColor === 'orange' ? '#c2410c' :
-                                                       tenant.dueStatusColor === 'yellow' ? '#a16207' :
-                                                       tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
-                                              }}
-                                            >
-                                              {tenant.dueStatusText || (isPaid ? '✅ Paid' : '❌ Pending')}
-                                            </span>
+                                            <div className="inline-flex flex-col items-center gap-1">
+                                              {(() => {
+                                                const dues = getTenantDues(tenant);
+                                                if (dues.months <= 1) return null;
+                                                return (
+                                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300 whitespace-nowrap">
+                                                    ⚠️ {dues.months} mo · ₹{dues.amount.toLocaleString('en-IN')}
+                                                  </span>
+                                                );
+                                              })()}
+                                              <span
+                                                title={isPaid ? `Paid: ${tenant.paidDate} | Due was: ${tenant.dueDate}` : `Due: ${tenant.dueDate}`}
+                                                className="text-xs font-semibold px-2 py-1 rounded cursor-default"
+                                                style={{
+                                                  backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' :
+                                                                   tenant.dueStatusColor === 'orange' ? '#fed7aa' :
+                                                                   tenant.dueStatusColor === 'yellow' ? '#fef08a' :
+                                                                   tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
+                                                  color: tenant.dueStatusColor === 'red' ? '#991b1b' :
+                                                         tenant.dueStatusColor === 'orange' ? '#c2410c' :
+                                                         tenant.dueStatusColor === 'yellow' ? '#a16207' :
+                                                         tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
+                                                }}
+                                              >
+                                                {tenant.dueStatusText || (isPaid ? '✅ Paid' : '❌ Pending')}
+                                              </span>
+                                            </div>
                                           </td>
                                         </tr>
                                         {tenant.roomCount > 1 && expanded && (
@@ -1093,22 +1104,33 @@ const Dashboard = () => {
                                             ₹{tenant.collectedAmount.toLocaleString('en-IN')}
                                           </td>
                                           <td className="px-3 py-2 text-center whitespace-nowrap">
-                                            <span
-                                              title={isPaid ? `Paid: ${tenant.paidDate} | Due was: ${tenant.dueDate}` : `Due: ${tenant.dueDate}`}
-                                              className="text-xs font-semibold px-2 py-1 rounded cursor-default"
-                                              style={{
-                                                backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' :
-                                                                 tenant.dueStatusColor === 'orange' ? '#fed7aa' :
-                                                                 tenant.dueStatusColor === 'yellow' ? '#fef08a' :
-                                                                 tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
-                                                color: tenant.dueStatusColor === 'red' ? '#991b1b' :
-                                                       tenant.dueStatusColor === 'orange' ? '#c2410c' :
-                                                       tenant.dueStatusColor === 'yellow' ? '#a16207' :
-                                                       tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
-                                              }}
-                                            >
-                                              {tenant.dueStatusText || (isPaid ? '✅ Paid' : '❌ Pending')}
-                                            </span>
+                                            <div className="inline-flex flex-col items-center gap-1">
+                                              {(() => {
+                                                const dues = getTenantDues(tenant);
+                                                if (dues.months <= 1) return null;
+                                                return (
+                                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300 whitespace-nowrap">
+                                                    ⚠️ {dues.months} mo · ₹{dues.amount.toLocaleString('en-IN')}
+                                                  </span>
+                                                );
+                                              })()}
+                                              <span
+                                                title={isPaid ? `Paid: ${tenant.paidDate} | Due was: ${tenant.dueDate}` : `Due: ${tenant.dueDate}`}
+                                                className="text-xs font-semibold px-2 py-1 rounded cursor-default"
+                                                style={{
+                                                  backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' :
+                                                                   tenant.dueStatusColor === 'orange' ? '#fed7aa' :
+                                                                   tenant.dueStatusColor === 'yellow' ? '#fef08a' :
+                                                                   tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
+                                                  color: tenant.dueStatusColor === 'red' ? '#991b1b' :
+                                                         tenant.dueStatusColor === 'orange' ? '#c2410c' :
+                                                         tenant.dueStatusColor === 'yellow' ? '#a16207' :
+                                                         tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
+                                                }}
+                                              >
+                                                {tenant.dueStatusText || (isPaid ? '✅ Paid' : '❌ Pending')}
+                                              </span>
+                                            </div>
                                           </td>
                                         </tr>
                                         {tenant.roomCount > 1 && expanded && (
