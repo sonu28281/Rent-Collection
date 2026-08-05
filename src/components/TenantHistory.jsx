@@ -326,6 +326,18 @@ const TenantHistory = () => {
       // currentReading / units / electricity), not in a separate collection, so
       // derive the meter history from them. (The electricityReadings collection
       // is empty.)
+      // Normalize a date value to a valid ISO string. Older (imported) records
+      // store paymentDate as a Firestore Timestamp OBJECT, not a string — feeding
+      // that straight to new Date() yields Invalid Date, which broke the sort/
+      // display for 2024/2025 readings. Handle Timestamps, strings, and always
+      // fall back to the record's own period so every row sorts & renders.
+      const toISO = (v) => {
+        if (!v) return null;
+        if (typeof v === 'object' && typeof v.toDate === 'function') return v.toDate().toISOString();
+        if (typeof v === 'object' && v.seconds !== undefined) return new Date(v.seconds * 1000).toISOString();
+        const d = new Date(v);
+        return Number.isNaN(d.getTime()) ? null : d.toISOString();
+      };
       const derivedMeter = history
         .filter((p) => Number(p.currentReading ?? p.meterReading ?? 0) > 0 || Number(p.units ?? p.unitsConsumed ?? 0) > 0)
         .map((p) => ({
@@ -338,7 +350,9 @@ const TenantHistory = () => {
           ratePerUnit: p.ratePerUnit,
           year: p.year,
           month: p.month,
-          readingDate: p.paidDate || p.paymentDate || p.paidAt || (p.year && p.month ? `${p.year}-${String(p.month).padStart(2, '0')}-01` : null),
+          readingDate:
+            toISO(p.paidDate) || toISO(p.paymentDate) || toISO(p.paidAt) || toISO(p.date) ||
+            (p.year && p.month ? `${p.year}-${String(p.month).padStart(2, '0')}-01` : null),
           createdAt: p.createdAt
         }));
       setMeterHistory(derivedMeter);
