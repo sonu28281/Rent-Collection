@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rent-collection-v5-fresh';
+const CACHE_NAME = 'rent-collection-v6';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -7,7 +7,7 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing v5-fresh - clearing all old caches');
+  console.log('[SW] Installing v6 - clearing all old caches');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -24,7 +24,7 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating v5-fresh - claiming all clients');
+  console.log('[SW] Activating v6 - claiming all clients');
   event.waitUntil(
     caches.keys().then((keys) => {
       console.log('[SW] Found caches:', keys);
@@ -44,7 +44,7 @@ self.addEventListener('activate', (event) => {
       return self.clients.matchAll().then((clients) => {
         clients.forEach((client) => {
           console.log('[SW] Notifying client to refresh');
-          client.postMessage({ type: 'SW_UPDATED', version: 'v5-fresh' });
+          client.postMessage({ type: 'SW_UPDATED', version: 'v6' });
         });
       });
     })

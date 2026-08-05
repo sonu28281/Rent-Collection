@@ -16,23 +16,23 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
-      .then((registration) => {
+      .then(() => {
         console.log('[App] Service worker registered');
-        
-        // Check for updates every 10 seconds
-        setInterval(() => {
-          registration.update();
-        }, 10000);
-        
-        // Listen for updates from service worker
+
+        // Reload AT MOST ONCE per SW version per tab session. Previously the app
+        // polled for updates every 10s and reloaded on every SW activation with no
+        // guard — on iOS Safari the service worker re-activates repeatedly, which
+        // caused an endless refresh loop. This guard applies a genuine update once
+        // and can never loop. (The browser still checks for SW updates on
+        // navigation, so no polling is needed.)
         navigator.serviceWorker.addEventListener('message', (event) => {
           if (event.data && event.data.type === 'SW_UPDATED') {
-            console.log('[App] Service worker updated to:', event.data.version);
-            console.log('[App] Reloading page to apply updates...');
-            // Small delay to let the service worker finish claiming
-            setTimeout(() => {
-              window.location.reload();
-            }, 500);
+            const key = 'sw-reloaded-version';
+            let already = null;
+            try { already = sessionStorage.getItem(key); } catch (e) { /* storage blocked */ }
+            if (already === event.data.version) return; // already applied this version
+            try { sessionStorage.setItem(key, event.data.version); } catch (e) { /* ignore */ }
+            window.location.reload();
           }
         });
       })
