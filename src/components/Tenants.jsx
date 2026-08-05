@@ -1845,7 +1845,7 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc }) => 
   
   return (
     <div className={`rounded-xl border border-l-4 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-200 ${
-      !isActive ? 'border-l-gray-400 dark:border-l-gray-500 opacity-90' : isKycVerified ? 'border-l-green-500 dark:border-l-green-500' : 'border-l-amber-500 dark:border-l-amber-500'
+      !isActive ? '!border-l-gray-400 dark:!border-l-gray-500 opacity-90' : isKycVerified ? '!border-l-green-500 dark:!border-l-green-500' : '!border-l-amber-500 dark:!border-l-amber-500'
     }`}>
       {/* Header - Name & Status */}
       <div className="px-4 pt-3 pb-2">
