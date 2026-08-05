@@ -795,7 +795,10 @@ const TenantHistory = () => {
                           const total = merged.totalRent + merged.totalElectricity;
                           const balance = merged.totalRent + merged.totalElectricity - merged.totalPaid;
                           const roomList = merged.rooms.map(r => r.roomNumber).sort((a, b) => a - b);
-                          
+                          const ratePerUnit = merged.totalUnits > 0
+                            ? merged.totalElectricity / merged.totalUnits
+                            : (merged.records.map(r => Number(r.ratePerUnit)).find(v => Number.isFinite(v) && v > 0) ?? 0);
+
                           // Determine status
                           let statusColor = 'bg-green-100 text-green-800';
                           let statusText = 'Paid';
@@ -837,8 +840,16 @@ const TenantHistory = () => {
                               <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                                 <p>Rent: <span className="font-semibold">₹{merged.totalRent.toLocaleString('en-IN')}</span></p>
                                 <p>Paid: <span className="font-semibold">₹{merged.totalPaid.toLocaleString('en-IN')}</span></p>
-                                <p>Units: <span className="font-semibold text-blue-600">{merged.totalUnits}</span></p>
-                                <p>Electricity: <span className="font-semibold">₹{merged.totalElectricity.toLocaleString('en-IN')}</span></p>
+                                <p>Units: <span className="font-semibold text-blue-600">{merged.totalUnits}</span>
+                                  {merged.totalUnits > 0 && ratePerUnit > 0 && (
+                                    <span className="text-xs text-gray-500"> @ ₹{ratePerUnit.toFixed(2)}/unit</span>
+                                  )}
+                                </p>
+                                <p>Electricity: <span className="font-semibold">₹{merged.totalElectricity.toLocaleString('en-IN')}</span>
+                                  {merged.totalUnits > 0 && ratePerUnit > 0 && (
+                                    <span className="text-xs text-gray-500"> ({merged.totalUnits}×₹{ratePerUnit.toFixed(2)})</span>
+                                  )}
+                                </p>
                                 <p>Total: <span className="font-semibold">₹{total.toLocaleString('en-IN')}</span></p>
                                 <p>Balance: <span className={`font-semibold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>₹{Math.abs(balance).toLocaleString('en-IN')}</span></p>
                               </div>
@@ -885,7 +896,12 @@ const TenantHistory = () => {
                               const monthMeterReadings = meterHistory.filter(m =>
                                 Number(m.year) === merged.year && Number(m.month) === merged.month
                               );
-                              
+
+                              // Effective per-unit rate actually charged this month.
+                              const ratePerUnit = merged.totalUnits > 0
+                                ? merged.totalElectricity / merged.totalUnits
+                                : (merged.records.map(r => Number(r.ratePerUnit)).find(v => Number.isFinite(v) && v > 0) ?? 0);
+
                               let statusColor = 'bg-green-100 text-green-800';
                               let statusText = 'Paid';
                               let headerBg = 'bg-green-50 border-green-100';
@@ -928,8 +944,16 @@ const TenantHistory = () => {
                                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                                       <p>Rent: <span className="font-semibold">₹{merged.totalRent.toLocaleString('en-IN')}</span></p>
                                       <p>Paid: <span className="font-semibold">₹{merged.totalPaid.toLocaleString('en-IN')}</span></p>
-                                      <p>Units: <span className="font-semibold text-blue-600">{merged.totalUnits}</span></p>
-                                      <p>Electricity: <span className="font-semibold">₹{merged.totalElectricity.toLocaleString('en-IN')}</span></p>
+                                      <p>Units: <span className="font-semibold text-blue-600">{merged.totalUnits}</span>
+                                        {merged.totalUnits > 0 && ratePerUnit > 0 && (
+                                          <span className="text-xs text-gray-500"> @ ₹{ratePerUnit.toFixed(2)}/unit</span>
+                                        )}
+                                      </p>
+                                      <p>Electricity: <span className="font-semibold">₹{merged.totalElectricity.toLocaleString('en-IN')}</span>
+                                        {merged.totalUnits > 0 && ratePerUnit > 0 && (
+                                          <span className="text-xs text-gray-500"> ({merged.totalUnits}×₹{ratePerUnit.toFixed(2)})</span>
+                                        )}
+                                      </p>
                                       <p>Total: <span className="font-semibold">₹{total.toLocaleString('en-IN')}</span></p>
                                       <p>Balance: <span className={`font-semibold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>₹{Math.abs(balance).toLocaleString('en-IN')}</span></p>
                                     </div>
