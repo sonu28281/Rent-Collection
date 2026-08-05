@@ -3,6 +3,9 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
 import './i18n'; // Initialize i18next
+import { initTheme } from './utils/theme';
+
+initTheme(); // apply persisted/OS light-dark theme before first paint
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

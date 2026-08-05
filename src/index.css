@@ -33,6 +33,54 @@ code {
   @apply bg-white rounded-lg shadow-md p-6;
 }
 
+/* ─── Dark mode ─────────────────────────────────────────────────────────
+   Applied globally via a single `dark` class on <html>. Rather than adding
+   dark: variants to every element across ~40 components, we remap the common
+   neutral surfaces/text/borders here so dark mode covers the whole app at once.
+   Colored accents (blue/green/gradients) intentionally stay vivid and pop
+   against the dark canvas. */
+html.dark body {
+  background-color: #0f172a; /* slate-900 */
+  color: #e2e8f0;            /* slate-200 */
+}
+
+.dark .card {
+  background-color: #1e293b; /* slate-800 */
+  border: 1px solid #334155; /* slate-700 */
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* Neutral backgrounds → dark surfaces */
+.dark .bg-white { background-color: #1e293b !important; }
+.dark .bg-gray-50 { background-color: #172033 !important; }
+.dark .bg-gray-100 { background-color: #1e293b !important; }
+.dark .bg-gray-200 { background-color: #334155 !important; }
+.dark .bg-slate-50 { background-color: #172033 !important; }
+
+/* Neutral text → light */
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700 { color: #e5e7eb !important; }
+.dark .text-gray-600,
+.dark .text-gray-500,
+.dark .text-gray-400 { color: #94a3b8 !important; }
+
+/* Neutral borders */
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 { border-color: #334155 !important; }
+
+/* Inputs */
+.dark .input-field {
+  background-color: #1e293b;
+  border-color: #475569;
+  color: #e5e7eb;
+}
+.dark .btn-secondary {
+  background-color: #334155;
+  color: #e5e7eb;
+}
+
 @keyframes slideUp {
   from {
     transform: translateY(100%);

@@ -31,7 +31,8 @@ const Dashboard = () => {
     yearly: { column: 'year', direction: 'desc' }
   });
   const [expandedSplitRows, setExpandedSplitRows] = useState({});
-  
+  const [showMonthly, setShowMonthly] = useState(false); // collapsible Monthly Breakdown
+
   // Payment history modal state
   const [selectedTenantHistory, setSelectedTenantHistory] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState([]);
@@ -676,76 +677,6 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Rent Status at a glance — floor-wise: who paid vs who didn't this month */}
-            {currentMonthSummary.allTenants && currentMonthSummary.allTenants.length > 0 && (() => {
-              const isRentPaid = (t) => t.status === 'paid' && t.collectedAmount > 0;
-              const roomSort = (a, b) =>
-                (Number(String(getTenantRoomLabel(a)).replace(/\D/g, '')) || 0) -
-                (Number(String(getTenantRoomLabel(b)).replace(/\D/g, '')) || 0);
-              const { floor1, floor2 } = groupTenantsByFloor(currentMonthSummary.allTenants);
-              const floorGroups = [
-                { key: 'f1', label: 'Floor 1 — Ground Floor', tenants: floor1 },
-                { key: 'f2', label: 'Floor 2 — First Floor', tenants: floor2 }
-              ];
-
-              const chip = (t) => {
-                const isPaidT = isRentPaid(t);
-                const dues = isPaidT ? null : getTenantDues(t);
-                const multiDue = dues && dues.months > 1;
-                const amount = isPaidT
-                  ? (t.collectedAmount || 0)
-                  : Math.max((t.expectedTotal || 0) - (t.collectedAmount || 0), 0);
-                return (
-                  <div
-                    key={t.id}
-                    className={`flex flex-col rounded-md border px-2 py-1 ${isPaidT ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}
-                  >
-                    <div className="flex items-center gap-1.5 whitespace-nowrap">
-                      <span className={`font-mono text-[10px] px-1 py-0.5 rounded ${isPaidT ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{getCompactRoomLabel(t)}</span>
-                      <span className="text-xs font-semibold text-gray-900">{t.name}</span>
-                      <span className={`text-xs font-bold ${isPaidT ? 'text-green-700' : 'text-red-700'}`}>₹{amount.toLocaleString('en-IN')}</span>
-                      {multiDue && (
-                        <span className="text-[9px] font-bold bg-red-200 text-red-800 px-1 py-0.5 rounded">{dues.months} mo</span>
-                      )}
-                    </div>
-                    {!isPaidT && (
-                      <span className={`text-[10px] leading-tight ${t.isDelayed ? 'text-red-600' : (t.dueStatusColor === 'orange' || t.dueStatusColor === 'yellow') ? 'text-amber-600' : 'text-gray-500'}`}>
-                        {multiDue
-                          ? <><strong>₹{dues.amount.toLocaleString('en-IN')} total</strong> · {t.dueStatusText}</>
-                          : <>Due {t.dueDate} · {t.dueStatusText}</>}
-                      </span>
-                    )}
-                  </div>
-                );
-              };
-
-              return (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">This Month&apos;s Rent Status</h3>
-                  <div className="space-y-3">
-                    {floorGroups.filter((fg) => fg.tenants.length > 0).map((fg) => {
-                      const pending = fg.tenants.filter((t) => !isRentPaid(t)).sort(roomSort);
-                      const paid = fg.tenants.filter(isRentPaid).sort(roomSort);
-                      return (
-                        <div key={fg.key} className="border border-gray-200 rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-2 gap-2">
-                            <h4 className="font-bold text-gray-800">{fg.label}</h4>
-                            <span className="text-xs font-semibold whitespace-nowrap">
-                              <span className="text-green-700">{paid.length} paid</span>
-                              <span className="text-gray-400"> · </span>
-                              <span className="text-red-700">{pending.length} not paid</span>
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {[...pending, ...paid].map(chip)}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* Floor-wise Summary */}
             {currentMonthSummary.allTenants && currentMonthSummary.allTenants.length > 0 && (() => {
@@ -754,83 +685,53 @@ const Dashboard = () => {
               const floor2Stats = calculateFloorStats(floor2);
               return (
                 <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Floor-wise Breakdown</h3>
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">
+                    <span className="inline-block h-4 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-fuchsia-500" />
+                    Floor-wise Breakdown
+                  </h3>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* Floor 1 Card */}
-                    <div className="border border-indigo-200 rounded-lg p-4 bg-gradient-to-br from-indigo-50 to-white">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl">🏠</span>
-                        <h4 className="font-bold text-indigo-900">Floor 1 - Ground Floor</h4>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Expected</p>
-                          <p className="text-lg font-bold text-blue-700">₹{floor1Stats.totalExpected.toLocaleString('en-IN')}</p>
+                    {[
+                      { stats: floor1Stats, icon: '🏠', title: 'Floor 1 · Ground Floor', grad: 'from-indigo-500 to-blue-500', ring: 'border-indigo-200/70' },
+                      { stats: floor2Stats, icon: '🏢', title: 'Floor 2 · First Floor', grad: 'from-fuchsia-500 to-purple-500', ring: 'border-fuchsia-200/70' }
+                    ].map((f) => {
+                      const pct = f.stats.totalExpected > 0 ? (f.stats.totalCollected / f.stats.totalExpected) * 100 : 0;
+                      return (
+                        <div key={f.title} className={`overflow-hidden rounded-2xl border ${f.ring} bg-white shadow-sm hover:shadow-md transition-all duration-300`}>
+                          <div className={`flex items-center gap-3 bg-gradient-to-r ${f.grad} px-4 py-3 text-white`}>
+                            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20 text-xl">{f.icon}</span>
+                            <h4 className="font-bold">{f.title}</h4>
+                            <span className="ml-auto rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">{pct.toFixed(0)}%</span>
+                          </div>
+                          <div className="p-4">
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="rounded-xl bg-blue-50 py-2 text-center ring-1 ring-blue-100">
+                                <p className="text-[11px] text-blue-600 mb-0.5">Expected</p>
+                                <p className="text-base font-bold text-blue-700">₹{f.stats.totalExpected.toLocaleString('en-IN')}</p>
+                              </div>
+                              <div className="rounded-xl bg-green-50 py-2 text-center ring-1 ring-green-100">
+                                <p className="text-[11px] text-green-600 mb-0.5">Collected</p>
+                                <p className="text-base font-bold text-green-700">₹{f.stats.totalCollected.toLocaleString('en-IN')}</p>
+                              </div>
+                              <div className="rounded-xl bg-orange-50 py-2 text-center ring-1 ring-orange-100">
+                                <p className="text-[11px] text-orange-600 mb-0.5">Due</p>
+                                <p className="text-base font-bold text-orange-700">₹{f.stats.totalDue.toLocaleString('en-IN')}</p>
+                              </div>
+                            </div>
+                            <div className="mt-3 w-full bg-gray-100 rounded-full h-2.5 overflow-hidden ring-1 ring-inset ring-gray-200">
+                              <div
+                                className="bg-gradient-to-r from-green-400 to-emerald-500 h-full rounded-full transition-all duration-700"
+                                style={{ width: `${Math.min(pct, 100)}%` }}
+                              ></div>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between text-xs">
+                              <span className="text-gray-500">{f.stats.totalTenants} tenants</span>
+                              <span className="font-semibold text-green-700">● {f.stats.paidCount} paid</span>
+                              <span className="font-semibold text-orange-700">● {f.stats.pendingCount} pending</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Collected</p>
-                          <p className="text-lg font-bold text-green-700">₹{floor1Stats.totalCollected.toLocaleString('en-IN')}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Due</p>
-                          <p className="text-lg font-bold text-orange-700">₹{floor1Stats.totalDue.toLocaleString('en-IN')}</p>
-                        </div>
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-indigo-200 flex items-center justify-between text-xs">
-                        <span className="text-gray-600">{floor1Stats.totalTenants} tenants</span>
-                        <span className="text-green-700 font-semibold">{floor1Stats.paidCount} paid</span>
-                        <span className="text-orange-700 font-semibold">{floor1Stats.pendingCount} pending</span>
-                      </div>
-                      <div className="mt-3">
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-500"
-                            style={{ width: floor1Stats.totalExpected > 0 ? `${Math.min((floor1Stats.totalCollected / floor1Stats.totalExpected) * 100, 100)}%` : '0%' }}
-                          ></div>
-                        </div>
-                        <p className="text-xs text-gray-600 text-center mt-1">
-                          {floor1Stats.totalExpected > 0 ? ((floor1Stats.totalCollected / floor1Stats.totalExpected) * 100).toFixed(1) : 0}% collected
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Floor 2 Card */}
-                    <div className="border border-violet-200 rounded-lg p-4 bg-gradient-to-br from-violet-50 to-white">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl">🏢</span>
-                        <h4 className="font-bold text-violet-900">Floor 2 - First Floor</h4>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Expected</p>
-                          <p className="text-lg font-bold text-blue-700">₹{floor2Stats.totalExpected.toLocaleString('en-IN')}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Collected</p>
-                          <p className="text-lg font-bold text-green-700">₹{floor2Stats.totalCollected.toLocaleString('en-IN')}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Due</p>
-                          <p className="text-lg font-bold text-orange-700">₹{floor2Stats.totalDue.toLocaleString('en-IN')}</p>
-                        </div>
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-violet-200 flex items-center justify-between text-xs">
-                        <span className="text-gray-600">{floor2Stats.totalTenants} tenants</span>
-                        <span className="text-green-700 font-semibold">{floor2Stats.paidCount} paid</span>
-                        <span className="text-orange-700 font-semibold">{floor2Stats.pendingCount} pending</span>
-                      </div>
-                      <div className="mt-3">
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-500"
-                            style={{ width: floor2Stats.totalExpected > 0 ? `${Math.min((floor2Stats.totalCollected / floor2Stats.totalExpected) * 100, 100)}%` : '0%' }}
-                          ></div>
-                        </div>
-                        <p className="text-xs text-gray-600 text-center mt-1">
-                          {floor2Stats.totalExpected > 0 ? ((floor2Stats.totalCollected / floor2Stats.totalExpected) * 100).toFixed(1) : 0}% collected
-                        </p>
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -873,7 +774,7 @@ const Dashboard = () => {
                             {floor1.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
-                                <div key={tenant.id} className={`relative rounded-xl border border-l-4 p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${isPaid ? 'bg-gradient-to-br from-green-50 to-white border-green-200 border-l-green-500' : 'bg-gradient-to-br from-red-50 to-white border-red-200 border-l-red-500'}`}>
+                                <div key={tenant.id} className={`relative rounded-xl border border-l-4 p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${isPaid ? 'bg-gradient-to-br from-green-50 to-white border-green-200 border-l-green-500 dark:from-green-950/40 dark:to-slate-800 dark:border-green-800' : 'bg-gradient-to-br from-red-50 to-white border-red-200 border-l-red-500 dark:from-red-950/40 dark:to-slate-800 dark:border-red-900'}`}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
@@ -1077,7 +978,7 @@ const Dashboard = () => {
                             {floor2.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
-                                <div key={tenant.id} className={`relative rounded-xl border border-l-4 p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${isPaid ? 'bg-gradient-to-br from-green-50 to-white border-green-200 border-l-green-500' : 'bg-gradient-to-br from-red-50 to-white border-red-200 border-l-red-500'}`}>
+                                <div key={tenant.id} className={`relative rounded-xl border border-l-4 p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${isPaid ? 'bg-gradient-to-br from-green-50 to-white border-green-200 border-l-green-500 dark:from-green-950/40 dark:to-slate-800 dark:border-green-800' : 'bg-gradient-to-br from-red-50 to-white border-red-200 border-l-red-500 dark:from-red-950/40 dark:to-slate-800 dark:border-red-900'}`}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
@@ -1262,16 +1163,15 @@ const Dashboard = () => {
       {/* Financial Summary */}
       <div className="mb-6">
         <div className="card">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-semibold text-gray-800">
-                💰 Financial Summary
-              </h3>
-              <p className="text-sm text-gray-600 mt-1">Year-wise collection overview</p>
+          <div className="relative overflow-hidden flex flex-wrap items-center justify-between gap-3 mb-6 rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 p-5 text-white shadow-md">
+            <div className="absolute -right-6 -top-8 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
+            <div className="relative">
+              <h3 className="text-xl font-bold flex items-center gap-2">💰 Financial Summary</h3>
+              <p className="text-sm text-white/80 mt-1">Year-wise collection overview</p>
             </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-600 uppercase tracking-wide">Total Lifetime Income</p>
-              <p className="text-3xl font-bold text-indigo-600">
+            <div className="relative text-right">
+              <p className="text-xs text-white/70 uppercase tracking-wide">Total Lifetime Income</p>
+              <p className="text-3xl font-extrabold tracking-tight">
                 {loading ? '...' : `₹${stats.totalIncome.toLocaleString('en-IN')}`}
               </p>
             </div>
@@ -1289,7 +1189,7 @@ const Dashboard = () => {
                   <button
                     key={year.year}
                     type="button"
-                    className={`text-left rounded-lg border p-4 transition ${selectedYear === year.year ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                    className={`text-left rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${selectedYear === year.year ? 'border-indigo-300 bg-indigo-50 ring-2 ring-indigo-200 shadow-sm dark:bg-indigo-950/40 dark:border-indigo-700 dark:ring-indigo-800' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
                     onClick={() => setSelectedYear(year.year)}
                   >
                     <p className="text-xs text-gray-500">Year</p>
@@ -1335,28 +1235,41 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Monthly Breakdown */}
+          {/* Monthly Breakdown (collapsible) */}
           {selectedYear && monthlyData.length > 0 && (
-            <div>
-              <h4 className="font-semibold text-gray-700 mb-3">
-                📅 Monthly Breakdown - {selectedYear}
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {monthlyData.map((month) => (
-                  <div 
-                    key={month.month} 
-                    className={`border rounded-lg p-3 ${month.totalIncome > 0 ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}
-                  >
-                    <p className="text-xs font-semibold text-gray-600 mb-1">{month.monthName}</p>
-                    <p className="text-lg font-bold text-gray-800">
-                      ₹{month.totalIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                    </p>
-                    {month.paymentCount > 0 && (
-                      <p className="text-xs text-gray-500">{month.paymentCount} payments</p>
-                    )}
-                  </div>
-                ))}
-              </div>
+            <div className="border-t border-gray-200 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowMonthly((v) => !v)}
+                aria-expanded={showMonthly}
+                className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-slate-50 to-gray-100 px-4 py-3 text-left transition hover:from-slate-100 hover:to-gray-200"
+              >
+                <span className="font-semibold text-gray-700 flex items-center gap-2">
+                  📅 Monthly Breakdown · {selectedYear}
+                </span>
+                <span className="flex items-center gap-2 text-xs text-gray-500">
+                  {showMonthly ? 'Hide' : 'Show'}
+                  <span className={`inline-block transition-transform duration-300 ${showMonthly ? 'rotate-180' : ''}`}>▼</span>
+                </span>
+              </button>
+              {showMonthly && (
+                <div className="mt-3 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {monthlyData.map((month) => (
+                    <div
+                      key={month.month}
+                      className={`rounded-xl border p-3 transition hover:shadow-sm ${month.totalIncome > 0 ? 'bg-gradient-to-br from-green-50 to-white border-green-200 dark:from-green-950/40 dark:to-slate-800 dark:border-green-800' : 'bg-gray-50 border-gray-200'}`}
+                    >
+                      <p className="text-xs font-semibold text-gray-600 mb-1">{month.monthName}</p>
+                      <p className="text-lg font-bold text-gray-800">
+                        ₹{month.totalIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                      </p>
+                      {month.paymentCount > 0 && (
+                        <p className="text-xs text-gray-500">{month.paymentCount} payments</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
