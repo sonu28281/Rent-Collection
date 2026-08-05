@@ -739,9 +739,9 @@ const Rooms = () => {
           )}
         </div>
       ) : (isMobileViewport || isCardView) ? (
-        <div className="space-y-3">
-          <div className="card py-3 px-4 flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-700">Select All</span>
+        <div>
+          <div className="card py-2.5 px-4 flex items-center justify-between mb-3">
+            <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Select All</span>
             <input
               type="checkbox"
               checked={selectedRooms.size === filteredRooms.length && filteredRooms.length > 0}
@@ -750,6 +750,7 @@ const Rooms = () => {
             />
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
           {buildDisplayRows(filteredRooms).map((row) => {
             const { key, isMulti, rooms: rowRooms, primaryRoom, currentTenant, lastTenant, meterInfo, displayRent, isVacant, roomLabel, meterLabel, lastUpdated } = row;
             const rowIds = rowRooms.map(r => r.id);
@@ -757,87 +758,101 @@ const Rooms = () => {
             const expanded = expandedMultiRows.has(key);
 
             return (
-              <div key={key} className={`card border ${allSelected ? 'border-blue-300 bg-blue-50' : isMulti ? 'border-indigo-200 bg-indigo-50' : 'border-gray-200'} p-4`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-gray-500">Room</p>
-                    <p className="text-lg font-bold text-gray-900">{roomLabel}</p>
-                    {isMulti && <span className="text-xs text-indigo-600 font-semibold">🏠 Multi-room</span>}
+              <div key={key} className={`rounded-xl border p-3 shadow-sm hover:shadow-md transition-all duration-200 ${
+                allSelected
+                  ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-700'
+                  : isMulti
+                    ? 'border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/20'
+                    : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+              }`}>
+                {/* Header — room, status, checkbox */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="text-lg font-extrabold text-gray-900 dark:text-slate-100 leading-none">{roomLabel}</span>
+                    <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full ${
+                      isVacant ? 'bg-gray-200 text-gray-700 dark:bg-slate-600 dark:text-slate-200' : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                    }`}>
+                      {isVacant ? '⬜ Vacant' : '✅ Occupied'}
+                    </span>
+                    {isMulti && <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">🏠 Multi</span>}
                   </div>
                   <input
                     type="checkbox"
                     checked={allSelected}
                     onChange={() => toggleRowSelection(rowIds)}
-                    className="w-4 h-4 text-primary rounded mt-1"
+                    className="w-4 h-4 text-primary rounded mt-1 shrink-0"
                   />
                 </div>
 
-                <div className="mt-2">
-                  <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    isVacant ? 'bg-gray-100 text-gray-800' : 'bg-green-100 text-green-800'
-                  }`}>
-                    {isVacant ? '⬜ Vacant' : '✅ Occupied'}
-                  </span>
-                </div>
-
-                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <div className="flex items-center gap-1 col-span-2">
-                    <span>Rent: <span className="font-semibold text-gray-900">{displayRent ? `₹${Number(displayRent).toLocaleString('en-IN')}` : 'N/A'}</span>{isMulti && displayRent ? <span className="text-xs text-indigo-500 ml-1">(combined)</span> : null}</span>
-                    {isMulti && (
-                      <button
-                        onClick={() => toggleMultiExpand(key)}
-                        className="ml-2 text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded hover:bg-indigo-200 font-semibold"
-                      >
-                        {expanded ? 'Hide ▲' : 'Breakout ▼'}
-                      </button>
-                    )}
+                {/* Info — tidy label/value rows */}
+                <div className="mt-2.5 space-y-1 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-500 dark:text-slate-400">Rent</span>
+                    <span className="font-bold text-gray-900 dark:text-slate-100">
+                      {displayRent ? `₹${Number(displayRent).toLocaleString('en-IN')}` : 'N/A'}
+                      {isMulti && displayRent ? <span className="text-xs text-indigo-500 dark:text-indigo-400 ml-1 font-normal">(comb.)</span> : null}
+                      {isMulti && (
+                        <button onClick={() => toggleMultiExpand(key)} className="ml-2 text-[10px] bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded hover:bg-indigo-200 dark:hover:bg-indigo-900 font-semibold align-middle">
+                          {expanded ? 'Hide ▲' : 'Breakout ▼'}
+                        </button>
+                      )}
+                    </span>
                   </div>
                   {isMulti && expanded && (
-                    <div className="col-span-2 bg-white border border-indigo-200 rounded-lg p-2 mt-1 space-y-1">
+                    <div className="bg-white dark:bg-slate-900/60 border border-indigo-200 dark:border-indigo-800 rounded-lg p-2 space-y-1">
                       {rowRooms.map(r => (
                         <div key={r.id} className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-indigo-800">Room {r.roomNumber}</span>
-                          <span className="text-gray-700">Meter: {r.electricityMeterNo || '—'}</span>
-                          <span className="font-bold text-gray-900">₹{getPerRoomRent(r).toLocaleString('en-IN')}</span>
+                          <span className="font-semibold text-indigo-800 dark:text-indigo-300">Room {r.roomNumber}</span>
+                          <span className="text-gray-600 dark:text-slate-400">{r.electricityMeterNo || '—'}</span>
+                          <span className="font-bold text-gray-900 dark:text-slate-100">₹{getPerRoomRent(r).toLocaleString('en-IN')}</span>
                         </div>
                       ))}
-                      <div className="flex justify-between text-xs font-bold border-t border-indigo-200 pt-1 mt-1">
-                        <span className="text-indigo-700">Total</span>
-                        <span className="text-gray-900">₹{Number(displayRent || 0).toLocaleString('en-IN')}</span>
+                      <div className="flex justify-between text-xs font-bold border-t border-indigo-200 dark:border-indigo-800 pt-1 mt-1">
+                        <span className="text-indigo-700 dark:text-indigo-300">Total</span>
+                        <span className="text-gray-900 dark:text-slate-100">₹{Number(displayRent || 0).toLocaleString('en-IN')}</span>
                       </div>
                     </div>
                   )}
-                  <p className="col-span-2">Meter No: <span className="font-semibold text-gray-900">{meterLabel}</span></p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-500 dark:text-slate-400">Meter</span>
+                    <span className="font-semibold text-gray-900 dark:text-slate-100 truncate">{meterLabel}</span>
+                  </div>
                   {!isVacant && currentTenant && (
-                    <p className="col-span-2">Tenant: <span className="font-semibold text-green-700">👤 {currentTenant.name}</span>{isMulti && <span className="ml-1 text-xs text-indigo-600 font-semibold">· Multi-room</span>}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-gray-500 dark:text-slate-400">Tenant</span>
+                      <span className="font-semibold text-green-700 dark:text-green-400 truncate">👤 {currentTenant.name}</span>
+                    </div>
                   )}
                   {isVacant && lastTenant && (
-                    <p className="col-span-2 text-xs text-orange-700 bg-orange-50 rounded px-2 py-1">
+                    <p className="text-xs text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30 rounded px-2 py-1">
                       Last: <span className="font-semibold">{lastTenant.name}</span>
-                      {lastTenant.checkOutDate && <> · Checkout: <span className="font-semibold">{fmtDate(lastTenant.checkOutDate)}</span></>}
+                      {lastTenant.checkOutDate && <> · {fmtDate(lastTenant.checkOutDate)}</>}
                     </p>
                   )}
                   {isVacant && meterInfo?.reading != null && (
-                    <p className="col-span-2 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">
+                    <p className="text-xs text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/30 rounded px-2 py-1">
                       Last Meter: <span className="font-semibold">{meterInfo.reading} units</span>
                     </p>
                   )}
-                  <p className="col-span-2 text-xs text-gray-400">Updated: {lastUpdated ? fmtDate(lastUpdated) : 'Never'}</p>
                 </div>
 
-                <button
-                  onClick={() => openStatusModal(primaryRoom)}
-                  className={`mt-3 w-full py-1.5 rounded-lg text-xs font-semibold border transition ${
-                    isVacant
-                      ? 'border-green-400 text-green-700 hover:bg-green-50'
-                      : 'border-orange-400 text-orange-700 hover:bg-orange-50'
-                  }`}
-                >
-                  {isVacant ? '✅ Mark Occupied' : '⬜ Mark Vacant'}
-                </button>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-gray-400 dark:text-slate-500">Updated: {lastUpdated ? fmtDate(lastUpdated) : 'Never'}</span>
+                  <button
+                    onClick={() => openStatusModal(primaryRoom)}
+                    className={`py-1 px-3 rounded-lg text-xs font-semibold border transition ${
+                      isVacant
+                        ? 'border-green-400 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/40'
+                        : 'border-orange-400 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40'
+                    }`}
+                  >
+                    {isVacant ? '✅ Mark Occupied' : '⬜ Mark Vacant'}
+                  </button>
+                </div>
               </div>
             );
           })}
+          </div>
         </div>
       ) : (
         <div className="card overflow-x-auto">
