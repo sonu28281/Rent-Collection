@@ -980,7 +980,7 @@ const Tenants = () => {
         </div>
       ) : (
         <div className="card overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tenant</th>
@@ -996,7 +996,7 @@ const Tenants = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-gray-200 dark:divide-slate-700">
               {sortedTenants.map(tenant => {
                 const isKycVerified = tenant?.kyc?.verified === true && tenant?.kyc?.verifiedBy === 'DigiLocker';
                 // Calculate duration
@@ -1021,7 +1021,7 @@ const Tenants = () => {
                 };
 
                 return (
-                  <tr key={tenant.id} className={tenant.isActive ? 'bg-green-50' : 'bg-gray-50'}>
+                  <tr key={tenant.id} className={tenant.isActive ? 'bg-green-50 dark:bg-green-950/25' : 'bg-gray-50 dark:bg-slate-800/40'}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold text-gray-900">{tenant.name}</div>
                     </td>
