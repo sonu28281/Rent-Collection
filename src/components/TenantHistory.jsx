@@ -719,8 +719,8 @@ const TenantHistory = () => {
       {!loading && stats && selectedTenant && (
         <>
           {/* Tenant Header */}
-          <div className="card mb-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 pb-3 border-b border-indigo-200">
+          <div className="card mb-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200 dark:from-slate-800 dark:to-slate-800 dark:border-slate-700">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 pb-3 border-b border-indigo-200 dark:border-slate-700">
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-2xl font-bold text-gray-800">👤 {selectedTenant.name}</h2>
@@ -904,15 +904,15 @@ const TenantHistory = () => {
 
                               let statusColor = 'bg-green-100 text-green-800';
                               let statusText = 'Paid';
-                              let headerBg = 'bg-green-50 border-green-100';
+                              let headerBg = 'bg-green-50 border-green-100 dark:bg-green-900/30 dark:border-green-800';
                               if (merged.statuses.has('unpaid')) {
                                 statusColor = 'bg-red-100 text-red-800';
                                 statusText = 'Unpaid';
-                                headerBg = 'bg-red-50 border-red-100';
+                                headerBg = 'bg-red-50 border-red-100 dark:bg-red-900/30 dark:border-red-900';
                               } else if (merged.statuses.has('partial')) {
                                 statusColor = 'bg-yellow-100 text-yellow-800';
                                 statusText = merged.statuses.size > 1 ? 'Mixed' : 'Partial';
-                                headerBg = 'bg-yellow-50 border-yellow-100';
+                                headerBg = 'bg-yellow-50 border-yellow-100 dark:bg-yellow-900/30 dark:border-yellow-800';
                               }
 
                               return (
@@ -979,7 +979,7 @@ const TenantHistory = () => {
                                                 <p className="text-xs font-semibold text-gray-600 mb-1">⚡ Meter Readings</p>
                                                 <div className="space-y-1">
                                                   {monthMeterReadings.map((reading, idx) => (
-                                                    <div key={idx} className="bg-blue-50 rounded px-2 py-1 text-xs">
+                                                    <div key={idx} className="bg-blue-50 dark:bg-slate-700 rounded px-2 py-1 text-xs">
                                                       <span className="text-gray-500">Prev</span> <span className="font-semibold">{reading.previousReading}</span>
                                                       <span className="mx-1 text-gray-400">→</span>
                                                       <span className="text-gray-500">Curr</span> <span className="font-semibold">{reading.currentReading}</span>
@@ -1172,8 +1172,8 @@ const TenantHistory = () => {
 
           {/* Meter History Section */}
           {meterHistory.length > 0 && (
-            <div className="card bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200">
-              <h3 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-blue-200">⚡ Meter Reading History</h3>
+            <div className="card bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 dark:from-slate-800 dark:to-slate-800 dark:border-slate-700">
+              <h3 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-blue-200 dark:border-slate-700">⚡ Meter Reading History</h3>
               
               {isMobileViewport ? (
                 <div className="space-y-3">
@@ -1184,7 +1184,7 @@ const TenantHistory = () => {
                     const totalCharge = Number(reading.totalCharge ?? 0);
                     
                     return (
-                      <div key={reading.id} className="bg-white rounded-lg border border-blue-200 p-4 space-y-2">
+                      <div key={reading.id} className="bg-white rounded-lg border border-blue-200 dark:border-slate-700 p-4 space-y-2">
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="font-semibold text-gray-800">{monthLabel}</h4>
                           <span className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700">Meter</span>
@@ -1198,13 +1198,13 @@ const TenantHistory = () => {
                             <p className="text-xs text-gray-600">Current Reading</p>
                             <p className="font-mono font-bold text-gray-800">{reading.currentReading}</p>
                           </div>
-                          <div className="bg-blue-50 p-2 rounded">
-                            <p className="text-xs text-blue-600">Units Consumed</p>
-                            <p className="font-bold text-blue-800">{unitsConsumed} units</p>
+                          <div className="bg-blue-50 dark:bg-slate-700 p-2 rounded">
+                            <p className="text-xs text-blue-600 dark:text-blue-300">Units Consumed</p>
+                            <p className="font-bold text-blue-800 dark:text-blue-200">{unitsConsumed} units</p>
                           </div>
-                          <div className="bg-green-50 p-2 rounded">
-                            <p className="text-xs text-green-600">Charge</p>
-                            <p className="font-bold text-green-800">₹{totalCharge.toFixed(2)}</p>
+                          <div className="bg-green-50 dark:bg-slate-700 p-2 rounded">
+                            <p className="text-xs text-green-600 dark:text-green-300">Charge</p>
+                            <p className="font-bold text-green-800 dark:text-green-200">₹{totalCharge.toFixed(2)}</p>
                           </div>
                         </div>
                         <p className="text-xs text-gray-500 pt-1 border-t border-gray-200">
@@ -1215,9 +1215,9 @@ const TenantHistory = () => {
                   })}
                 </div>
               ) : (
-                <div className="overflow-x-auto border border-blue-200 rounded-lg">
+                <div className="overflow-x-auto border border-blue-200 dark:border-slate-700 rounded-lg">
                   <table className="w-full text-sm">
-                    <thead className="bg-blue-100 sticky top-0">
+                    <thead className="bg-blue-100 dark:bg-slate-700 sticky top-0">
                       <tr>
                         <th className="px-3 py-2 text-left font-semibold text-gray-700">Date</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-700">Previous Reading</th>
