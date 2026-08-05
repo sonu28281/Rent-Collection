@@ -1,7 +1,12 @@
+import { useState } from 'react';
+
 // Dependency-free SVG line chart of year-wise Rent vs Electricity collection.
 // Each series is scaled to its own range so the up/down TREND of both is clearly
-// visible despite very different magnitudes. Theme-aware (light + dark).
+// visible despite very different magnitudes. Hovering a year shows a tooltip with
+// the exact figures. Theme-aware (light + dark).
 const YearlyTrendChart = ({ data }) => {
+  const [hoverIdx, setHoverIdx] = useState(null);
+
   const years = [...(data || [])]
     .filter((y) => y && Number.isFinite(Number(y.year)))
     .sort((a, b) => Number(a.year) - Number(b.year));
@@ -71,17 +76,54 @@ const YearlyTrendChart = ({ data }) => {
 
         {years.map((y, i) => (
           <g key={y.year}>
-            <circle cx={xAt(i)} cy={yElec(y.electricityIncome)} r="3.5" fill="#f59e0b" stroke="#fff" strokeWidth="1" className="dark:[stroke:#1e293b]">
-              <title>{`${y.year} · Electricity ${inr(y.electricityIncome)}`}</title>
-            </circle>
-            <circle cx={xAt(i)} cy={yRent(y.rentIncome)} r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="1" className="dark:[stroke:#1e293b]">
-              <title>{`${y.year} · Rent ${inr(y.rentIncome)}`}</title>
-            </circle>
-            <text x={xAt(i)} y={H - 12} textAnchor="middle" fontSize="12" className="fill-gray-400 dark:fill-slate-500 font-semibold">{y.year}</text>
+            <circle cx={xAt(i)} cy={yElec(y.electricityIncome)} r="3.5" fill="#f59e0b" stroke="#fff" strokeWidth="1" className="dark:[stroke:#1e293b]" />
+            <circle cx={xAt(i)} cy={yRent(y.rentIncome)} r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="1" className="dark:[stroke:#1e293b]" />
+            <text x={xAt(i)} y={H - 12} textAnchor="middle" fontSize="12" className={`font-semibold ${hoverIdx === i ? 'fill-gray-700 dark:fill-slate-200' : 'fill-gray-400 dark:fill-slate-500'}`}>{y.year}</text>
           </g>
         ))}
+
+        {/* Hover hit areas (one column per year) */}
+        {years.map((y, i) => (
+          <rect
+            key={`hit-${y.year}`}
+            x={Math.max(0, xAt(i) - stepX / 2)}
+            y={padT}
+            width={stepX}
+            height={plotH}
+            fill="transparent"
+            onMouseEnter={() => setHoverIdx(i)}
+            onMouseMove={() => setHoverIdx(i)}
+            onMouseLeave={() => setHoverIdx(null)}
+            onTouchStart={() => setHoverIdx(i)}
+          />
+        ))}
+
+        {/* Tooltip */}
+        {hoverIdx != null && (() => {
+          const y = years[hoverIdx];
+          const cx = xAt(hoverIdx);
+          const boxW = 158;
+          const boxH = 66;
+          let bx = cx + 12;
+          if (bx + boxW > W - padR) bx = cx - 12 - boxW;
+          if (bx < padL) bx = padL;
+          const by = padT + 4;
+          return (
+            <g pointerEvents="none">
+              <line x1={cx} x2={cx} y1={padT} y2={padT + plotH} className="stroke-gray-300 dark:stroke-slate-600" strokeWidth="1" strokeDasharray="3 3" />
+              <circle cx={cx} cy={yElec(y.electricityIncome)} r="5" fill="#f59e0b" stroke="#fff" strokeWidth="1.5" />
+              <circle cx={cx} cy={yRent(y.rentIncome)} r="5" fill="#6366f1" stroke="#fff" strokeWidth="1.5" />
+              <rect x={bx} y={by} width={boxW} height={boxH} rx="8" fill="#0f172a" opacity="0.96" />
+              <text x={bx + 12} y={by + 20} fill="#ffffff" fontSize="14" fontWeight="700">{y.year}</text>
+              <circle cx={bx + 15} cy={by + 36} r="4" fill="#818cf8" />
+              <text x={bx + 25} y={by + 40} fill="#e2e8f0" fontSize="12.5">Rent {inr(y.rentIncome)}</text>
+              <circle cx={bx + 15} cy={by + 54} r="4" fill="#fbbf24" />
+              <text x={bx + 25} y={by + 58} fill="#e2e8f0" fontSize="12.5">Elec {inr(y.electricityIncome)}</text>
+            </g>
+          );
+        })()}
       </svg>
-      <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-1 text-center">Each line is scaled to its own range — shape shows the year-over-year trend, not absolute size. Hover a dot for the value.</p>
+      <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-1 text-center">Each line is scaled to its own range — shape shows the year-over-year trend, not absolute size. Hover the chart for exact figures.</p>
     </div>
   );
 };
