@@ -57,6 +57,16 @@ html.dark body {
 .dark .bg-gray-200 { background-color: #334155 !important; }
 .dark .bg-slate-50 { background-color: #172033 !important; }
 
+/* Hover backgrounds that would otherwise stay light in dark mode (e.g. sidebar
+   nav items), which made hovered text unreadable. */
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover,
+.dark .hover\:bg-gray-200:hover { background-color: #334155 !important; }
+.dark .hover\:bg-blue-50:hover,
+.dark .hover\:bg-indigo-50:hover,
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-100:hover { background-color: #1e293b !important; }
+
 /* Neutral text → light */
 .dark .text-gray-900,
 .dark .text-gray-800,
