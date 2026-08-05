@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { getTotalLifetimeIncome, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary, getTodaysCollection } from '../utils/financial';
 import { setCollectionProgress } from '../utils/collectionProgress';
+import YearlyTrendChart from './YearlyTrendChart';
 import ViewModeToggle from './ui/ViewModeToggle';
 import LiveDateTime from './ui/LiveDateTime';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
@@ -1161,6 +1162,9 @@ const Dashboard = () => {
               </p>
             </div>
           </div>
+
+          {/* Year-wise trend chart */}
+          {!loading && yearlyData.length >= 2 && <YearlyTrendChart data={yearlyData} />}
 
           {/* Yearly Summary */}
           <div className="mb-6">
