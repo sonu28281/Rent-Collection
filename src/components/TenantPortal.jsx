@@ -830,6 +830,12 @@ const TenantPortal = () => {
     };
   };
 
+  // The tenant portal is always light — it has no theme toggle and isn't designed
+  // for dark mode. Force the dark class off so tenants never get stuck in dark.
+  useEffect(() => {
+    document.documentElement.classList.remove('dark');
+  }, []);
+
   useEffect(() => {
     const manifestLink = document.querySelector('link[rel="manifest"]');
     if (manifestLink && manifestLink.getAttribute('href') !== '/manifest-tenant.webmanifest') {

@@ -16,11 +16,11 @@ export const getStoredTheme = () => {
 export const getEffectiveTheme = () => {
   const stored = getStoredTheme();
   if (stored === 'dark' || stored === 'light') return stored;
-  try {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  } catch {
-    return 'light';
-  }
+  // Default to light when the user hasn't explicitly chosen. We intentionally do
+  // NOT auto-follow the OS dark preference: the tenant portal (a separate origin
+  // with no theme toggle) would otherwise get stuck in dark mode with no way to
+  // switch. Admins opt into dark via the top-bar toggle, which persists here.
+  return 'light';
 };
 
 export const applyTheme = (theme) => {
