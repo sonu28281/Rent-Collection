@@ -587,84 +587,92 @@ const Dashboard = () => {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
+              <div className="group relative overflow-hidden bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200/70 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+                <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-blue-200/40 blur-xl" />
+                <div className="relative flex items-center justify-between">
                   <div>
                     <p className="text-blue-700 text-sm font-semibold mb-1">Expected Total</p>
-                    <p className="text-2xl font-bold text-blue-900">
+                    <p className="text-2xl font-bold text-blue-900 tracking-tight">
                       ₹{currentMonthSummary.totalExpected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                     </p>
                     <p className="text-blue-600 text-xs mt-1">Rent + electricity to collect</p>
                   </div>
-                  <div className="text-3xl">💰</div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/70 text-2xl shadow-inner ring-1 ring-blue-200 group-hover:scale-110 transition-transform">💰</div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
+              <div className="group relative overflow-hidden bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200/70 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+                <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-emerald-200/40 blur-xl" />
+                <div className="relative flex items-center justify-between">
                   <div>
                     <p className="text-green-700 text-sm font-semibold mb-1">Collected</p>
-                    <p className="text-2xl font-bold text-green-900">
+                    <p className="text-2xl font-bold text-green-900 tracking-tight">
                       ₹{currentMonthSummary.totalCollected.toLocaleString('en-IN')}
                     </p>
                     <p className="text-green-600 text-xs mt-1">
                       {currentMonthSummary.paidCount} tenants paid
                     </p>
                   </div>
-                  <div className="text-3xl">✅</div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/70 text-2xl shadow-inner ring-1 ring-green-200 group-hover:scale-110 transition-transform">✅</div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
+              <div className="group relative overflow-hidden bg-gradient-to-br from-orange-50 to-amber-100 border border-orange-200/70 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+                <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-amber-200/40 blur-xl" />
+                <div className="relative flex items-center justify-between">
                   <div>
                     <p className="text-orange-700 text-sm font-semibold mb-1">Pending</p>
-                    <p className="text-2xl font-bold text-orange-900">
+                    <p className="text-2xl font-bold text-orange-900 tracking-tight">
                       ₹{currentMonthSummary.totalDue.toLocaleString('en-IN')}
                     </p>
                     <p className="text-orange-600 text-xs mt-1">
                       {currentMonthSummary.pendingCount} tenants due
                     </p>
                   </div>
-                  <div className="text-3xl">⏳</div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/70 text-2xl shadow-inner ring-1 ring-orange-200 group-hover:scale-110 transition-transform">⏳</div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
+              <div className="group relative overflow-hidden bg-gradient-to-br from-purple-50 to-fuchsia-100 border border-purple-200/70 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+                <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-fuchsia-200/40 blur-xl" />
+                <div className="relative flex items-center justify-between">
                   <div>
                     <p className="text-purple-700 text-sm font-semibold mb-1">Today&apos;s Collection</p>
-                    <p className="text-2xl font-bold text-purple-900">
+                    <p className="text-2xl font-bold text-purple-900 tracking-tight">
                       {loading ? '...' : `₹${todaysCollection.amount.toLocaleString('en-IN')}`}
                     </p>
                     <p className="text-purple-600 text-xs mt-1">
                       {loading ? 'Loading...' : `${todaysCollection.count} payment${todaysCollection.count !== 1 ? 's' : ''}`}
                     </p>
                   </div>
-                  <div className="text-3xl">💵</div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/70 text-2xl shadow-inner ring-1 ring-purple-200 group-hover:scale-110 transition-transform">💵</div>
                 </div>
               </div>
             </div>
 
             {/* Collection Progress */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="font-semibold text-gray-700">Collection Progress</span>
-                <span className="text-gray-600">
-                  {currentMonthSummary.totalExpected > 0 
+            <div className="mb-6 rounded-2xl border border-gray-200/80 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-semibold text-gray-700 flex items-center gap-2"><span className="text-lg">📈</span> Collection Progress</span>
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-sm font-bold text-emerald-700 ring-1 ring-emerald-200">
+                  {currentMonthSummary.totalExpected > 0
                     ? ((currentMonthSummary.totalCollected / currentMonthSummary.totalExpected) * 100).toFixed(1)
                     : 0}%
                 </span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div 
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 h-3 rounded-full transition-all duration-500"
-                  style={{ 
-                    width: currentMonthSummary.totalExpected > 0 
+              <div className="w-full bg-gray-100 rounded-full h-3.5 overflow-hidden ring-1 ring-inset ring-gray-200">
+                <div
+                  className="bg-gradient-to-r from-green-400 via-emerald-500 to-teal-500 h-full rounded-full transition-all duration-700 ease-out shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                  style={{
+                    width: currentMonthSummary.totalExpected > 0
                       ? `${Math.min((currentMonthSummary.totalCollected / currentMonthSummary.totalExpected) * 100, 100)}%`
                       : '0%'
                   }}
                 ></div>
+              </div>
+              <div className="mt-2 flex justify-between text-xs text-gray-500">
+                <span>Collected ₹{currentMonthSummary.totalCollected.toLocaleString('en-IN')}</span>
+                <span>Target ₹{currentMonthSummary.totalExpected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
               </div>
             </div>
 
@@ -845,10 +853,13 @@ const Dashboard = () => {
                     const vacantRooms = getVacantRoomsForFloor(floor1, 1);
                     return (
                       <div>
-                        <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                          <span className="text-xl">🏠</span>
-                          Floor 1 - Ground Floor ({floor1RoomCount} occupied, {floor1.length} tenants: {paidCount} paid, {pendingCount} pending{vacantRooms.length > 0 ? `, ${vacantRooms.length} vacant` : ''})
-                        </h4>
+                        <div className="mb-3 flex items-center gap-3 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 px-4 py-2.5 text-white shadow-sm">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20 text-xl">🏠</span>
+                          <div className="min-w-0">
+                            <p className="font-bold leading-tight">Floor 1 · Ground Floor</p>
+                            <p className="text-[11px] text-white/85">{floor1RoomCount} occupied · {floor1.length} tenants · {paidCount} paid · {pendingCount} pending{vacantRooms.length > 0 ? ` · ${vacantRooms.length} vacant` : ''}</p>
+                          </div>
+                        </div>
                         {vacantRooms.length > 0 && (
                           <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
                             <span className="font-semibold text-red-600">🔴 Vacant ({vacantRooms.length}):</span>
@@ -862,7 +873,7 @@ const Dashboard = () => {
                             {floor1.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
-                                <div key={tenant.id} className={`rounded-lg border p-3 ${isPaid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                <div key={tenant.id} className={`relative rounded-xl border border-l-4 p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${isPaid ? 'bg-gradient-to-br from-green-50 to-white border-green-200 border-l-green-500' : 'bg-gradient-to-br from-red-50 to-white border-red-200 border-l-red-500'}`}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
@@ -1046,10 +1057,13 @@ const Dashboard = () => {
                     const vacantRooms = getVacantRoomsForFloor(floor2, 2);
                     return (
                       <div>
-                        <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                          <span className="text-xl">🏢</span>
-                          Floor 2 - First Floor ({floor2RoomCount} occupied, {floor2.length} tenants: {paidCount} paid, {pendingCount} pending{vacantRooms.length > 0 ? `, ${vacantRooms.length} vacant` : ''})
-                        </h4>
+                        <div className="mb-3 flex items-center gap-3 rounded-xl bg-gradient-to-r from-fuchsia-500 to-purple-500 px-4 py-2.5 text-white shadow-sm">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20 text-xl">🏢</span>
+                          <div className="min-w-0">
+                            <p className="font-bold leading-tight">Floor 2 · First Floor</p>
+                            <p className="text-[11px] text-white/85">{floor2RoomCount} occupied · {floor2.length} tenants · {paidCount} paid · {pendingCount} pending{vacantRooms.length > 0 ? ` · ${vacantRooms.length} vacant` : ''}</p>
+                          </div>
+                        </div>
                         {vacantRooms.length > 0 && (
                           <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
                             <span className="font-semibold text-red-600">🔴 Vacant ({vacantRooms.length}):</span>
@@ -1063,7 +1077,7 @@ const Dashboard = () => {
                             {floor2.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
-                                <div key={tenant.id} className={`rounded-lg border p-3 ${isPaid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                <div key={tenant.id} className={`relative rounded-xl border border-l-4 p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${isPaid ? 'bg-gradient-to-br from-green-50 to-white border-green-200 border-l-green-500' : 'bg-gradient-to-br from-red-50 to-white border-red-200 border-l-red-500'}`}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
