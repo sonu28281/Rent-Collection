@@ -6,6 +6,25 @@ import AdminCheckoutPanel from './AdminCheckoutPanel';
 import { useDialog } from './ui/DialogProvider';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
 
+// Robustly convert any stored date value into a Date. Imported (pre-2026) records
+// store paymentDate/date as Firestore Timestamp OBJECTS, not strings — feeding
+// those to new Date() yields "Invalid Date", which is why older rows showed
+// "Invalid Date". Handles Timestamps, {seconds}, and plain strings; returns null
+// when unparseable.
+const toDateObj = (v) => {
+  if (!v) return null;
+  if (typeof v === 'object' && typeof v.toDate === 'function') return v.toDate();
+  if (typeof v === 'object' && v.seconds !== undefined) return new Date(v.seconds * 1000);
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const formatDateIN = (v, opts) => {
+  const d = toDateObj(v);
+  if (!d) return '-';
+  return d.toLocaleDateString('en-IN', opts);
+};
+
 const Tenants = () => {
   const { showConfirm, showAlert } = useDialog();
   const [tenants, setTenants] = useState([]);
@@ -437,11 +456,7 @@ const Tenants = () => {
         }
 
         // Source 2: extract meter readings embedded in payment records
-        const toDate = (val) => {
-          if (!val) return new Date(0);
-          const d = new Date(val);
-          return isNaN(d.getTime()) ? new Date(0) : d;
-        };
+        const toDate = (val) => toDateObj(val) || new Date(0);
 
         payments.forEach(payment => {
           const previousReading = Number(payment.oldReading ?? payment.previousReading);
@@ -457,7 +472,7 @@ const Tenants = () => {
           const recordDate = payment.paidDate || payment.paymentDate || payment.createdAt || payment.paidAt;
           const monthLabel = (payment.year && payment.month)
             ? `${new Date(Number(payment.year), Number(payment.month) - 1, 1).toLocaleDateString('en-IN', { month: 'short' })} ${payment.year}`
-            : (recordDate ? new Date(recordDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '');
+            : (recordDate ? formatDateIN(recordDate, { month: 'short', year: 'numeric' }) : '');
 
           const key = `payment_${payment.id}`;
           readingDocs.set(key, {
@@ -1332,7 +1347,9 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
       const paymentTime = payment.paidDate || payment.paymentDate || payment.paidAt;
       if (paymentTime) {
         const currentTime = group.paymentDate;
-        if (!currentTime || new Date(paymentTime) > new Date(currentTime)) {
+        const ptDate = toDateObj(paymentTime);
+        const ctDate = toDateObj(currentTime);
+        if (!ctDate || (ptDate && ptDate > ctDate)) {
           group.paymentDate = paymentTime;
         }
       }
@@ -1363,9 +1380,11 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
           year = Number(parts[1]);
         }
       } else if (reading.readingDate) {
-        const date = new Date(reading.readingDate);
-        year = date.getFullYear();
-        month = date.getMonth() + 1;
+        const date = toDateObj(reading.readingDate);
+        if (date) {
+          year = date.getFullYear();
+          month = date.getMonth() + 1;
+        }
       }
 
       if (!year || !month) return; // Skip if we can't determine period
@@ -1537,9 +1556,7 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
                                 ₹{group.totalPaid.toLocaleString('en-IN')}
                               </td>
                               <td className="px-4 py-3">
-                                {group.paymentDate
-                                  ? new Date(group.paymentDate).toLocaleDateString('en-IN')
-                                  : '-'}
+                                {formatDateIN(group.paymentDate)}
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <span className={`px-2 py-1 rounded text-xs font-semibold ${
@@ -1580,9 +1597,7 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
                                     ₹{paid.toLocaleString('en-IN')}
                                   </td>
                                   <td className="px-4 py-2 text-sm">
-                                    {payment.paidDate || payment.paymentDate || payment.paidAt
-                                      ? new Date(payment.paidDate || payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
-                                      : '-'}
+                                    {formatDateIN(payment.paidDate || payment.paymentDate || payment.paidAt)}
                                   </td>
                                   <td className="px-4 py-2 text-center">
                                     <span className={`px-2 py-0.5 rounded text-xs ${
@@ -1617,9 +1632,7 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
                               ₹{paid.toLocaleString('en-IN')}
                             </td>
                             <td className="px-4 py-3">
-                              {payment.paidDate || payment.paymentDate || payment.paidAt
-                                ? new Date(payment.paidDate || payment.paymentDate || payment.paidAt).toLocaleDateString('en-IN')
-                                : '-'}
+                              {formatDateIN(payment.paidDate || payment.paymentDate || payment.paidAt)}
                             </td>
                             <td className="px-4 py-3 text-center">
                               <span className={`px-2 py-1 rounded text-xs font-semibold ${
@@ -1732,10 +1745,8 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
                         const ratePerUnit = reading.ratePerUnit != null
                           ? Number(reading.ratePerUnit)
                           : (unitsConsumed > 0 && totalCharge > 0 ? totalCharge / unitsConsumed : null);
-                        const label = reading.monthLabel || (() => {
-                          const d = reading.readingDate || reading.createdAt;
-                          return d ? new Date(d).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '-';
-                        })();
+                        const label = reading.monthLabel
+                          || formatDateIN(reading.readingDate || reading.createdAt, { month: 'short', year: 'numeric' });
                         return (
                           <tr key={reading.id} className="hover:bg-blue-50">
                             <td className="px-4 py-3 font-semibold">
