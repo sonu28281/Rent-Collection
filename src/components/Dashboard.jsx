@@ -5,6 +5,7 @@ import { useAuth } from '../AuthContext';
 import { getTotalLifetimeIncome, getYearlyIncomeSummary, getMonthlyIncomeByYear, getCurrentMonthDetailedSummary, getTodaysCollection } from '../utils/financial';
 import { setCollectionProgress } from '../utils/collectionProgress';
 import YearlyTrendChart from './YearlyTrendChart';
+import MonthlyTrendChart from './MonthlyTrendChart';
 import ViewModeToggle from './ui/ViewModeToggle';
 import LiveDateTime from './ui/LiveDateTime';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
@@ -1303,6 +1304,14 @@ const Dashboard = () => {
             )}
             </div>
           </div>
+
+          {/* Month-wise trend for the selected year — updates when a row is
+              clicked in the yearly table/cards above. */}
+          {selectedYear && monthlyData.length > 0 && (
+            <div className="mb-6">
+              <MonthlyTrendChart data={monthlyData} year={selectedYear} />
+            </div>
+          )}
 
           {/* Monthly Breakdown (collapsible) */}
           {selectedYear && monthlyData.length > 0 && (
