@@ -1235,33 +1235,46 @@ const Dashboard = () => {
                 ))}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('yearly', 'year')}>Year{getSortIndicator('yearly', 'year')}</th>
-                      <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('yearly', 'rentIncome')}>Rent Income{getSortIndicator('yearly', 'rentIncome')}</th>
-                      <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('yearly', 'electricityIncome')}>Electricity{getSortIndicator('yearly', 'electricityIncome')}</th>
-                      <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('yearly', 'totalIncome')}>Total Income{getSortIndicator('yearly', 'totalIncome')}</th>
-                      <th className="px-3 py-2 text-center cursor-pointer select-none" onClick={() => handleTableSort('yearly', 'paymentCount')}>Payments{getSortIndicator('yearly', 'paymentCount')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortYearlyRows(yearlyData).map((year) => (
-                      <tr
-                        key={year.year}
-                        className={`border-b hover:bg-gray-50 cursor-pointer ${selectedYear === year.year ? 'bg-blue-50' : ''}`}
-                        onClick={() => setSelectedYear(year.year)}
-                      >
-                        <td className="px-3 py-2 font-semibold">{year.year}</td>
-                        <td className="px-3 py-2 text-right">₹{year.rentIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-                        <td className="px-3 py-2 text-right">₹{year.electricityIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-green-600">₹{year.totalIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-                        <td className="px-3 py-2 text-center">{year.paymentCount}</td>
+              <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gradient-to-r from-gray-50 to-slate-100 dark:from-slate-800 dark:to-slate-800">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('yearly', 'year')}>Year{getSortIndicator('yearly', 'year')}</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('yearly', 'rentIncome')}>Rent Income{getSortIndicator('yearly', 'rentIncome')}</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('yearly', 'electricityIncome')}>Electricity{getSortIndicator('yearly', 'electricityIncome')}</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('yearly', 'totalIncome')}>Total Income{getSortIndicator('yearly', 'totalIncome')}</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('yearly', 'paymentCount')}>Payments{getSortIndicator('yearly', 'paymentCount')}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                      {sortYearlyRows(yearlyData).map((year) => {
+                        const isSelected = selectedYear === year.year;
+                        return (
+                          <tr
+                            key={year.year}
+                            className={`cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'bg-indigo-50 dark:bg-indigo-950/40 ring-1 ring-inset ring-indigo-200 dark:ring-indigo-800'
+                                : 'hover:bg-gray-50 dark:hover:bg-slate-700/60'
+                            }`}
+                            onClick={() => setSelectedYear(year.year)}
+                          >
+                            <td className="px-4 py-3 font-bold text-gray-900 dark:text-slate-100">{year.year}</td>
+                            <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-300">₹{year.rentIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                            <td className="px-4 py-3 text-right text-blue-700 dark:text-blue-400">₹{year.electricityIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                            <td className="px-4 py-3 text-right font-bold text-green-600 dark:text-green-400">₹{year.totalIncome.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-full text-xs font-bold bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200">
+                                {year.paymentCount}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
