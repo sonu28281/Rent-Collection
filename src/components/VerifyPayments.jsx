@@ -724,8 +724,8 @@ const VerifyPayments = () => {
     <div className="p-4 lg:p-8">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">🔍 Verify Payments</h1>
-        <p className="text-gray-600">Review and approve tenant payment submissions</p>
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-slate-100 mb-2">🔍 Verify Payments</h1>
+        <p className="text-gray-600 dark:text-slate-400">Review and approve tenant payment submissions</p>
         {notificationPermission !== 'granted' && (
           <button
             type="button"
@@ -743,15 +743,17 @@ const VerifyPayments = () => {
           <button
             key={filterType}
             onClick={() => setFilter(filterType)}
-            className={`px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition ${
+            className={`px-4 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
               filter === filterType
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm'
+                : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
             }`}
           >
             {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
             {filterType !== 'all' && (
-              <span className="ml-2 bg-white bg-opacity-30 px-2 py-0.5 rounded-full text-xs">
+              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                filter === filterType ? 'bg-white/25' : 'bg-black/5 dark:bg-white/10'
+              }`}>
                 {submissions.filter(s => s.status === filterType).length}
               </span>
             )}
@@ -772,32 +774,50 @@ const VerifyPayments = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="text-2xl font-bold text-yellow-800">
-            {submissions.filter(s => s.status === 'pending').length}
+        <div className="group relative overflow-hidden bg-gradient-to-br from-yellow-50 to-amber-100 dark:from-yellow-950/40 dark:to-amber-950/30 border border-yellow-200 dark:border-yellow-800 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-amber-200/40 dark:bg-amber-800/20 blur-xl" />
+          <div className="relative flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-yellow-800 dark:text-yellow-300">
+                {submissions.filter(s => s.status === 'pending').length}
+              </div>
+              <div className="text-sm font-semibold text-yellow-700 dark:text-yellow-400">Pending Review</div>
+            </div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/70 dark:bg-slate-800/60 text-xl shadow-inner ring-1 ring-yellow-200 dark:ring-yellow-800 group-hover:scale-110 transition-transform">⏳</div>
           </div>
-          <div className="text-sm text-yellow-700">Pending Review</div>
         </div>
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="text-2xl font-bold text-green-800">
-            {submissions.filter(s => s.status === 'verified').length}
+        <div className="group relative overflow-hidden bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-950/40 dark:to-emerald-950/30 border border-green-200 dark:border-green-800 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-emerald-200/40 dark:bg-emerald-800/20 blur-xl" />
+          <div className="relative flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-green-800 dark:text-green-300">
+                {submissions.filter(s => s.status === 'verified').length}
+              </div>
+              <div className="text-sm font-semibold text-green-700 dark:text-green-400">Verified</div>
+            </div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/70 dark:bg-slate-800/60 text-xl shadow-inner ring-1 ring-green-200 dark:ring-green-800 group-hover:scale-110 transition-transform">✅</div>
           </div>
-          <div className="text-sm text-green-700">Verified</div>
         </div>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="text-2xl font-bold text-red-800">
-            {submissions.filter(s => s.status === 'rejected').length}
+        <div className="group relative overflow-hidden bg-gradient-to-br from-red-50 to-rose-100 dark:from-red-950/40 dark:to-rose-950/30 border border-red-200 dark:border-red-800 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-rose-200/40 dark:bg-rose-800/20 blur-xl" />
+          <div className="relative flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-red-800 dark:text-red-300">
+                {submissions.filter(s => s.status === 'rejected').length}
+              </div>
+              <div className="text-sm font-semibold text-red-700 dark:text-red-400">Rejected</div>
+            </div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/70 dark:bg-slate-800/60 text-xl shadow-inner ring-1 ring-red-200 dark:ring-red-800 group-hover:scale-110 transition-transform">❌</div>
           </div>
-          <div className="text-sm text-red-700">Rejected</div>
         </div>
       </div>
 
       {/* Submissions List */}
       {submissions.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700 p-8 text-center">
           <div className="text-6xl mb-4">📭</div>
-          <h3 className="text-xl font-semibold text-gray-700 mb-2">No submissions found</h3>
-          <p className="text-gray-500">
+          <h3 className="text-xl font-semibold text-gray-700 dark:text-slate-200 mb-2">No submissions found</h3>
+          <p className="text-gray-500 dark:text-slate-400">
             {filter === 'pending' ? 'All caught up! No pending payments to review.' : `No ${filter} submissions.`}
           </p>
         </div>
@@ -815,7 +835,7 @@ const VerifyPayments = () => {
               const ocrBadge = getOcrBadge(submission.id);
 
               return (
-            <div key={submission.id} className="bg-white rounded-lg shadow-md border-2 border-gray-200 overflow-hidden">
+            <div key={submission.id} className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 dark:border-slate-700 overflow-hidden">
               {/* Collapsed Header - Always Visible */}
               <div 
                 onClick={() => toggleSubmission(submission.id)}
@@ -877,65 +897,65 @@ const VerifyPayments = () => {
                       )}
 
                       {/* Payment Details Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                        <div>
-                          <label className="text-xs text-gray-500 font-semibold">Payment Date</label>
-                          <p className="text-sm font-bold">{submission.paidDate || '-'}</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        <div className="bg-gray-50 dark:bg-slate-700/60 rounded-lg p-2.5 ring-1 ring-gray-200 dark:ring-slate-600">
+                          <label className="text-[10px] text-gray-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Payment Date</label>
+                          <p className="text-sm font-bold text-gray-900 dark:text-slate-100">{submission.paidDate || '-'}</p>
                         </div>
-                        <div>
-                          <label className="text-xs text-gray-500 font-semibold">Month/Year</label>
-                          <p className="text-sm font-bold">{submission.month}/{submission.year}</p>
+                        <div className="bg-gray-50 dark:bg-slate-700/60 rounded-lg p-2.5 ring-1 ring-gray-200 dark:ring-slate-600">
+                          <label className="text-[10px] text-gray-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Month/Year</label>
+                          <p className="text-sm font-bold text-gray-900 dark:text-slate-100">{submission.month}/{submission.year}</p>
                         </div>
-                        <div>
-                          <label className="text-xs text-gray-500 font-semibold">UTR Number</label>
-                          <p className="text-xs font-mono font-bold break-all">{safeUtr || '-'}</p>
+                        <div className="bg-gray-50 dark:bg-slate-700/60 rounded-lg p-2.5 ring-1 ring-gray-200 dark:ring-slate-600">
+                          <label className="text-[10px] text-gray-500 dark:text-slate-400 font-semibold uppercase tracking-wide">UTR Number</label>
+                          <p className="text-xs font-mono font-bold break-all text-gray-900 dark:text-slate-100">{safeUtr || '-'}</p>
                         </div>
-                        <div>
-                          <label className="text-xs text-gray-500 font-semibold">Rent</label>
-                          <p className="text-sm font-bold">₹{submission.rentAmount?.toLocaleString('en-IN')}</p>
+                        <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-2.5 ring-1 ring-blue-200 dark:ring-blue-800">
+                          <label className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wide">Rent</label>
+                          <p className="text-sm font-bold text-blue-700 dark:text-blue-300">₹{submission.rentAmount?.toLocaleString('en-IN')}</p>
                         </div>
-                        <div>
-                          <label className="text-xs text-gray-500 font-semibold">Electricity</label>
-                          <p className="text-sm font-bold">
+                        <div className="bg-purple-50 dark:bg-purple-950/30 rounded-lg p-2.5 ring-1 ring-purple-200 dark:ring-purple-800">
+                          <label className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold uppercase tracking-wide">Electricity</label>
+                          <p className="text-sm font-bold text-purple-700 dark:text-purple-300">
                             ₹{submission.electricityAmount?.toFixed(2)}
                             {submission.unitsConsumed > 0 && submission.electricityAmount > 0 && (
-                              <span className="text-[10px] text-gray-600 ml-1">
+                              <span className="text-[10px] font-normal text-purple-500 dark:text-purple-400 ml-1">
                                 ({submission.unitsConsumed} × ₹{(submission.electricityAmount / submission.unitsConsumed).toFixed(1)}/unit)
                               </span>
                             )}
                           </p>
                         </div>
-                        <div>
-                          <label className="text-xs text-gray-500 font-semibold">Total Paid</label>
-                          <p className="text-sm font-bold text-green-600">₹{paidAmount.toLocaleString('en-IN')}</p>
+                        <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-2.5 ring-1 ring-green-200 dark:ring-green-800">
+                          <label className="text-[10px] text-green-600 dark:text-green-400 font-semibold uppercase tracking-wide">Total Paid</label>
+                          <p className="text-sm font-bold text-green-700 dark:text-green-300">₹{paidAmount.toLocaleString('en-IN')}</p>
                         </div>
-                        <div>
-                          <label className="text-xs text-gray-500 font-semibold">Total Payable</label>
-                          <p className="text-sm font-bold">₹{totalPayable.toLocaleString('en-IN')}</p>
+                        <div className="bg-gray-50 dark:bg-slate-700/60 rounded-lg p-2.5 ring-1 ring-gray-200 dark:ring-slate-600">
+                          <label className="text-[10px] text-gray-500 dark:text-slate-400 font-semibold uppercase tracking-wide">Total Payable</label>
+                          <p className="text-sm font-bold text-gray-900 dark:text-slate-100">₹{totalPayable.toLocaleString('en-IN')}</p>
                         </div>
-                        <div>
-                          <label className="text-xs text-gray-500 font-semibold">Balance</label>
-                          <p className={`text-sm font-bold ${balanceAmount > 0 ? 'text-amber-700' : 'text-green-700'}`}>
+                        <div className={`rounded-lg p-2.5 ring-1 ${balanceAmount > 0 ? 'bg-amber-50 dark:bg-amber-950/30 ring-amber-200 dark:ring-amber-800' : 'bg-green-50 dark:bg-green-950/30 ring-green-200 dark:ring-green-800'}`}>
+                          <label className={`text-[10px] font-semibold uppercase tracking-wide ${balanceAmount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>Balance</label>
+                          <p className={`text-sm font-bold ${balanceAmount > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-green-700 dark:text-green-300'}`}>
                             ₹{balanceAmount.toLocaleString('en-IN')}
                           </p>
                         </div>
-                        <div>
-                          <label className="text-xs text-gray-500 font-semibold">Meter Reading</label>
-                          <p className="text-xs font-bold">{submission.previousReading} → {submission.meterReading} ({submission.unitsConsumed} Units)</p>
+                        <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-lg p-2.5 ring-1 ring-indigo-200 dark:ring-indigo-800">
+                          <label className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold uppercase tracking-wide">Meter Reading</label>
+                          <p className="text-xs font-bold text-indigo-700 dark:text-indigo-300">{submission.previousReading} → {submission.meterReading} ({submission.unitsConsumed} Units)</p>
                         </div>
                       </div>
 
                       {/* Partial Payment Warning */}
                       {isPartial && (
-                        <div className="bg-amber-50 border border-amber-300 rounded-lg p-2.5">
-                          <p className="text-xs font-semibold text-amber-900">⚠️ Partial Payment: ₹{paidAmount.toLocaleString('en-IN')} / ₹{totalPayable.toLocaleString('en-IN')} • Balance: ₹{balanceAmount.toLocaleString('en-IN')}</p>
+                        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-lg p-2.5">
+                          <p className="text-xs font-semibold text-amber-900 dark:text-amber-300">⚠️ Partial Payment: ₹{paidAmount.toLocaleString('en-IN')} / ₹{totalPayable.toLocaleString('en-IN')} • Balance: ₹{balanceAmount.toLocaleString('en-IN')}</p>
                         </div>
                       )}
 
                       {/* OCR Check Results with Visual Indicators */}
                       {ocrChecks[submission.id]?.status && ocrChecks[submission.id]?.status !== 'checking' && (
-                        <div className="bg-indigo-50 border border-indigo-300 rounded-lg p-2">
-                          <p className="text-xs font-bold text-indigo-900 mb-1.5">🔍 OCR Verification:</p>
+                        <div className="bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-300 dark:border-indigo-800 rounded-lg p-2">
+                          <p className="text-xs font-bold text-indigo-900 dark:text-indigo-300 mb-1.5">🔍 OCR Verification:</p>
                           
                           {(() => {
                             const enteredUtr = normalizeUtr(getSubmissionUtr(submission));
@@ -953,8 +973,8 @@ const VerifyPayments = () => {
                                 {/* UTR Check - One Line */}
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-sm">{utrMatch ? '✅' : '❌'}</span>
-                                  <span className="text-[11px] font-semibold text-gray-700">UTR:</span>
-                                  <span className={`text-[11px] font-mono ${utrMatch ? 'text-green-700' : 'text-red-700'} flex-1 truncate`}>
+                                  <span className="text-[11px] font-semibold text-gray-700 dark:text-slate-300">UTR:</span>
+                                  <span className={`text-[11px] font-mono ${utrMatch ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'} flex-1 truncate`}>
                                     {enteredUtr || '-'} {extractedUtr && `(OCR: ${extractedUtr})`}
                                   </span>
                                 </div>
@@ -962,8 +982,8 @@ const VerifyPayments = () => {
                                 {/* Payment Date Check - One Line */}
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-sm">{dateMatch ? '✅' : '❌'}</span>
-                                  <span className="text-[11px] font-semibold text-gray-700">Date:</span>
-                                  <span className={`text-[11px] ${dateMatch ? 'text-green-700' : 'text-red-700'}`}>
+                                  <span className="text-[11px] font-semibold text-gray-700 dark:text-slate-300">Date:</span>
+                                  <span className={`text-[11px] ${dateMatch ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
                                     {enteredDate || '-'} {extractedDate && `(OCR: ${extractedDate})`}
                                   </span>
                                 </div>
@@ -971,8 +991,8 @@ const VerifyPayments = () => {
                                 {/* Today Date Check - One Line */}
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-sm">{todayMatch ? '✅' : '❌'}</span>
-                                  <span className="text-[11px] font-semibold text-gray-700">Today:</span>
-                                  <span className={`text-[11px] ${todayMatch ? 'text-green-700' : 'text-red-700'}`}>
+                                  <span className="text-[11px] font-semibold text-gray-700 dark:text-slate-300">Today:</span>
+                                  <span className={`text-[11px] ${todayMatch ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
                                     {extractedDate || '-'} vs {todayDate || '-'}
                                   </span>
                                 </div>
@@ -1037,17 +1057,17 @@ const VerifyPayments = () => {
 
                       {/* Notes */}
                       {submission.notes && (
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5">
-                          <label className="text-xs text-blue-700 font-semibold">Notes</label>
-                          <p className="text-xs text-blue-900">{submission.notes}</p>
+                        <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-2.5">
+                          <label className="text-xs text-blue-700 dark:text-blue-400 font-semibold">Notes</label>
+                          <p className="text-xs text-blue-900 dark:text-blue-200">{submission.notes}</p>
                         </div>
                       )}
 
                       {/* Rejection Reason */}
                       {submission.status === 'rejected' && submission.rejectionReason && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-2.5">
-                          <label className="text-xs text-red-700 font-semibold">Rejection Reason</label>
-                          <p className="text-xs text-red-900">{submission.rejectionReason}</p>
+                        <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-2.5">
+                          <label className="text-xs text-red-700 dark:text-red-400 font-semibold">Rejection Reason</label>
+                          <p className="text-xs text-red-900 dark:text-red-200">{submission.rejectionReason}</p>
                         </div>
                       )}
                     </div>
@@ -1056,10 +1076,10 @@ const VerifyPayments = () => {
                     <div className="lg:w-80 flex-shrink-0">
                       {screenshotProof ? (
                         <div className="sticky top-4">
-                          <label className="text-xs text-gray-500 font-semibold block mb-2">Payment Screenshot</label>
+                          <label className="text-xs text-gray-500 dark:text-slate-400 font-semibold block mb-2">Payment Screenshot</label>
                           <div
                             onClick={(e) => { e.stopPropagation(); setViewingScreenshot(screenshotProof); }}
-                            className="cursor-pointer rounded-lg overflow-hidden border-2 border-gray-300 hover:border-indigo-500 transition-all bg-gray-50"
+                            className="cursor-pointer rounded-lg overflow-hidden border-2 border-gray-300 dark:border-slate-600 hover:border-indigo-500 dark:hover:border-indigo-400 transition-all bg-gray-50 dark:bg-slate-700"
                           >
                             <img
                               src={screenshotProof}
@@ -1067,22 +1087,22 @@ const VerifyPayments = () => {
                               className="w-full max-h-80 object-contain hover:opacity-90 transition-opacity"
                             />
                           </div>
-                          <p className="text-xs text-gray-500 text-center mt-2">Click to view full size</p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400 text-center mt-2">Click to view full size</p>
                         </div>
                       ) : (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                          <p className="text-xs text-red-800">❌ Screenshot not found</p>
+                        <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                          <p className="text-xs text-red-800 dark:text-red-300">❌ Screenshot not found</p>
                         </div>
                       )}
                     </div>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="mt-4 pt-3 border-t border-gray-200">
+                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-slate-700">
                     {submission.status === 'pending' && (
                       <div className="flex gap-2 flex-wrap">
                         {submission.awaitingSubmission ? (
-                          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm font-semibold px-3 py-2 rounded-lg">
+                          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm font-semibold px-3 py-2 rounded-lg">
                             Awaiting tenant payment submission
                           </div>
                         ) : (
