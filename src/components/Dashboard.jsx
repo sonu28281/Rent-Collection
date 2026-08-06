@@ -399,6 +399,17 @@ const Dashboard = () => {
     return { months, amount: months * rent };
   };
 
+  // Tailwind classes (with dark variants) for a due-status pill, keyed by the
+  // semantic color already computed in financial.js. Replaces inline hex styles
+  // that stayed pale in dark mode.
+  const DUE_STATUS_CLASSES = {
+    red: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
+    orange: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300',
+    yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
+    green: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
+  };
+  const getDueStatusClasses = (color) => DUE_STATUS_CLASSES[color] || 'bg-gray-200 text-gray-700 dark:bg-slate-600 dark:text-slate-200';
+
   const getPrimaryRoomNumber = (tenant) => {
     const rooms = getTenantRooms(tenant);
     if (rooms.length === 0) return 0;
@@ -821,21 +832,21 @@ const Dashboard = () => {
                             })}
                           </div>
                         ) : (
-                          <div className="rounded-lg border border-gray-200 overflow-hidden">
+                          <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
-                                <thead className="bg-gray-100">
+                                <thead className="bg-gradient-to-r from-gray-50 to-slate-100 dark:from-slate-800 dark:to-slate-800">
                                   <tr>
-                                    <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'room')}>Room{getSortIndicator('floor1', 'room')}</th>
-                                    <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'tenant')}>Tenant{getSortIndicator('floor1', 'tenant')}</th>
-                                    <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'rent')}>Rent{getSortIndicator('floor1', 'rent')}</th>
-                                    <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'electricity')}>Electricity{getSortIndicator('floor1', 'electricity')}</th>
-                                    <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'expected')}>Expected{getSortIndicator('floor1', 'expected')}</th>
-                                    <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'collected')}>Collected{getSortIndicator('floor1', 'collected')}</th>
-                                    <th className="px-3 py-2 text-center cursor-pointer select-none" onClick={() => handleTableSort('floor1', 'status')}>Status{getSortIndicator('floor1', 'status')}</th>
+                                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'room')}>Room{getSortIndicator('floor1', 'room')}</th>
+                                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'tenant')}>Tenant{getSortIndicator('floor1', 'tenant')}</th>
+                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'rent')}>Rent{getSortIndicator('floor1', 'rent')}</th>
+                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'electricity')}>Electricity{getSortIndicator('floor1', 'electricity')}</th>
+                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'expected')}>Expected{getSortIndicator('floor1', 'expected')}</th>
+                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'collected')}>Collected{getSortIndicator('floor1', 'collected')}</th>
+                                    <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'status')}>Status{getSortIndicator('floor1', 'status')}</th>
                                   </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                                   {sortFloorTenants(floor1, 'floor1').map((tenant) => {
                                     const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                                     const expanded = isSplitExpanded('floor1', tenant.id);
@@ -843,66 +854,58 @@ const Dashboard = () => {
                                       <Fragment key={tenant.id}>
                                         <tr
                                           key={tenant.id}
-                                          className={`border-b transition-colors ${
+                                          className={`transition-colors ${
                                             isPaid
-                                              ? 'bg-green-50 hover:bg-green-100'
-                                              : 'bg-red-50 hover:bg-red-100'
+                                              ? 'bg-green-50/70 hover:bg-green-100 dark:bg-green-950/20 dark:hover:bg-green-900/30'
+                                              : 'bg-red-50/70 hover:bg-red-100 dark:bg-red-950/20 dark:hover:bg-red-900/30'
                                           }`}
                                         >
-                                          <td className="px-3 py-2 font-semibold whitespace-nowrap" title={getTenantRoomLabel(tenant)}>
-                                            {getCompactRoomLabel(tenant)}
+                                          <td className="px-4 py-3 whitespace-nowrap" title={getTenantRoomLabel(tenant)}>
+                                            <span className="inline-flex items-center justify-center min-w-[2.25rem] px-2 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100 shadow-sm ring-1 ring-gray-200 dark:ring-slate-600">
+                                              {getCompactRoomLabel(tenant)}
+                                            </span>
                                           </td>
-                                          <td className="px-3 py-2">
+                                          <td className="px-4 py-3">
                                             <button
                                               onClick={() => handleViewHistory(tenant)}
-                                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors cursor-pointer text-left"
+                                              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-semibold transition-colors cursor-pointer text-left"
                                               title="View Payment History"
                                             >
                                               {tenant.name}
                                             </button>
                                             {tenant.roomCount > 1 && (
                                               <div className="mt-1 flex items-center gap-2">
-                                                <span className="text-xs text-indigo-700 font-semibold">Multi-room tenant</span>
+                                                <span className="text-xs text-indigo-700 dark:text-indigo-400 font-semibold">Multi-room tenant</span>
                                                 <button
                                                   type="button"
                                                   onClick={() => toggleSplitRow('floor1', tenant.id)}
-                                                  className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded hover:bg-indigo-200"
+                                                  className="text-xs bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded hover:bg-indigo-200 dark:hover:bg-indigo-900"
                                                 >
                                                   Split {expanded ? '▲' : '▼'}
                                                 </button>
                                               </div>
                                             )}
                                           </td>
-                                          <td className="px-3 py-2 text-right text-gray-700">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
-                                          <td className="px-3 py-2 text-right text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</td>
-                                          <td className="px-3 py-2 text-right font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
-                                          <td className={`px-3 py-2 text-right font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>
+                                          <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-300">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
+                                          <td className="px-4 py-3 text-right text-blue-700 dark:text-blue-400">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</td>
+                                          <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-slate-100">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
+                                          <td className={`px-4 py-3 text-right font-bold ${isPaid ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
                                             ₹{tenant.collectedAmount.toLocaleString('en-IN')}
                                           </td>
-                                          <td className="px-3 py-2 text-center whitespace-nowrap">
+                                          <td className="px-4 py-3 text-center whitespace-nowrap">
                                             <div className="inline-flex flex-col items-center gap-1">
                                               {(() => {
                                                 const dues = getTenantDues(tenant);
                                                 if (dues.months <= 1) return null;
                                                 return (
-                                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300 whitespace-nowrap">
+                                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 whitespace-nowrap">
                                                     ⚠️ {dues.months} mo · ₹{dues.amount.toLocaleString('en-IN')}
                                                   </span>
                                                 );
                                               })()}
                                               <span
                                                 title={isPaid ? `Paid: ${tenant.paidDate} | Due was: ${tenant.dueDate}` : `Due: ${tenant.dueDate}`}
-                                                className="text-xs font-semibold px-2 py-1 rounded cursor-default"
-                                                style={{
-                                                  backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' :
-                                                                   tenant.dueStatusColor === 'orange' ? '#fed7aa' :
-                                                                   tenant.dueStatusColor === 'yellow' ? '#fef08a' :
-                                                                   tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
-                                                  color: tenant.dueStatusColor === 'red' ? '#991b1b' :
-                                                         tenant.dueStatusColor === 'orange' ? '#c2410c' :
-                                                         tenant.dueStatusColor === 'yellow' ? '#a16207' :
-                                                         tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
-                                                }}
+                                                className={`text-xs font-bold px-2.5 py-1 rounded-full cursor-default whitespace-nowrap ${getDueStatusClasses(tenant.dueStatusColor)}`}
                                               >
                                                 {tenant.dueStatusText || (isPaid ? '✅ Paid' : '❌ Pending')}
                                               </span>
@@ -910,13 +913,13 @@ const Dashboard = () => {
                                           </td>
                                         </tr>
                                         {tenant.roomCount > 1 && expanded && (
-                                          <tr className="bg-indigo-50 border-b">
-                                            <td className="px-3 py-2" colSpan={7}>
-                                              <div className="text-xs font-semibold text-indigo-900 mb-2">Room-wise collected split</div>
+                                          <tr className="bg-indigo-50 dark:bg-indigo-950/30">
+                                            <td className="px-4 py-3" colSpan={7}>
+                                              <div className="text-xs font-semibold text-indigo-900 dark:text-indigo-200 mb-2">Room-wise collected split</div>
                                               <div className="overflow-x-auto">
                                                 <table className="w-full text-xs">
                                                   <thead>
-                                                    <tr className="text-indigo-800">
+                                                    <tr className="text-indigo-800 dark:text-indigo-300">
                                                       <th className="px-2 py-1 text-left">Room</th>
                                                       <th className="px-2 py-1 text-right">Rent</th>
                                                       <th className="px-2 py-1 text-right">Electricity</th>
@@ -928,11 +931,11 @@ const Dashboard = () => {
                                                   </thead>
                                                   <tbody>
                                                     {(tenant.roomWiseSplit || []).map((entry) => (
-                                                      <tr key={`${tenant.id}_${entry.roomNumber}`} className="border-t border-indigo-100">
-                                                        <td className="px-2 py-1 font-semibold">{entry.roomNumber}</td>
+                                                      <tr key={`${tenant.id}_${entry.roomNumber}`} className="border-t border-indigo-100 dark:border-indigo-800 text-gray-700 dark:text-slate-300">
+                                                        <td className="px-2 py-1 font-semibold text-gray-900 dark:text-slate-100">{entry.roomNumber}</td>
                                                         <td className="px-2 py-1 text-right">₹{Number(entry.rentAmount || 0).toLocaleString('en-IN')}</td>
                                                         <td className="px-2 py-1 text-right">₹{Number(entry.electricityAmount || 0).toLocaleString('en-IN')}</td>
-                                                        <td className="px-2 py-1 text-right font-semibold">₹{Number(entry.collectedAmount || 0).toLocaleString('en-IN')}</td>
+                                                        <td className="px-2 py-1 text-right font-semibold text-gray-900 dark:text-slate-100">₹{Number(entry.collectedAmount || 0).toLocaleString('en-IN')}</td>
                                                         <td className="px-2 py-1 text-center">{entry.paymentRecordsCount || 0}</td>
                                                         <td className="px-2 py-1">{entry.latestPaidDate || '-'}</td>
                                                         <td className="px-2 py-1 text-center">{entry.status === 'paid' ? '✅' : '⏳'}</td>
@@ -1045,21 +1048,21 @@ const Dashboard = () => {
                             })}
                           </div>
                         ) : (
-                          <div className="rounded-lg border border-gray-200 overflow-hidden">
+                          <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
-                                <thead className="bg-gray-100">
+                                <thead className="bg-gradient-to-r from-gray-50 to-slate-100 dark:from-slate-800 dark:to-slate-800">
                                   <tr>
-                                    <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'room')}>Room{getSortIndicator('floor2', 'room')}</th>
-                                    <th className="px-3 py-2 text-left cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'tenant')}>Tenant{getSortIndicator('floor2', 'tenant')}</th>
-                                    <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'rent')}>Rent{getSortIndicator('floor2', 'rent')}</th>
-                                    <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'electricity')}>Electricity{getSortIndicator('floor2', 'electricity')}</th>
-                                    <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'expected')}>Expected{getSortIndicator('floor2', 'expected')}</th>
-                                    <th className="px-3 py-2 text-right cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'collected')}>Collected{getSortIndicator('floor2', 'collected')}</th>
-                                    <th className="px-3 py-2 text-center cursor-pointer select-none" onClick={() => handleTableSort('floor2', 'status')}>Status{getSortIndicator('floor2', 'status')}</th>
+                                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'room')}>Room{getSortIndicator('floor2', 'room')}</th>
+                                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'tenant')}>Tenant{getSortIndicator('floor2', 'tenant')}</th>
+                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'rent')}>Rent{getSortIndicator('floor2', 'rent')}</th>
+                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'electricity')}>Electricity{getSortIndicator('floor2', 'electricity')}</th>
+                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'expected')}>Expected{getSortIndicator('floor2', 'expected')}</th>
+                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'collected')}>Collected{getSortIndicator('floor2', 'collected')}</th>
+                                    <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'status')}>Status{getSortIndicator('floor2', 'status')}</th>
                                   </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                                   {sortFloorTenants(floor2, 'floor2').map((tenant) => {
                                     const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                                     const expanded = isSplitExpanded('floor2', tenant.id);
@@ -1067,66 +1070,58 @@ const Dashboard = () => {
                                       <Fragment key={tenant.id}>
                                         <tr
                                           key={tenant.id}
-                                          className={`border-b transition-colors ${
+                                          className={`transition-colors ${
                                             isPaid
-                                              ? 'bg-green-50 hover:bg-green-100'
-                                              : 'bg-red-50 hover:bg-red-100'
+                                              ? 'bg-green-50/70 hover:bg-green-100 dark:bg-green-950/20 dark:hover:bg-green-900/30'
+                                              : 'bg-red-50/70 hover:bg-red-100 dark:bg-red-950/20 dark:hover:bg-red-900/30'
                                           }`}
                                         >
-                                          <td className="px-3 py-2 font-semibold whitespace-nowrap" title={getTenantRoomLabel(tenant)}>
-                                            {getCompactRoomLabel(tenant)}
+                                          <td className="px-4 py-3 whitespace-nowrap" title={getTenantRoomLabel(tenant)}>
+                                            <span className="inline-flex items-center justify-center min-w-[2.25rem] px-2 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100 shadow-sm ring-1 ring-gray-200 dark:ring-slate-600">
+                                              {getCompactRoomLabel(tenant)}
+                                            </span>
                                           </td>
-                                          <td className="px-3 py-2">
+                                          <td className="px-4 py-3">
                                             <button
                                               onClick={() => handleViewHistory(tenant)}
-                                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors cursor-pointer text-left"
+                                              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-semibold transition-colors cursor-pointer text-left"
                                               title="View Payment History"
                                             >
                                               {tenant.name}
                                             </button>
                                             {tenant.roomCount > 1 && (
                                               <div className="mt-1 flex items-center gap-2">
-                                                <span className="text-xs text-indigo-700 font-semibold">Multi-room tenant</span>
+                                                <span className="text-xs text-indigo-700 dark:text-indigo-400 font-semibold">Multi-room tenant</span>
                                                 <button
                                                   type="button"
                                                   onClick={() => toggleSplitRow('floor2', tenant.id)}
-                                                  className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded hover:bg-indigo-200"
+                                                  className="text-xs bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded hover:bg-indigo-200 dark:hover:bg-indigo-900"
                                                 >
                                                   Split {expanded ? '▲' : '▼'}
                                                 </button>
                                               </div>
                                             )}
                                           </td>
-                                          <td className="px-3 py-2 text-right text-gray-700">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
-                                          <td className="px-3 py-2 text-right text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</td>
-                                          <td className="px-3 py-2 text-right font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
-                                          <td className={`px-3 py-2 text-right font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>
+                                          <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-300">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
+                                          <td className="px-4 py-3 text-right text-blue-700 dark:text-blue-400">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</td>
+                                          <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-slate-100">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
+                                          <td className={`px-4 py-3 text-right font-bold ${isPaid ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
                                             ₹{tenant.collectedAmount.toLocaleString('en-IN')}
                                           </td>
-                                          <td className="px-3 py-2 text-center whitespace-nowrap">
+                                          <td className="px-4 py-3 text-center whitespace-nowrap">
                                             <div className="inline-flex flex-col items-center gap-1">
                                               {(() => {
                                                 const dues = getTenantDues(tenant);
                                                 if (dues.months <= 1) return null;
                                                 return (
-                                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300 whitespace-nowrap">
+                                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 whitespace-nowrap">
                                                     ⚠️ {dues.months} mo · ₹{dues.amount.toLocaleString('en-IN')}
                                                   </span>
                                                 );
                                               })()}
                                               <span
                                                 title={isPaid ? `Paid: ${tenant.paidDate} | Due was: ${tenant.dueDate}` : `Due: ${tenant.dueDate}`}
-                                                className="text-xs font-semibold px-2 py-1 rounded cursor-default"
-                                                style={{
-                                                  backgroundColor: tenant.dueStatusColor === 'red' ? '#fecaca' :
-                                                                   tenant.dueStatusColor === 'orange' ? '#fed7aa' :
-                                                                   tenant.dueStatusColor === 'yellow' ? '#fef08a' :
-                                                                   tenant.dueStatusColor === 'green' ? '#bbf7d0' : '#e5e7eb',
-                                                  color: tenant.dueStatusColor === 'red' ? '#991b1b' :
-                                                         tenant.dueStatusColor === 'orange' ? '#c2410c' :
-                                                         tenant.dueStatusColor === 'yellow' ? '#a16207' :
-                                                         tenant.dueStatusColor === 'green' ? '#15803d' : '#4b5563'
-                                                }}
+                                                className={`text-xs font-bold px-2.5 py-1 rounded-full cursor-default whitespace-nowrap ${getDueStatusClasses(tenant.dueStatusColor)}`}
                                               >
                                                 {tenant.dueStatusText || (isPaid ? '✅ Paid' : '❌ Pending')}
                                               </span>
@@ -1134,13 +1129,13 @@ const Dashboard = () => {
                                           </td>
                                         </tr>
                                         {tenant.roomCount > 1 && expanded && (
-                                          <tr className="bg-indigo-50 border-b">
-                                            <td className="px-3 py-2" colSpan={7}>
-                                              <div className="text-xs font-semibold text-indigo-900 mb-2">Room-wise collected split</div>
+                                          <tr className="bg-indigo-50 dark:bg-indigo-950/30">
+                                            <td className="px-4 py-3" colSpan={7}>
+                                              <div className="text-xs font-semibold text-indigo-900 dark:text-indigo-200 mb-2">Room-wise collected split</div>
                                               <div className="overflow-x-auto">
                                                 <table className="w-full text-xs">
                                                   <thead>
-                                                    <tr className="text-indigo-800">
+                                                    <tr className="text-indigo-800 dark:text-indigo-300">
                                                       <th className="px-2 py-1 text-left">Room</th>
                                                       <th className="px-2 py-1 text-right">Rent</th>
                                                       <th className="px-2 py-1 text-right">Electricity</th>
@@ -1152,11 +1147,11 @@ const Dashboard = () => {
                                                   </thead>
                                                   <tbody>
                                                     {(tenant.roomWiseSplit || []).map((entry) => (
-                                                      <tr key={`${tenant.id}_${entry.roomNumber}`} className="border-t border-indigo-100">
-                                                        <td className="px-2 py-1 font-semibold">{entry.roomNumber}</td>
+                                                      <tr key={`${tenant.id}_${entry.roomNumber}`} className="border-t border-indigo-100 dark:border-indigo-800 text-gray-700 dark:text-slate-300">
+                                                        <td className="px-2 py-1 font-semibold text-gray-900 dark:text-slate-100">{entry.roomNumber}</td>
                                                         <td className="px-2 py-1 text-right">₹{Number(entry.rentAmount || 0).toLocaleString('en-IN')}</td>
                                                         <td className="px-2 py-1 text-right">₹{Number(entry.electricityAmount || 0).toLocaleString('en-IN')}</td>
-                                                        <td className="px-2 py-1 text-right font-semibold">₹{Number(entry.collectedAmount || 0).toLocaleString('en-IN')}</td>
+                                                        <td className="px-2 py-1 text-right font-semibold text-gray-900 dark:text-slate-100">₹{Number(entry.collectedAmount || 0).toLocaleString('en-IN')}</td>
                                                         <td className="px-2 py-1 text-center">{entry.paymentRecordsCount || 0}</td>
                                                         <td className="px-2 py-1">{entry.latestPaidDate || '-'}</td>
                                                         <td className="px-2 py-1 text-center">{entry.status === 'paid' ? '✅' : '⏳'}</td>
