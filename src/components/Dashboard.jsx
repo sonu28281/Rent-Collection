@@ -835,15 +835,15 @@ const Dashboard = () => {
                           <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
-                                <thead className="bg-gradient-to-r from-gray-50 to-slate-100 dark:from-slate-800 dark:to-slate-800">
+                                <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
                                   <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'room')}>Room{getSortIndicator('floor1', 'room')}</th>
-                                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'tenant')}>Tenant{getSortIndicator('floor1', 'tenant')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'rent')}>Rent{getSortIndicator('floor1', 'rent')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'electricity')}>Electricity{getSortIndicator('floor1', 'electricity')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'expected')}>Expected{getSortIndicator('floor1', 'expected')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'collected')}>Collected{getSortIndicator('floor1', 'collected')}</th>
-                                    <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor1', 'status')}>Status{getSortIndicator('floor1', 'status')}</th>
+                                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor1', 'room')}>Room{getSortIndicator('floor1', 'room')}</th>
+                                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor1', 'tenant')}>Tenant{getSortIndicator('floor1', 'tenant')}</th>
+                                    <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor1', 'rent')}>Rent{getSortIndicator('floor1', 'rent')}</th>
+                                    <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor1', 'electricity')}>Electricity{getSortIndicator('floor1', 'electricity')}</th>
+                                    <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor1', 'expected')}>Expected{getSortIndicator('floor1', 'expected')}</th>
+                                    <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor1', 'collected')}>Collected{getSortIndicator('floor1', 'collected')}</th>
+                                    <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor1', 'status')}>Status{getSortIndicator('floor1', 'status')}</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
@@ -919,13 +919,13 @@ const Dashboard = () => {
                                               <div className="overflow-x-auto">
                                                 <table className="w-full text-xs">
                                                   <thead>
-                                                    <tr className="text-indigo-800 dark:text-indigo-300">
-                                                      <th className="px-2 py-1 text-left">Room</th>
-                                                      <th className="px-2 py-1 text-right">Rent</th>
-                                                      <th className="px-2 py-1 text-right">Electricity</th>
-                                                      <th className="px-2 py-1 text-right">Collected</th>
-                                                      <th className="px-2 py-1 text-center">Records</th>
-                                                      <th className="px-2 py-1 text-left">Last Paid</th>
+                                                    <tr className="bg-indigo-200/70 dark:bg-indigo-900/50 text-indigo-900 dark:text-indigo-200 font-extrabold text-[10px] uppercase tracking-wider">
+                                                      <th className="px-2 py-1.5 text-left">Room</th>
+                                                      <th className="px-2 py-1.5 text-right">Rent</th>
+                                                      <th className="px-2 py-1.5 text-right">Electricity</th>
+                                                      <th className="px-2 py-1.5 text-right">Collected</th>
+                                                      <th className="px-2 py-1.5 text-center">Records</th>
+                                                      <th className="px-2 py-1.5 text-left">Last Paid</th>
                                                       <th className="px-2 py-1 text-center">Status</th>
                                                     </tr>
                                                   </thead>
@@ -1051,15 +1051,15 @@ const Dashboard = () => {
                           <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
-                                <thead className="bg-gradient-to-r from-gray-50 to-slate-100 dark:from-slate-800 dark:to-slate-800">
+                                <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
                                   <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'room')}>Room{getSortIndicator('floor2', 'room')}</th>
-                                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'tenant')}>Tenant{getSortIndicator('floor2', 'tenant')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'rent')}>Rent{getSortIndicator('floor2', 'rent')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'electricity')}>Electricity{getSortIndicator('floor2', 'electricity')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'expected')}>Expected{getSortIndicator('floor2', 'expected')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'collected')}>Collected{getSortIndicator('floor2', 'collected')}</th>
-                                    <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('floor2', 'status')}>Status{getSortIndicator('floor2', 'status')}</th>
+                                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor2', 'room')}>Room{getSortIndicator('floor2', 'room')}</th>
+                                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor2', 'tenant')}>Tenant{getSortIndicator('floor2', 'tenant')}</th>
+                                    <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor2', 'rent')}>Rent{getSortIndicator('floor2', 'rent')}</th>
+                                    <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor2', 'electricity')}>Electricity{getSortIndicator('floor2', 'electricity')}</th>
+                                    <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor2', 'expected')}>Expected{getSortIndicator('floor2', 'expected')}</th>
+                                    <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor2', 'collected')}>Collected{getSortIndicator('floor2', 'collected')}</th>
+                                    <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('floor2', 'status')}>Status{getSortIndicator('floor2', 'status')}</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
@@ -1135,13 +1135,13 @@ const Dashboard = () => {
                                               <div className="overflow-x-auto">
                                                 <table className="w-full text-xs">
                                                   <thead>
-                                                    <tr className="text-indigo-800 dark:text-indigo-300">
-                                                      <th className="px-2 py-1 text-left">Room</th>
-                                                      <th className="px-2 py-1 text-right">Rent</th>
-                                                      <th className="px-2 py-1 text-right">Electricity</th>
-                                                      <th className="px-2 py-1 text-right">Collected</th>
-                                                      <th className="px-2 py-1 text-center">Records</th>
-                                                      <th className="px-2 py-1 text-left">Last Paid</th>
+                                                    <tr className="bg-indigo-200/70 dark:bg-indigo-900/50 text-indigo-900 dark:text-indigo-200 font-extrabold text-[10px] uppercase tracking-wider">
+                                                      <th className="px-2 py-1.5 text-left">Room</th>
+                                                      <th className="px-2 py-1.5 text-right">Rent</th>
+                                                      <th className="px-2 py-1.5 text-right">Electricity</th>
+                                                      <th className="px-2 py-1.5 text-right">Collected</th>
+                                                      <th className="px-2 py-1.5 text-center">Records</th>
+                                                      <th className="px-2 py-1.5 text-left">Last Paid</th>
                                                       <th className="px-2 py-1 text-center">Status</th>
                                                     </tr>
                                                   </thead>
@@ -1238,13 +1238,13 @@ const Dashboard = () => {
               <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gradient-to-r from-gray-50 to-slate-100 dark:from-slate-800 dark:to-slate-800">
+                    <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('yearly', 'year')}>Year{getSortIndicator('yearly', 'year')}</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('yearly', 'rentIncome')}>Rent Income{getSortIndicator('yearly', 'rentIncome')}</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('yearly', 'electricityIncome')}>Electricity{getSortIndicator('yearly', 'electricityIncome')}</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('yearly', 'totalIncome')}>Total Income{getSortIndicator('yearly', 'totalIncome')}</th>
-                        <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-slate-200 transition" onClick={() => handleTableSort('yearly', 'paymentCount')}>Payments{getSortIndicator('yearly', 'paymentCount')}</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('yearly', 'year')}>Year{getSortIndicator('yearly', 'year')}</th>
+                        <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('yearly', 'rentIncome')}>Rent Income{getSortIndicator('yearly', 'rentIncome')}</th>
+                        <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('yearly', 'electricityIncome')}>Electricity{getSortIndicator('yearly', 'electricityIncome')}</th>
+                        <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('yearly', 'totalIncome')}>Total Income{getSortIndicator('yearly', 'totalIncome')}</th>
+                        <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('yearly', 'paymentCount')}>Payments{getSortIndicator('yearly', 'paymentCount')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
