@@ -499,35 +499,29 @@ const Rooms = () => {
         <p className="text-gray-600">View and manage all 12 rooms with occupancy status</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-sm">Total Rooms</p>
-              <p className="text-3xl font-bold mt-1">{stats.total}</p>
+      {/* Stats Strip — 3 metrics in one compact card instead of 3 large ones */}
+      <div className="card !p-0 overflow-hidden mb-6">
+        <div className="grid grid-cols-3 divide-x divide-white/20">
+          <div className="flex items-center gap-3 bg-gradient-to-br from-blue-500 to-blue-600 text-white px-4 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-lg shrink-0">🏠</div>
+            <div className="min-w-0">
+              <p className="text-blue-100 text-[11px] leading-tight">Total</p>
+              <p className="text-xl font-bold leading-tight">{stats.total}</p>
             </div>
-            <div className="text-4xl">🏠</div>
           </div>
-        </div>
-
-        <div className="card bg-gradient-to-br from-gray-500 to-gray-600 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-100 text-sm">Vacant Rooms</p>
-              <p className="text-3xl font-bold mt-1">{stats.vacant}</p>
+          <div className="flex items-center gap-3 bg-gradient-to-br from-gray-500 to-gray-600 text-white px-4 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-lg shrink-0">⬜</div>
+            <div className="min-w-0">
+              <p className="text-gray-100 text-[11px] leading-tight">Vacant</p>
+              <p className="text-xl font-bold leading-tight">{stats.vacant}</p>
             </div>
-            <div className="text-4xl">⬜</div>
           </div>
-        </div>
-
-        <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-sm">Occupied Rooms</p>
-              <p className="text-3xl font-bold mt-1">{stats.occupied}</p>
+          <div className="flex items-center gap-3 bg-gradient-to-br from-green-500 to-green-600 text-white px-4 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-lg shrink-0">✅</div>
+            <div className="min-w-0">
+              <p className="text-green-100 text-[11px] leading-tight">Occupied</p>
+              <p className="text-xl font-bold leading-tight">{stats.occupied}</p>
             </div>
-            <div className="text-4xl">✅</div>
           </div>
         </div>
       </div>
@@ -535,14 +529,14 @@ const Rooms = () => {
       {/* Floor Vacancy Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {/* Floor 1 */}
-        <div className={`card border-2 ${stats.floor1Vacant > 0 ? 'border-orange-300 bg-orange-50' : 'border-green-300 bg-green-50'}`}>
-          <div className="flex items-center justify-between mb-3">
+        <div className={`card !p-4 border-2 ${stats.floor1Vacant > 0 ? 'border-orange-300 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30' : 'border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-950/30'}`}>
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ground Floor (101–106)</p>
-              <p className="text-lg font-bold text-gray-900 mt-0.5">
+              <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Ground Floor (101–106)</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-slate-100 mt-0.5">
                 {stats.floor1Vacant > 0
-                  ? <span className="text-orange-700">🔓 {stats.floor1Vacant} Vacant</span>
-                  : <span className="text-green-700">✅ All Occupied</span>}
+                  ? <span className="text-orange-700 dark:text-orange-400">🔓 {stats.floor1Vacant} Vacant</span>
+                  : <span className="text-green-700 dark:text-green-400">✅ All Occupied</span>}
               </p>
             </div>
             <div className={`text-3xl ${stats.floor1Vacant > 0 ? 'text-orange-400' : 'text-green-400'}`}>
@@ -562,17 +556,17 @@ const Rooms = () => {
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
             {stats.floor1 - stats.floor1Vacant}/{stats.floor1} occupied
           </p>
           {/* Vacant room quick-info */}
           {rooms.filter(r => r.roomNumber >= 101 && r.roomNumber <= 106 && isRoomVacant(r)).map(r => {
             const { lastTenant, meterInfo } = getRoomInfo(r);
             return (
-              <div key={r.id} className="mt-2 pl-2 border-l-2 border-orange-300 text-xs text-gray-600 space-y-0.5">
-                <span className="font-semibold text-orange-700">Room {r.roomNumber}:</span>
+              <div key={r.id} className="mt-2 pl-2 border-l-2 border-orange-300 dark:border-orange-700 text-xs text-gray-600 dark:text-slate-400 space-y-0.5">
+                <span className="font-semibold text-orange-700 dark:text-orange-400">Room {r.roomNumber}:</span>
                 {lastTenant
-                  ? <> Last: <span className="font-medium text-gray-800">{lastTenant.name}</span>{lastTenant.checkOutDate ? <> · Checkout: <span className="font-medium">{fmtDate(lastTenant.checkOutDate)}</span></> : null}</>
+                  ? <> Last: <span className="font-medium text-gray-800 dark:text-slate-200">{lastTenant.name}</span>{lastTenant.checkOutDate ? <> · Checkout: <span className="font-medium">{fmtDate(lastTenant.checkOutDate)}</span></> : null}</>
                   : <> — no past tenant on record</>}
                 {meterInfo?.reading != null && <> · Meter: <span className="font-medium">{meterInfo.reading} units</span></>}
               </div>
@@ -581,14 +575,14 @@ const Rooms = () => {
         </div>
 
         {/* Floor 2 */}
-        <div className={`card border-2 ${stats.floor2Vacant > 0 ? 'border-orange-300 bg-orange-50' : 'border-green-300 bg-green-50'}`}>
-          <div className="flex items-center justify-between mb-3">
+        <div className={`card !p-4 border-2 ${stats.floor2Vacant > 0 ? 'border-orange-300 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30' : 'border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-950/30'}`}>
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">First Floor (201–206)</p>
-              <p className="text-lg font-bold text-gray-900 mt-0.5">
+              <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">First Floor (201–206)</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-slate-100 mt-0.5">
                 {stats.floor2Vacant > 0
-                  ? <span className="text-orange-700">🔓 {stats.floor2Vacant} Vacant</span>
-                  : <span className="text-green-700">✅ All Occupied</span>}
+                  ? <span className="text-orange-700 dark:text-orange-400">🔓 {stats.floor2Vacant} Vacant</span>
+                  : <span className="text-green-700 dark:text-green-400">✅ All Occupied</span>}
               </p>
             </div>
             <div className={`text-3xl ${stats.floor2Vacant > 0 ? 'text-orange-400' : 'text-green-400'}`}>
@@ -608,16 +602,16 @@ const Rooms = () => {
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
             {stats.floor2 - stats.floor2Vacant}/{stats.floor2} occupied
           </p>
           {rooms.filter(r => r.roomNumber >= 201 && r.roomNumber <= 206 && isRoomVacant(r)).map(r => {
             const { lastTenant, meterInfo } = getRoomInfo(r);
             return (
-              <div key={r.id} className="mt-2 pl-2 border-l-2 border-orange-300 text-xs text-gray-600 space-y-0.5">
-                <span className="font-semibold text-orange-700">Room {r.roomNumber}:</span>
+              <div key={r.id} className="mt-2 pl-2 border-l-2 border-orange-300 dark:border-orange-700 text-xs text-gray-600 dark:text-slate-400 space-y-0.5">
+                <span className="font-semibold text-orange-700 dark:text-orange-400">Room {r.roomNumber}:</span>
                 {lastTenant
-                  ? <> Last: <span className="font-medium text-gray-800">{lastTenant.name}</span>{lastTenant.checkOutDate ? <> · Checkout: <span className="font-medium">{fmtDate(lastTenant.checkOutDate)}</span></> : null}</>
+                  ? <> Last: <span className="font-medium text-gray-800 dark:text-slate-200">{lastTenant.name}</span>{lastTenant.checkOutDate ? <> · Checkout: <span className="font-medium">{fmtDate(lastTenant.checkOutDate)}</span></> : null}</>
                   : <> — no past tenant on record</>}
                 {meterInfo?.reading != null && <> · Meter: <span className="font-medium">{meterInfo.reading} units</span></>}
               </div>
