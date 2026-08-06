@@ -743,7 +743,7 @@ const Dashboard = () => {
             {currentMonthSummary.allTenants && currentMonthSummary.allTenants.length > 0 && (() => {
               const { floor1, floor2 } = groupTenantsByFloor(currentMonthSummary.allTenants);
               return (
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
                   {/* Floor 1 - All Tenants */}
                   {floor1.length > 0 && (() => {
                     const paidCount = floor1.filter(t => t.status === 'paid').length;
@@ -768,11 +768,11 @@ const Dashboard = () => {
                           </div>
                         )}
                         {isCardView ? (
-                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-stretch">
+                          <div className="grid grid-cols-1 2xl:grid-cols-2 gap-2 items-stretch">
                             {floor1.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
-                                <div key={tenant.id} className={`relative rounded-xl border border-l-4 p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${isPaid ? 'bg-gradient-to-br from-green-50 to-white border-green-200 border-l-green-500 dark:from-green-950/40 dark:to-slate-800 dark:border-green-800' : 'bg-gradient-to-br from-red-50 to-white border-red-200 border-l-red-500 dark:from-red-950/40 dark:to-slate-800 dark:border-red-900'}`}>
+                                <div key={tenant.id} className={`relative rounded-xl border border-l-4 p-2.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${isPaid ? 'bg-gradient-to-br from-green-50 to-white border-green-200 border-l-green-500 dark:from-green-950/40 dark:to-slate-800 dark:border-green-800' : 'bg-gradient-to-br from-red-50 to-white border-red-200 border-l-red-500 dark:from-red-950/40 dark:to-slate-800 dark:border-red-900'}`}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
@@ -802,22 +802,22 @@ const Dashboard = () => {
                                     const dues = getTenantDues(tenant);
                                     if (dues.months <= 1) return null;
                                     return (
-                                      <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800 px-2.5 py-1.5 text-xs font-bold text-red-700 dark:text-red-300">
+                                      <div className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800 px-2 py-1 text-[11px] font-bold text-red-700 dark:text-red-300">
                                         ⚠️ {dues.months} months pending · ₹{dues.amount.toLocaleString('en-IN')} rent backlog
                                       </div>
                                     );
                                   })()}
-                                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                  <div className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
                                     <p>Rent: <span className="font-semibold">₹{tenant.expectedRent.toLocaleString('en-IN')}</span></p>
                                     <p>Electricity: <span className="font-semibold text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</span></p>
                                     <p>Expected: <span className="font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</span></p>
                                     <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
                                   </div>
-                                  <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
-                                    <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
+                                  <div className="mt-1 text-xs text-gray-500 flex items-center gap-2">
+                                    <span>Records: {tenant.paymentRecordsCount || 0}</span>
                                   </div>
                                   {tenant.meterReadings && tenant.meterReadings.length > 0 && (
-                                    <div className="mt-2 pt-2 border-t border-gray-200/70 space-y-0.5">
+                                    <div className="mt-1.5 pt-1.5 border-t border-gray-200/70 space-y-0.5">
                                       {tenant.meterReadings.map((reading, idx) => (
                                         <div key={idx} className="flex items-center gap-1.5 text-xs text-gray-600">
                                           <span>⚡</span>
@@ -996,11 +996,11 @@ const Dashboard = () => {
                           </div>
                         )}
                         {isCardView ? (
-                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-stretch">
+                          <div className="grid grid-cols-1 2xl:grid-cols-2 gap-2 items-stretch">
                             {floor2.map((tenant) => {
                               const isPaid = tenant.status === 'paid' && tenant.collectedAmount > 0;
                               return (
-                                <div key={tenant.id} className={`relative rounded-xl border border-l-4 p-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${isPaid ? 'bg-gradient-to-br from-green-50 to-white border-green-200 border-l-green-500 dark:from-green-950/40 dark:to-slate-800 dark:border-green-800' : 'bg-gradient-to-br from-red-50 to-white border-red-200 border-l-red-500 dark:from-red-950/40 dark:to-slate-800 dark:border-red-900'}`}>
+                                <div key={tenant.id} className={`relative rounded-xl border border-l-4 p-2.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${isPaid ? 'bg-gradient-to-br from-green-50 to-white border-green-200 border-l-green-500 dark:from-green-950/40 dark:to-slate-800 dark:border-green-800' : 'bg-gradient-to-br from-red-50 to-white border-red-200 border-l-red-500 dark:from-red-950/40 dark:to-slate-800 dark:border-red-900'}`}>
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <p className="text-xs text-gray-500">Room{tenant.roomCount > 1 ? 's' : ''}</p>
@@ -1030,22 +1030,22 @@ const Dashboard = () => {
                                     const dues = getTenantDues(tenant);
                                     if (dues.months <= 1) return null;
                                     return (
-                                      <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800 px-2.5 py-1.5 text-xs font-bold text-red-700 dark:text-red-300">
+                                      <div className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800 px-2 py-1 text-[11px] font-bold text-red-700 dark:text-red-300">
                                         ⚠️ {dues.months} months pending · ₹{dues.amount.toLocaleString('en-IN')} rent backlog
                                       </div>
                                     );
                                   })()}
-                                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                  <div className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
                                     <p>Rent: <span className="font-semibold">₹{tenant.expectedRent.toLocaleString('en-IN')}</span></p>
                                     <p>Electricity: <span className="font-semibold text-blue-700">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</span></p>
                                     <p>Expected: <span className="font-semibold">₹{tenant.expectedTotal.toLocaleString('en-IN')}</span></p>
                                     <p>Collected: <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-red-700'}`}>₹{tenant.collectedAmount.toLocaleString('en-IN')}</span></p>
                                   </div>
-                                  <div className="mt-2 text-sm text-gray-700 flex items-center gap-2">
-                                    <span className="text-xs text-gray-500">Records: {tenant.paymentRecordsCount || 0}</span>
+                                  <div className="mt-1 text-xs text-gray-500 flex items-center gap-2">
+                                    <span>Records: {tenant.paymentRecordsCount || 0}</span>
                                   </div>
                                   {tenant.meterReadings && tenant.meterReadings.length > 0 && (
-                                    <div className="mt-2 pt-2 border-t border-gray-200/70 space-y-0.5">
+                                    <div className="mt-1.5 pt-1.5 border-t border-gray-200/70 space-y-0.5">
                                       {tenant.meterReadings.map((reading, idx) => (
                                         <div key={idx} className="flex items-center gap-1.5 text-xs text-gray-600">
                                           <span>⚡</span>
