@@ -774,7 +774,7 @@ const Payments = () => {
               return (
                 <div
                   key={tenant.id}
-                  className={`rounded-xl border border-l-4 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 p-3 shadow-sm hover:shadow-md transition-all duration-200 ${isPaid ? 'border-l-green-500' : 'border-l-orange-500'}`}
+                  className={`rounded-xl border border-l-4 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 p-3 shadow-sm hover:shadow-md transition-all duration-200 ${isPaid ? '!border-l-green-500 dark:!border-l-green-500' : '!border-l-orange-500 dark:!border-l-orange-500'}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
