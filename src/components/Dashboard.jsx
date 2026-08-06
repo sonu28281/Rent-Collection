@@ -1222,17 +1222,17 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Year-wise trend chart */}
-          {!loading && yearlyData.length >= 2 && <YearlyTrendChart data={yearlyData} />}
-
-          {/* Yearly Summary */}
-          <div className="mb-6">
+          {/* Year-wise trend chart + Yearly Summary — side by side on wide screens
+              (chart shrinks to fit its column), stacked on mobile. */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 items-start">
+            {!loading && yearlyData.length >= 2 && <YearlyTrendChart data={yearlyData} />}
+            <div className={!loading && yearlyData.length >= 2 ? '' : 'lg:col-span-2'}>
             {loading ? (
               <p className="text-gray-500 text-sm">Loading...</p>
             ) : yearlyData.length === 0 ? (
               <p className="text-gray-500 text-sm">No payment data yet. Import historical data or record new payments.</p>
             ) : isCardView ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {yearlyData.map((year) => (
                   <button
                     key={year.year}
@@ -1301,6 +1301,7 @@ const Dashboard = () => {
                 </div>
               </div>
             )}
+            </div>
           </div>
 
           {/* Monthly Breakdown (collapsible) */}
