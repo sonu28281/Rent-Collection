@@ -765,94 +765,119 @@ const Payments = () => {
             <div className="text-5xl mb-2">📋</div>
             <p>No tenants found</p>
           </div>
-        ) : isCardView ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {filteredTenants.map((tenant) => {
-              const paymentSummary = getTenantPaymentSummary(tenant);
-              const isPaid = paymentSummary.isPaid;
+        ) : isCardView ? (() => {
+          const renderPaymentCard = (tenant) => {
+            const paymentSummary = getTenantPaymentSummary(tenant);
+            const isPaid = paymentSummary.isPaid;
 
-              return (
-                <div
-                  key={tenant.id}
-                  className={`rounded-xl border border-l-4 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 p-3 shadow-sm hover:shadow-md transition-all duration-200 ${isPaid ? '!border-l-green-500 dark:!border-l-green-500' : '!border-l-orange-500 dark:!border-l-orange-500'}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
+            return (
+              <div
+                key={tenant.id}
+                className={`rounded-lg border border-l-4 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 p-2.5 shadow-sm hover:shadow-md transition-all duration-200 ${isPaid ? '!border-l-green-500 dark:!border-l-green-500' : '!border-l-orange-500 dark:!border-l-orange-500'}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center min-w-[2.25rem] px-2 py-1 rounded-lg text-xs font-bold bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-100">
+                      {tenant.roomNumber}
+                    </span>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center min-w-[2.25rem] px-2 py-1 rounded-lg text-xs font-bold bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-100">
-                          {tenant.roomNumber}
+                      <p className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate leading-tight">{tenant.name}</p>
+                      {tenant.phone && <p className="text-[11px] text-gray-500 dark:text-slate-400 leading-tight">{tenant.phone}</p>}
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold text-gray-900 dark:text-slate-100 whitespace-nowrap">
+                    ₹{(isPaid ? paymentSummary.totalPaid : (tenant.currentRent || 0)).toLocaleString('en-IN')}
+                  </p>
+                </div>
+
+                {isPaid && (
+                  <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-slate-400">
+                    <span>UTR: <span className="font-mono font-semibold text-gray-700 dark:text-slate-200">{paymentSummary.utrDisplay}</span></span>
+                    {(() => {
+                      const monthPayments = getTenantMonthPayments(tenant);
+                      const latestPayment = monthPayments.sort((a, b) => getPaymentSortTime(b) - getPaymentSortTime(a))[0];
+                      if (!hasProof(latestPayment)) return null;
+                      return (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openProof(latestPayment, `${tenant.name} • Room ${tenant.roomNumber}`)}
+                            className="font-semibold text-blue-700 dark:text-blue-400 hover:underline"
+                          >
+                            📸 Proof
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadScreenshot(latestPayment)}
+                            className="font-semibold text-indigo-700 dark:text-indigo-400 hover:underline"
+                          >
+                            ⬇️ Download
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                <div className="mt-1.5 pt-1.5 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                  {isPaid ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300">
+                        ✅ Paid
+                      </span>
+                      {paymentSummary.latestPaidDate && (
+                        <span className="text-[11px] text-gray-500 dark:text-slate-400">
+                          {new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')}
                         </span>
-                        <p className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate">{tenant.name}</p>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{tenant.phone || '-'}</p>
-                      {isPaid && (
-                        <div className="mt-1.5 space-y-1">
-                          <p className="text-[11px] text-gray-500 dark:text-slate-400">
-                            UTR: <span className="font-mono font-semibold text-gray-700 dark:text-slate-200">{paymentSummary.utrDisplay}</span>
-                          </p>
-                          {(() => {
-                            const monthPayments = getTenantMonthPayments(tenant);
-                            const latestPayment = monthPayments.sort((a, b) => getPaymentSortTime(b) - getPaymentSortTime(a))[0];
-                            if (!hasProof(latestPayment)) return null;
-                            return (
-                              <div className="flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => openProof(latestPayment, `${tenant.name} • Room ${tenant.roomNumber}`)}
-                                  className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 hover:underline"
-                                >
-                                  📸 View Proof
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDownloadScreenshot(latestPayment)}
-                                  className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-400 hover:underline"
-                                >
-                                  ⬇️ Download
-                                </button>
-                              </div>
-                            );
-                          })()}
-                        </div>
                       )}
                     </div>
-                    <p className="text-base font-bold text-gray-900 dark:text-slate-100 whitespace-nowrap">
-                      ₹{(isPaid ? paymentSummary.totalPaid : (tenant.currentRent || 0)).toLocaleString('en-IN')}
-                    </p>
-                  </div>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300">
+                      ⏳ Pending
+                    </span>
+                  )}
 
-                  <div className="mt-2 pt-2 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between">
-                    {isPaid ? (
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300">
-                          ✅ Paid
-                        </span>
-                        {paymentSummary.latestPaidDate && (
-                          <span className="text-[11px] text-gray-500 dark:text-slate-400">
-                            {new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300">
-                        ⏳ Pending
-                      </span>
-                    )}
+                  {!isPaid && (
+                    <button
+                      onClick={() => handleRecordPayment(tenant)}
+                      className="px-2.5 py-1 bg-primary text-white rounded-lg hover:bg-blue-700 transition text-xs font-semibold"
+                    >
+                      💰 Record
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          };
 
-                    {!isPaid && (
-                      <button
-                        onClick={() => handleRecordPayment(tenant)}
-                        className="px-2.5 py-1 bg-primary text-white rounded-lg hover:bg-blue-700 transition text-xs font-semibold"
-                      >
-                        💰 Record
-                      </button>
-                    )}
+          const pendingTenants = filteredTenants.filter((t) => !getTenantPaymentSummary(t).isPaid);
+          const paidTenants = filteredTenants.filter((t) => getTenantPaymentSummary(t).isPaid);
+
+          return (
+            <div className="space-y-5">
+              {pendingTenants.length > 0 && (
+                <div>
+                  <h4 className="flex items-center gap-2 text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wide mb-2">
+                    <span className="h-2 w-2 rounded-full bg-orange-500" /> Pending ({pendingTenants.length})
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                    {pendingTenants.map(renderPaymentCard)}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        ) : (
+              )}
+              {paidTenants.length > 0 && (
+                <div>
+                  <h4 className="flex items-center gap-2 text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wide mb-2">
+                    <span className="h-2 w-2 rounded-full bg-green-500" /> Paid ({paidTenants.length})
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                    {paidTenants.map(renderPaymentCard)}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })() : (
           <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
