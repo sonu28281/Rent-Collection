@@ -367,6 +367,17 @@ const Rooms = () => {
     return isNaN(d) ? String(val) : d.toLocaleDateString('en-IN');
   };
 
+  // lastStatusUpdatedAt only gets set the first time a room's status is toggled
+  // via Mark Vacant/Occupied — most rooms were seeded with a status and never
+  // toggled, so it reads "Never" even for long-occupied rooms. Fall back to the
+  // tenant's check-in date (labelled differently, since it's a different fact)
+  // instead of showing a bare, uninformative "Never".
+  const formatLastUpdated = (lastUpdated, checkInFallback) => {
+    if (lastUpdated) return `Updated: ${fmtDate(lastUpdated)}`;
+    if (checkInFallback) return `Since: ${fmtDate(checkInFallback)}`;
+    return 'Updated: Never';
+  };
+
   // Per-room rent lookup (standalone so card/table breakdowns can use it too)
   const getPerRoomRent = (roomObj) => {
     if (roomObj.defaultRent) return Number(roomObj.defaultRent);
@@ -421,6 +432,7 @@ const Rooms = () => {
           roomLabel: mergedRooms.map(r => r.roomNumber).sort().join(' & '),
           meterLabel: mergedRooms.map(r => r.electricityMeterNo || '—').join(', '),
           lastUpdated: latestUpdated,
+          checkInFallback: tenant.checkInDate || null,
         });
       } else {
         handled.add(room.id);
@@ -438,6 +450,7 @@ const Rooms = () => {
           roomLabel: String(room.roomNumber),
           meterLabel: room.electricityMeterNo || 'N/A',
           lastUpdated: room.lastStatusUpdatedAt,
+          checkInFallback: currentTenant?.checkInDate || null,
         });
       }
     }
@@ -767,7 +780,7 @@ const Rooms = () => {
               { id: 2, label: 'Floor 2 · First Floor', icon: '🏢', grad: 'from-fuchsia-500 to-purple-500', rows: allRows.filter(r => floorOf(r) === 2) },
             ].filter(g => g.rows.length > 0);
             const renderCard = (row) => {
-            const { key, isMulti, rooms: rowRooms, primaryRoom, currentTenant, lastTenant, meterInfo, displayRent, isVacant, roomLabel, meterLabel, lastUpdated } = row;
+            const { key, isMulti, rooms: rowRooms, primaryRoom, currentTenant, lastTenant, meterInfo, displayRent, isVacant, roomLabel, meterLabel, lastUpdated, checkInFallback } = row;
             const rowIds = rowRooms.map(r => r.id);
             const allSelected = rowIds.every(id => selectedRooms.has(id));
             const expanded = expandedMultiRows.has(key);
@@ -852,7 +865,7 @@ const Rooms = () => {
                 </div>
 
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-gray-400 dark:text-slate-500">Updated: {lastUpdated ? fmtDate(lastUpdated) : 'Never'}</span>
+                  <span className="text-[11px] text-gray-400 dark:text-slate-500">{formatLastUpdated(lastUpdated, checkInFallback)}</span>
                   <button
                     onClick={() => openStatusModal(primaryRoom)}
                     className={`py-1 px-3 rounded-lg text-xs font-semibold border transition ${
@@ -906,7 +919,7 @@ const Rooms = () => {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
               {buildDisplayRows(filteredRooms).map(row => {
-                const { key, isMulti, rooms: rowRooms, primaryRoom, currentTenant, lastTenant, meterInfo, displayRent, isVacant, roomLabel, meterLabel, lastUpdated } = row;
+                const { key, isMulti, rooms: rowRooms, primaryRoom, currentTenant, lastTenant, meterInfo, displayRent, isVacant, roomLabel, meterLabel, lastUpdated, checkInFallback } = row;
                 const rowIds = rowRooms.map(r => r.id);
                 const allSelected = rowIds.every(id => selectedRooms.has(id));
                 const expanded = expandedMultiRows.has(key);
@@ -969,7 +982,7 @@ const Rooms = () => {
                         {meterInfo?.reading != null ? `${meterInfo.reading} units` : '—'}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {lastUpdated ? fmtDate(lastUpdated) : 'Never'}
+                        {formatLastUpdated(lastUpdated, checkInFallback)}
                       </td>
                     </tr>
                     {isMulti && expanded && (
