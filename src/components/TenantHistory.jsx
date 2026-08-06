@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { collection, getDocs, query, where } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 
@@ -1023,144 +1023,142 @@ const TenantHistory = () => {
                             })}
                           </div>
                         ) : (
-                          <div className="overflow-x-auto">
+                          <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
                             <table className="w-full text-sm">
-                              <thead className="bg-gray-50">
+                              <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
                                 <tr>
-                                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
-                                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Rooms</th>
-                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Prev Rdg</th>
-                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Curr Rdg</th>
-                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Units</th>
-                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Total Rent</th>
-                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Electricity</th>
-                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Total</th>
-                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Paid</th>
-                                  <th className="px-3 py-2 text-right font-semibold text-gray-700">Balance</th>
-                                  <th className="px-3 py-2 text-center font-semibold text-gray-700">Status</th>
-                                  <th className="px-3 py-2 text-center font-semibold text-gray-700">💳 Payment Date</th>
-                                  <th className="px-3 py-2 text-center font-semibold text-gray-700">📝 Submitted</th>
-                                  <th className="px-3 py-2 text-center font-semibold text-gray-700">✅ Verified</th>
-                                  <th className="px-3 py-2 text-center font-semibold text-gray-700">⏱️ Delay</th>
+                                  <th className="px-3 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Month</th>
+                                  <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Prev Rdg</th>
+                                  <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Curr Rdg</th>
+                                  <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Units</th>
+                                  <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Rent</th>
+                                  <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Electricity</th>
+                                  <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Total</th>
+                                  <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Paid</th>
+                                  <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Balance</th>
+                                  <th className="px-3 py-2.5 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Status</th>
+                                  <th className="px-3 py-2.5 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">💳 Payment Date</th>
+                                  <th className="px-3 py-2.5 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">📝 Submitted</th>
+                                  <th className="px-3 py-2.5 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">✅ Verified</th>
+                                  <th className="px-3 py-2.5 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">⏱️ Delay</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {mergeRecordsByMonth(records).map((merged) => {
-                              const total = merged.totalRent + merged.totalElectricity;
-                              const balance = merged.totalRent + merged.totalElectricity - merged.totalPaid;
-                              const roomList = merged.rooms.map(r => r.roomNumber).sort((a, b) => a - b);
-                              
-                              // Determine status based on all room statuses
-                              let statusColor = 'bg-green-100 text-green-800';
-                              let statusText = 'Paid';
-                              if (merged.statuses.has('unpaid')) {
-                                statusColor = 'bg-red-100 text-red-800';
-                                statusText = 'Unpaid';
-                              } else if (merged.statuses.has('partial')) {
-                                statusColor = 'bg-yellow-100 text-yellow-800';
-                                statusText = merged.statuses.size > 1 ? 'Mixed' : 'Partial';
-                              }
+                          <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                            {(() => {
+                              // Group this year's records by room (relevant for tenants who
+                              // occupy — or occupied — more than one room) so each room's
+                              // history reads as its own block instead of combined-across-rooms
+                              // monthly totals, which hid per-room detail for multi-room tenants.
+                              const byRoom = {};
+                              records.forEach((r) => {
+                                const key = String(r.roomNumber ?? '-');
+                                (byRoom[key] = byRoom[key] || []).push(r);
+                              });
+                              const roomKeys = Object.keys(byRoom).sort((a, b) => Number(a) - Number(b));
 
-                              return (
-                                <tr key={merged.monthKey} className="hover:bg-gray-50">
-                                  <td className="px-3 py-2 font-semibold">
-                                    {MONTHS[merged.month - 1]?.name} {merged.year}
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    <div className="flex gap-1 flex-wrap">
-                                      {roomList.map((room) => (
-                                        <span 
-                                          key={room}
-                                          className={`px-2 py-1 rounded text-xs font-semibold ${
-                                            room < 200
-                                              ? 'bg-green-100 text-green-700'
-                                              : 'bg-purple-100 text-purple-700'
-                                          }`}
-                                        >
-                                          {room}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </td>
-                                  <td className="px-3 py-2 text-right font-mono text-sm">
-                                    {(() => {
-                                      const monthMeter = meterHistory.find(m =>
-                                        Number(m.year) === merged.year && Number(m.month) === merged.month
+                              return roomKeys.map((roomKey) => {
+                                const roomRecords = [...byRoom[roomKey]].sort((a, b) => Number(b.month) - Number(a.month));
+                                const roomIsFloor2 = Number(roomKey) >= 200;
+
+                                return (
+                                  <Fragment key={roomKey}>
+                                    {roomKeys.length > 1 && (
+                                      <tr className={roomIsFloor2 ? 'bg-purple-50 dark:bg-purple-950/25' : 'bg-green-50 dark:bg-green-950/25'}>
+                                        <td colSpan={14} className={`px-3 py-1.5 text-xs font-extrabold uppercase tracking-wide ${roomIsFloor2 ? 'text-purple-800 dark:text-purple-300' : 'text-green-800 dark:text-green-300'}`}>
+                                          🏠 Room {roomKey} · {roomRecords.length} month{roomRecords.length !== 1 ? 's' : ''}
+                                        </td>
+                                      </tr>
+                                    )}
+                                    {roomRecords.map((record) => {
+                                      const rent = Number(record.rent) || 0;
+                                      const electricity = Number(record.electricity) || 0;
+                                      const paid = Number(record.paidAmount) || 0;
+                                      const units = Number(record.units) || 0;
+                                      const total = rent + electricity;
+                                      const balance = total - paid;
+
+                                      let statusColor = 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300';
+                                      let statusText = 'Paid';
+                                      if (record.status === 'unpaid') {
+                                        statusColor = 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300';
+                                        statusText = 'Unpaid';
+                                      } else if (record.status === 'partial') {
+                                        statusColor = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300';
+                                        statusText = 'Partial';
+                                      }
+
+                                      const roomMeter = meterHistory.find((m) =>
+                                        Number(m.year) === Number(record.year) &&
+                                        Number(m.month) === Number(record.month) &&
+                                        String(m.roomNumber) === roomKey
                                       );
-                                      return monthMeter ? monthMeter.previousReading : '-';
-                                    })()}
-                                  </td>
-                                  <td className="px-3 py-2 text-right font-mono text-sm">
-                                    {(() => {
-                                      const monthMeter = meterHistory.find(m =>
-                                        Number(m.year) === merged.year && Number(m.month) === merged.month
-                                      );
-                                      return monthMeter ? monthMeter.currentReading : '-';
-                                    })()}
-                                  </td>
-                                  <td className="px-3 py-2 text-right font-semibold text-blue-600">
-                                    {merged.totalUnits}
-                                  </td>
-                                  <td className="px-3 py-2 text-right font-semibold">
-                                    ₹{merged.totalRent.toLocaleString('en-IN')}
-                                  </td>
-                                  <td className="px-3 py-2 text-right">
-                                    ₹{merged.totalElectricity.toLocaleString('en-IN')}
-                                  </td>
-                                  <td className="px-3 py-2 text-right font-semibold">
-                                    ₹{total.toLocaleString('en-IN')}
-                                  </td>
-                                  <td className="px-3 py-2 text-right text-green-600 font-semibold">
-                                    ₹{merged.totalPaid.toLocaleString('en-IN')}
-                                  </td>
-                                  <td className="px-3 py-2 text-right font-semibold">
-                                    <span className={balance > 0 ? 'text-red-600' : 'text-green-600'}>
-                                      ₹{Math.abs(balance).toLocaleString('en-IN')}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2 text-center">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
-                                      {statusText}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2 text-center text-xs">
-                                    {(() => {
-                                      const record = merged.records[0];
                                       // Fall back to paidAt/date: some records (e.g. Jan–Feb 2026,
                                       // created by a script) store the date under paidAt, not paidDate.
                                       const paymentDate = record?.paidDate || record?.paymentDate || record?.paidAt || record?.date;
-                                      return formatDate(paymentDate);
-                                    })()}
-                                  </td>
-                                  <td className="px-3 py-2 text-center text-xs">
-                                    {(() => {
-                                      const record = merged.records[0];
-                                      const submissionDate = record?.submissionDate;
-                                      return formatDate(submissionDate);
-                                    })()}
-                                  </td>
-                                  <td className="px-3 py-2 text-center text-xs">
-                                    {(() => {
-                                      const record = merged.records[0];
-                                      const verifiedAt = record?.verifiedAt;
-                                      return formatDate(verifiedAt);
-                                    })()}
-                                  </td>
-                                  <td className="px-3 py-2 text-center text-xs font-semibold">
-                                    {(() => {
-                                      const record = merged.records[0];
                                       const delayDays = record?.paymentDelayDays;
                                       const isOnTime = record?.isPaymentOnTime;
-                                      if (delayDays === undefined) return '-';
-                                      if (isOnTime) return <span className="text-green-600">On-Time</span>;
-                                      return <span className="text-red-600">{delayDays} days</span>;
-                                    })()}
-                                  </td>
-                                </tr>
-                              );
-                            })}
+
+                                      return (
+                                        <tr key={record.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                                          <td className="px-3 py-2 font-semibold text-gray-900 dark:text-slate-100">
+                                            {MONTHS[record.month - 1]?.name} {record.year}
+                                          </td>
+                                          <td className="px-3 py-2 text-right font-mono text-sm text-gray-600 dark:text-slate-300">
+                                            {roomMeter ? roomMeter.previousReading : '-'}
+                                          </td>
+                                          <td className="px-3 py-2 text-right font-mono text-sm text-gray-600 dark:text-slate-300">
+                                            {roomMeter ? roomMeter.currentReading : '-'}
+                                          </td>
+                                          <td className="px-3 py-2 text-right font-semibold text-blue-600 dark:text-blue-400">
+                                            {units}
+                                          </td>
+                                          <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-slate-100">
+                                            ₹{rent.toLocaleString('en-IN')}
+                                          </td>
+                                          <td className="px-3 py-2 text-right text-gray-600 dark:text-slate-300">
+                                            ₹{electricity.toLocaleString('en-IN')}
+                                          </td>
+                                          <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-slate-100">
+                                            ₹{total.toLocaleString('en-IN')}
+                                          </td>
+                                          <td className="px-3 py-2 text-right text-green-600 dark:text-green-400 font-semibold">
+                                            ₹{paid.toLocaleString('en-IN')}
+                                          </td>
+                                          <td className="px-3 py-2 text-right font-semibold">
+                                            <span className={balance > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
+                                              ₹{Math.abs(balance).toLocaleString('en-IN')}
+                                            </span>
+                                          </td>
+                                          <td className="px-3 py-2 text-center">
+                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
+                                              {statusText}
+                                            </span>
+                                          </td>
+                                          <td className="px-3 py-2 text-center text-xs text-gray-600 dark:text-slate-300">
+                                            {formatDate(paymentDate)}
+                                          </td>
+                                          <td className="px-3 py-2 text-center text-xs text-gray-600 dark:text-slate-300">
+                                            {formatDate(record?.submissionDate)}
+                                          </td>
+                                          <td className="px-3 py-2 text-center text-xs text-gray-600 dark:text-slate-300">
+                                            {formatDate(record?.verifiedAt)}
+                                          </td>
+                                          <td className="px-3 py-2 text-center text-xs font-semibold">
+                                            {delayDays === undefined ? '-' : isOnTime
+                                              ? <span className="text-green-600 dark:text-green-400">On-Time</span>
+                                              : <span className="text-red-600 dark:text-red-400">{delayDays} days</span>}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </Fragment>
+                                );
+                              });
+                            })()}
                           </tbody>
                             </table>
+                            </div>
                           </div>
                         )}
                       </>
