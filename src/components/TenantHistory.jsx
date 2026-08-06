@@ -767,6 +767,32 @@ const TenantHistory = () => {
             </div>
           </div>
 
+          {/* View Mode Toggle — once for the whole page, not per year */}
+          {!isMobileViewport && (
+            <div className="mb-3 flex gap-2">
+              <button
+                onClick={() => setHistoryViewMode('card')}
+                className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${
+                  historyViewMode === 'card'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                🃏 Card View
+              </button>
+              <button
+                onClick={() => setHistoryViewMode('table')}
+                className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${
+                  historyViewMode === 'table'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                📊 Table View
+              </button>
+            </div>
+          )}
+
           {/* Payment History by Year */}
           <div className="space-y-4">
             {Object.entries(groupByYear(tenantHistory))
@@ -859,32 +885,6 @@ const TenantHistory = () => {
                       </div>
                     ) : (
                       <>
-                        {/* View Mode Toggle - Only on Desktop */}
-                        {!isMobileViewport && (
-                          <div className="mb-3 flex gap-2">
-                            <button
-                              onClick={() => setHistoryViewMode('card')}
-                              className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${
-                                historyViewMode === 'card'
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                              }`}
-                            >
-                              🃏 Card View
-                            </button>
-                            <button
-                              onClick={() => setHistoryViewMode('table')}
-                              className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${
-                                historyViewMode === 'table'
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                              }`}
-                            >
-                              📊 Table View
-                            </button>
-                          </div>
-                        )}
-
                         {historyViewMode === 'card' || isMobileViewport ? (
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
                             {mergeRecordsByMonth(records).map((merged) => {
