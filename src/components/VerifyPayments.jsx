@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, addDoc, deleteDoc } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
@@ -8,9 +8,16 @@ import Tesseract from 'tesseract.js';
 const VerifyPayments = () => {
   const { currentUser } = useAuth();
   const { showAlert, showConfirm, showPrompt } = useDialog();
-  const [submissions, setSubmissions] = useState([]);
+  // Always holds the FULL unfiltered submissions list, so the stat cards (which
+  // double as the filter switcher) can show true counts for every status, not
+  // just the currently-selected one.
+  const [allSubmissions, setAllSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending'); // pending, verified, rejected, all
+  const submissions = useMemo(
+    () => (filter === 'all' ? allSubmissions : allSubmissions.filter((s) => s.status === filter)),
+    [allSubmissions, filter]
+  );
   const [editingSubmission, setEditingSubmission] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [ocrChecks, setOcrChecks] = useState({});
@@ -342,16 +349,11 @@ const VerifyPayments = () => {
   const fetchSubmissions = useCallback(async () => {
     try {
       setLoading(true);
+      // Fetch the whole collection (unfiltered) — it's small (pending review items,
+      // cleared periodically) — so the stat cards always show true per-status
+      // counts. The active filter/tab view is derived from this client-side.
       const submissionsRef = collection(db, 'paymentSubmissions');
-      
-      let submissionsQuery;
-      if (filter === 'all') {
-        submissionsQuery = query(submissionsRef);
-      } else {
-        submissionsQuery = query(submissionsRef, where('status', '==', filter));
-      }
-      
-      const snapshot = await getDocs(submissionsQuery);
+      const snapshot = await getDocs(query(submissionsRef));
       const data = [];
       snapshot.forEach((doc) => {
         data.push({ id: doc.id, ...doc.data() });
@@ -362,15 +364,15 @@ const VerifyPayments = () => {
         const bTime = b?.submittedAt ? new Date(b.submittedAt).getTime() : 0;
         return bTime - aTime;
       });
-      
-      setSubmissions(data);
+
+      setAllSubmissions(data);
     } catch (error) {
       console.error('Error fetching submissions:', error);
       await showAlert('Failed to load submissions', { title: 'Load Error', intent: 'error' });
     } finally {
       setLoading(false);
     }
-  }, [filter, showAlert]);
+  }, [showAlert]);
 
   useEffect(() => {
     fetchSubmissions();
@@ -723,93 +725,96 @@ const VerifyPayments = () => {
   return (
     <div className="p-4 lg:p-8">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-slate-100 mb-2">🔍 Verify Payments</h1>
-        <p className="text-gray-600 dark:text-slate-400">Review and approve tenant payment submissions</p>
-        {notificationPermission !== 'granted' && (
-          <button
-            type="button"
-            onClick={requestNotificationPermission}
-            className="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg"
-          >
-            Enable Admin Notifications
-          </button>
-        )}
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto">
-        {['pending', 'verified', 'rejected', 'all'].map((filterType) => (
-          <button
-            key={filterType}
-            onClick={() => setFilter(filterType)}
-            className={`px-4 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
-              filter === filterType
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm'
-                : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
-            }`}
-          >
-            {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
-            {filterType !== 'all' && (
-              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                filter === filterType ? 'bg-white/25' : 'bg-black/5 dark:bg-white/10'
-              }`}>
-                {submissions.filter(s => s.status === filterType).length}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      <div className="mb-4">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 dark:text-slate-100 mb-2">🔍 Verify Payments</h1>
+          <p className="text-gray-600 dark:text-slate-400">Review and approve tenant payment submissions</p>
+          {notificationPermission !== 'granted' && (
+            <button
+              type="button"
+              onClick={requestNotificationPermission}
+              className="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg"
+            >
+              Enable Admin Notifications
+            </button>
+          )}
+        </div>
         <button
           type="button"
           onClick={runBulkOcrCheck}
           disabled={ocrRunningBulk}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
+          className="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
         >
-          {ocrRunningBulk ? 'Running OCR Check...' : 'Run OCR UTR + Date Check (Pending)'}
+          {ocrRunningBulk ? 'Running OCR Check...' : '🔍 Run OCR UTR + Date Check (Pending)'}
         </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="group relative overflow-hidden bg-gradient-to-br from-yellow-50 to-amber-100 dark:from-yellow-950/40 dark:to-amber-950/30 border border-yellow-200 dark:border-yellow-800 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300">
+      {/* Stats Cards — click to filter, replaces the separate filter-tab pills */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <button
+          type="button"
+          onClick={() => setFilter('pending')}
+          className={`group relative overflow-hidden text-left bg-gradient-to-br from-yellow-50 to-amber-100 dark:from-yellow-950/40 dark:to-amber-950/30 border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300 ${filter === 'pending' ? 'border-yellow-400 dark:border-yellow-500 ring-2 ring-yellow-300 dark:ring-yellow-700' : 'border-yellow-200 dark:border-yellow-800'}`}
+        >
           <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-amber-200/40 dark:bg-amber-800/20 blur-xl" />
           <div className="relative flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-yellow-800 dark:text-yellow-300">
-                {submissions.filter(s => s.status === 'pending').length}
+                {allSubmissions.filter(s => s.status === 'pending').length}
               </div>
               <div className="text-sm font-semibold text-yellow-700 dark:text-yellow-400">Pending Review</div>
             </div>
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/70 dark:bg-slate-800/60 text-xl shadow-inner ring-1 ring-yellow-200 dark:ring-yellow-800 group-hover:scale-110 transition-transform">⏳</div>
           </div>
-        </div>
-        <div className="group relative overflow-hidden bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-950/40 dark:to-emerald-950/30 border border-green-200 dark:border-green-800 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300">
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilter('verified')}
+          className={`group relative overflow-hidden text-left bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-950/40 dark:to-emerald-950/30 border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300 ${filter === 'verified' ? 'border-green-400 dark:border-green-500 ring-2 ring-green-300 dark:ring-green-700' : 'border-green-200 dark:border-green-800'}`}
+        >
           <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-emerald-200/40 dark:bg-emerald-800/20 blur-xl" />
           <div className="relative flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-green-800 dark:text-green-300">
-                {submissions.filter(s => s.status === 'verified').length}
+                {allSubmissions.filter(s => s.status === 'verified').length}
               </div>
               <div className="text-sm font-semibold text-green-700 dark:text-green-400">Verified</div>
             </div>
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/70 dark:bg-slate-800/60 text-xl shadow-inner ring-1 ring-green-200 dark:ring-green-800 group-hover:scale-110 transition-transform">✅</div>
           </div>
-        </div>
-        <div className="group relative overflow-hidden bg-gradient-to-br from-red-50 to-rose-100 dark:from-red-950/40 dark:to-rose-950/30 border border-red-200 dark:border-red-800 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300">
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilter('rejected')}
+          className={`group relative overflow-hidden text-left bg-gradient-to-br from-red-50 to-rose-100 dark:from-red-950/40 dark:to-rose-950/30 border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300 ${filter === 'rejected' ? 'border-red-400 dark:border-red-500 ring-2 ring-red-300 dark:ring-red-700' : 'border-red-200 dark:border-red-800'}`}
+        >
           <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-rose-200/40 dark:bg-rose-800/20 blur-xl" />
           <div className="relative flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-red-800 dark:text-red-300">
-                {submissions.filter(s => s.status === 'rejected').length}
+                {allSubmissions.filter(s => s.status === 'rejected').length}
               </div>
               <div className="text-sm font-semibold text-red-700 dark:text-red-400">Rejected</div>
             </div>
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/70 dark:bg-slate-800/60 text-xl shadow-inner ring-1 ring-red-200 dark:ring-red-800 group-hover:scale-110 transition-transform">❌</div>
           </div>
-        </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilter('all')}
+          className={`group relative overflow-hidden text-left bg-gradient-to-br from-slate-50 to-gray-100 dark:from-slate-800 dark:to-slate-700 border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300 ${filter === 'all' ? 'border-slate-400 dark:border-slate-500 ring-2 ring-slate-300 dark:ring-slate-600' : 'border-gray-200 dark:border-slate-700'}`}
+        >
+          <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-gray-300/30 dark:bg-slate-600/20 blur-xl" />
+          <div className="relative flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-gray-800 dark:text-slate-100">
+                {allSubmissions.length}
+              </div>
+              <div className="text-sm font-semibold text-gray-600 dark:text-slate-300">All</div>
+            </div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/70 dark:bg-slate-800/60 text-xl shadow-inner ring-1 ring-gray-200 dark:ring-slate-600 group-hover:scale-110 transition-transform">📋</div>
+          </div>
+        </button>
       </div>
 
       {/* Submissions List */}
