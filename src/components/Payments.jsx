@@ -850,114 +850,116 @@ const Payments = () => {
             })}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th
-                    className="px-4 py-3 text-left font-semibold text-gray-700 cursor-pointer select-none"
-                    onClick={() => handleSortChange('room')}
-                    title="Sort by room"
-                  >
-                    Room {sortBy === 'room' ? (sortOrder === 'asc' ? '↑' : '↓') : ''}
-                  </th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Tenant</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Phone</th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Rent</th>
-                  <th
-                    className="px-4 py-3 text-center font-semibold text-gray-700 cursor-pointer select-none"
-                    onClick={() => handleSortChange('date')}
-                    title="Sort by payment date"
-                  >
-                    Payment Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : ''}
-                  </th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">UTR</th>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Screenshot</th>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredTenants.map((tenant) => {
-                  const paymentSummary = getTenantPaymentSummary(tenant);
-                  const isPaid = paymentSummary.isPaid;
-                  const monthPayments = getTenantMonthPayments(tenant);
-                  const latestPayment = monthPayments.sort((a, b) => getPaymentSortTime(b) - getPaymentSortTime(a))[0];
+          <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
+                  <tr>
+                    <th
+                      className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none"
+                      onClick={() => handleSortChange('room')}
+                      title="Sort by room"
+                    >
+                      Room {sortBy === 'room' ? (sortOrder === 'asc' ? '↑' : '↓') : ''}
+                    </th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Tenant</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Phone</th>
+                    <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Rent</th>
+                    <th
+                      className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none"
+                      onClick={() => handleSortChange('date')}
+                      title="Sort by payment date"
+                    >
+                      Payment Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : ''}
+                    </th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">UTR</th>
+                    <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Screenshot</th>
+                    <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Status</th>
+                    <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                  {filteredTenants.map((tenant) => {
+                    const paymentSummary = getTenantPaymentSummary(tenant);
+                    const isPaid = paymentSummary.isPaid;
+                    const monthPayments = getTenantMonthPayments(tenant);
+                    const latestPayment = monthPayments.sort((a, b) => getPaymentSortTime(b) - getPaymentSortTime(a))[0];
 
-                  return (
-                    <tr key={tenant.id} className={`hover:bg-gray-50 ${isPaid ? 'bg-green-50' : ''}`}>
-                      <td className="px-4 py-3 font-bold text-gray-900">
-                        {tenant.roomNumber}
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-gray-900">
-                        {tenant.name}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {tenant.phone || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-gray-900">
-                        ₹{(isPaid ? paymentSummary.totalPaid : (tenant.currentRent || 0)).toLocaleString('en-IN')}
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm text-gray-700">
-                        {paymentSummary.latestPaidDate
-                          ? new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')
-                          : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-xs font-mono text-gray-700 max-w-[180px] truncate" title={paymentSummary.utrDisplay}>
-                        {isPaid ? paymentSummary.utrDisplay : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {isPaid && hasProof(latestPayment) ? (
-                          <div className="flex flex-col items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => openProof(latestPayment, `${tenant.name} • Room ${tenant.roomNumber}`)}
-                              disabled={loadingProofId === latestPayment?.id}
-                              className="px-2 py-1 rounded border border-gray-300 text-xs font-semibold text-blue-700 hover:border-blue-500 hover:bg-blue-50 disabled:opacity-60"
-                              title="View payment proof"
-                            >
-                              {loadingProofId === latestPayment?.id ? '…' : '📸 View'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadScreenshot(latestPayment)}
-                              className="text-xs font-semibold text-indigo-700 hover:underline"
-                            >
-                              Download
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {isPaid ? (
-                          <div className="flex flex-col items-center">
-                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-200 text-green-900 mb-1">
-                              ✅ Paid
+                    return (
+                      <tr key={tenant.id} className={isPaid ? 'bg-green-50 hover:bg-green-100 dark:bg-green-950/20 dark:hover:bg-green-900/30' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}>
+                        <td className="px-4 py-3 font-bold text-gray-900">
+                          {tenant.roomNumber}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-gray-900">
+                          {tenant.name}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {tenant.phone || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-gray-900">
+                          ₹{(isPaid ? paymentSummary.totalPaid : (tenant.currentRent || 0)).toLocaleString('en-IN')}
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm text-gray-700">
+                          {paymentSummary.latestPaidDate
+                            ? new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')
+                            : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono text-gray-700 max-w-[180px] truncate" title={paymentSummary.utrDisplay}>
+                          {isPaid ? paymentSummary.utrDisplay : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {isPaid && hasProof(latestPayment) ? (
+                            <div className="flex flex-col items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openProof(latestPayment, `${tenant.name} • Room ${tenant.roomNumber}`)}
+                                disabled={loadingProofId === latestPayment?.id}
+                                className="px-2 py-1 rounded border border-gray-300 text-xs font-semibold text-blue-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 disabled:opacity-60"
+                                title="View payment proof"
+                              >
+                                {loadingProofId === latestPayment?.id ? '…' : '📸 View'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadScreenshot(latestPayment)}
+                                className="text-xs font-semibold text-indigo-700 hover:underline"
+                              >
+                                Download
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {isPaid ? (
+                            <div className="flex flex-col items-center">
+                              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-200 text-green-900 dark:bg-green-900/50 dark:text-green-300 mb-1">
+                                ✅ Paid
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-200 text-orange-900 dark:bg-orange-900/50 dark:text-orange-300">
+                              ⏳ Pending
                             </span>
-                          </div>
-                        ) : (
-                          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-200 text-orange-900">
-                            ⏳ Pending
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {!isPaid && (
-                          <button
-                            onClick={() => handleRecordPayment(tenant)}
-                            className="px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition text-xs font-semibold"
-                          >
-                            💰 Record
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {!isPaid && (
+                            <button
+                              onClick={() => handleRecordPayment(tenant)}
+                              className="px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition text-xs font-semibold"
+                            >
+                              💰 Record
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
@@ -1036,64 +1038,66 @@ const Payments = () => {
             <p>No screenshots found for selected filter.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Room</th>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Tenant</th>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-700">Paid Date</th>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-700">UTR</th>
-                  <th className="px-3 py-2 text-center font-semibold text-gray-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredHistoryScreenshots.map((payment) => {
-                  const screenshotUrl = getPaymentScreenshot(payment);
-                  const isOld = isOlderThanMonths(payment, cleanupMonths);
-                  return (
-                    <tr key={payment.id} className={isOld ? 'bg-amber-50' : ''}>
-                      <td className="px-3 py-2 text-gray-700">{getHistoryMonthLabel(payment)}</td>
-                      <td className="px-3 py-2 font-semibold text-gray-900">{payment.roomNumber || '-'}</td>
-                      <td className="px-3 py-2 text-gray-900">{payment.tenantNameSnapshot || payment.tenantName || '-'}</td>
-                      <td className="px-3 py-2 text-gray-700">{payment.paidDate ? new Date(payment.paidDate).toLocaleDateString('en-IN') : '-'}</td>
-                      <td className="px-3 py-2 text-xs font-mono text-gray-700 max-w-[200px] truncate" title={payment.utr || '-'}>{payment.utr || '-'}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => openScreenshotPreview(screenshotUrl, `${payment.tenantNameSnapshot || payment.tenantName || 'Tenant'} • Room ${payment.roomNumber || '-'}`)}
-                            className="rounded border border-gray-300 overflow-hidden hover:border-blue-500"
-                            title="Click to preview"
-                          >
-                            <img
-                              src={screenshotUrl}
-                              alt="History screenshot thumbnail"
-                              className="w-10 h-10 object-cover"
-                            />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDownloadScreenshot(payment)}
-                            className="text-xs font-semibold text-indigo-700 hover:underline"
-                          >
-                            Download
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteScreenshot(payment)}
-                            className="text-xs font-semibold text-red-700 hover:underline"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Month</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Room</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Tenant</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Paid Date</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">UTR</th>
+                    <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                  {filteredHistoryScreenshots.map((payment) => {
+                    const screenshotUrl = getPaymentScreenshot(payment);
+                    const isOld = isOlderThanMonths(payment, cleanupMonths);
+                    return (
+                      <tr key={payment.id} className={isOld ? 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/20 dark:hover:bg-amber-900/30' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}>
+                        <td className="px-3 py-2 text-gray-700">{getHistoryMonthLabel(payment)}</td>
+                        <td className="px-3 py-2 font-semibold text-gray-900">{payment.roomNumber || '-'}</td>
+                        <td className="px-3 py-2 text-gray-900">{payment.tenantNameSnapshot || payment.tenantName || '-'}</td>
+                        <td className="px-3 py-2 text-gray-700">{payment.paidDate ? new Date(payment.paidDate).toLocaleDateString('en-IN') : '-'}</td>
+                        <td className="px-3 py-2 text-xs font-mono text-gray-700 max-w-[200px] truncate" title={payment.utr || '-'}>{payment.utr || '-'}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center justify-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => openScreenshotPreview(screenshotUrl, `${payment.tenantNameSnapshot || payment.tenantName || 'Tenant'} • Room ${payment.roomNumber || '-'}`)}
+                              className="rounded border border-gray-200 dark:border-slate-600 overflow-hidden hover:border-blue-500"
+                              title="Click to preview"
+                            >
+                              <img
+                                src={screenshotUrl}
+                                alt="History screenshot thumbnail"
+                                className="w-10 h-10 object-cover"
+                              />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadScreenshot(payment)}
+                              className="text-xs font-semibold text-indigo-700 hover:underline"
+                            >
+                              Download
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteScreenshot(payment)}
+                              className="text-xs font-semibold text-red-700 hover:underline"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
         </>

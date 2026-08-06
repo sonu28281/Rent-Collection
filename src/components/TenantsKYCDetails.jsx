@@ -7,16 +7,23 @@ import Tesseract from 'tesseract.js';
 const getStatusBadge = (status) => {
   const normalized = String(status || 'not_uploaded').toLowerCase();
   const map = {
-    verified: { label: 'Verified ✅', className: 'bg-green-100 text-green-800' },
-    name_mismatch: { label: 'Name Mismatch ⚠️', className: 'bg-red-100 text-red-800' },
-    number_not_found: { label: 'Number Missing ⚠️', className: 'bg-orange-100 text-orange-800' },
-    recheck_needed: { label: 'Recheck Needed', className: 'bg-amber-100 text-amber-800' },
-    checking: { label: 'Checking...', className: 'bg-blue-100 text-blue-800' },
-    error: { label: 'OCR Error', className: 'bg-red-100 text-red-800' },
+    verified: { label: 'Verified ✅', className: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300' },
+    name_mismatch: { label: 'Name Mismatch ⚠️', className: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300' },
+    number_not_found: { label: 'Number Missing ⚠️', className: 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300' },
+    recheck_needed: { label: 'Recheck Needed', className: 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300' },
+    checking: { label: 'Checking...', className: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300' },
+    error: { label: 'OCR Error', className: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300' },
     not_uploaded: { label: 'Not Uploaded', className: 'bg-gray-100 text-gray-700' }
   };
 
   return map[normalized] || { label: status || 'Unknown', className: 'bg-gray-100 text-gray-700' };
+};
+
+const getCompletionBadgeClass = (percentage) => {
+  const pct = Number(percentage) || 0;
+  if (pct >= 100) return 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300';
+  if (pct >= 50) return 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300';
+  return 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300';
 };
 
 const getAssignedRooms = (tenantRecord) => {
@@ -439,36 +446,36 @@ const TenantsKYCDetails = () => {
       </div>
 
       {!isCardView ? (
-      <div className="card overflow-hidden">
+      <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-100">
+            <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
               <tr>
-                <th className="px-3 py-2 text-left">Room(s)</th>
-                <th className="px-3 py-2 text-left">Tenant</th>
-                <th className="px-3 py-2 text-left">Phone</th>
-                <th className="px-3 py-2 text-left">Occupation</th>
-                <th className="px-3 py-2 text-center">🏛️ DigiLocker</th>
-                <th className="px-3 py-2 text-left">Aadhaar (Captured)</th>
-                <th className="px-3 py-2 text-left">PAN (Captured)</th>
-                <th className="px-3 py-2 text-center">Verification</th>
-                <th className="px-3 py-2 text-center">Aadhaar Img</th>
-                <th className="px-3 py-2 text-center">PAN Img</th>
-                <th className="px-3 py-2 text-center">Selfie</th>
-                <th className="px-3 py-2 text-center">Agreement</th>
-                <th className="px-3 py-2 text-center">Completion</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Room(s)</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Tenant</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Phone</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Occupation</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">🏛️ DigiLocker</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Aadhaar (Captured)</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">PAN (Captured)</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Verification</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Aadhaar Img</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">PAN Img</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Selfie</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Agreement</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Completion</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
               {filteredRows.map((row) => (
                 <tr
                   key={row.id}
-                  className={`border-b align-top ${
+                  className={`align-top ${
                     row.digiLockerVerified
-                      ? 'bg-green-50 hover:bg-green-100'
+                      ? 'bg-green-50 hover:bg-green-100 dark:bg-green-950/20 dark:hover:bg-green-900/30'
                       : (row.aadharDocStatus !== 'verified' && row.aadharImage) || (row.panDocStatus !== 'verified' && row.panImage)
-                      ? 'bg-red-50/40 hover:bg-red-100/40'
-                      : 'hover:bg-gray-50'
+                      ? 'bg-red-50/40 hover:bg-red-100/40 dark:bg-red-950/20 dark:hover:bg-red-900/30'
+                      : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
                   }`}
                 >
                   <td className="px-3 py-2 font-semibold">{row.rooms.length ? row.rooms.join(', ') : '-'}</td>
@@ -484,7 +491,7 @@ const TenantsKYCDetails = () => {
                       {row.firstName || row.lastName ? `${row.firstName} ${row.lastName}`.trim() : 'KYC name missing'}
                     </div>
                     <div className="text-xs mt-1">
-                      <span className={`px-2 py-0.5 rounded ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>
+                      <span className={`px-2 py-0.5 rounded ${row.isActive ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300' : 'bg-gray-200 text-gray-700'}`}>
                         {row.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </div>
@@ -501,7 +508,7 @@ const TenantsKYCDetails = () => {
                           {row.digiLockerVerifiedAt && new Date(row.digiLockerVerifiedAt.seconds * 1000).toLocaleDateString('en-IN')}
                         </div>
                         {row.digiLockerAadhaarNumber && (
-                          <div className="text-[11px] font-mono text-green-700 mt-1">
+                          <div className="text-[11px] font-mono text-green-700 dark:text-green-400 mt-1">
                             {row.digiLockerAadhaarNumber}
                           </div>
                         )}
@@ -532,28 +539,28 @@ const TenantsKYCDetails = () => {
                       P: {getStatusBadge(row.panDocStatus).label}
                     </div>
                     {(row.aadharDocReason || row.panDocReason) && (
-                      <p className="text-[11px] text-red-700 mt-1 max-w-[180px] mx-auto">
+                      <p className="text-[11px] text-red-700 dark:text-red-400 mt-1 max-w-[180px] mx-auto">
                         {row.aadharDocReason || row.panDocReason}
                       </p>
                     )}
                   </td>
                   <td className="px-3 py-2 text-center">
                     {row.aadharImage ? (
-                      <img src={row.aadharImage} alt="Aadhaar" className="h-14 w-20 object-cover rounded border mx-auto" />
+                      <img src={row.aadharImage} alt="Aadhaar" className="h-14 w-20 object-cover rounded border border-gray-200 mx-auto" />
                     ) : '—'}
                   </td>
                   <td className="px-3 py-2 text-center">
                     {row.panImage ? (
-                      <img src={row.panImage} alt="PAN" className="h-14 w-20 object-cover rounded border mx-auto" />
+                      <img src={row.panImage} alt="PAN" className="h-14 w-20 object-cover rounded border border-gray-200 mx-auto" />
                     ) : '—'}
                   </td>
                   <td className="px-3 py-2 text-center">
                     {row.selfieImage ? (
-                      <img src={row.selfieImage} alt="Selfie" className="h-14 w-14 object-cover rounded-full border mx-auto" />
+                      <img src={row.selfieImage} alt="Selfie" className="h-14 w-14 object-cover rounded-full border border-gray-200 mx-auto" />
                     ) : '—'}
                   </td>
                   <td className="px-3 py-2 text-center">
-                    <div className={`text-xs font-semibold ${row.agreementAccepted ? 'text-green-700' : 'text-red-700'}`}>
+                    <div className={`text-xs font-semibold ${row.agreementAccepted ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
                       {row.agreementAccepted ? 'Accepted' : 'Pending'}
                     </div>
                     <div className="text-[11px] text-gray-500 mt-1">
@@ -561,7 +568,7 @@ const TenantsKYCDetails = () => {
                     </div>
                   </td>
                   <td className="px-3 py-2 text-center">
-                    <span className="inline-flex items-center justify-center px-2 py-1 rounded bg-blue-100 text-blue-800 font-semibold">
+                    <span className={`inline-flex items-center justify-center px-2 py-1 rounded font-semibold ${getCompletionBadgeClass(row.completion.percentage)}`}>
                       {row.completion.percentage}%
                     </span>
                     <div className="text-[11px] text-gray-500 mt-1">{row.completion.filled}/{row.completion.total}</div>

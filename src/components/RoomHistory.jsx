@@ -277,75 +277,77 @@ const RoomHistory = () => {
                       </div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Month</th>
-                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Tenant</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Rent</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Units</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Electricity</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Total</th>
-                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Paid</th>
-                            <th className="px-3 py-2 text-center font-semibold text-gray-700">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {records.map((record) => {
-                            const rent = Number(record.rent) || 0;
-                            const electricity = Number(record.electricity) || 0;
-                            const total = rent + electricity;
-                            const paid = Number(record.paidAmount) || 0;
-                            const units = record.units || 0;
-                            const tenant = record.tenantNameSnapshot || record.tenantName || 'Unknown';
-                            const isVacant = record.roomStatus === 'vacant' || rent === 0;
+                    <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
+                            <tr>
+                              <th className="px-3 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Month</th>
+                              <th className="px-3 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Tenant</th>
+                              <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Rent</th>
+                              <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Units</th>
+                              <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Electricity</th>
+                              <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Total</th>
+                              <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Paid</th>
+                              <th className="px-3 py-2.5 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                            {records.map((record) => {
+                              const rent = Number(record.rent) || 0;
+                              const electricity = Number(record.electricity) || 0;
+                              const total = rent + electricity;
+                              const paid = Number(record.paidAmount) || 0;
+                              const units = record.units || 0;
+                              const tenant = record.tenantNameSnapshot || record.tenantName || 'Unknown';
+                              const isVacant = record.roomStatus === 'vacant' || rent === 0;
 
-                            return (
-                              <tr key={record.id} className={isVacant ? 'bg-red-50' : 'hover:bg-gray-50'}>
-                                <td className="px-3 py-2">
-                                  {MONTHS[record.month - 1]?.name}
-                                </td>
-                                <td className="px-3 py-2">
-                                  {isVacant ? (
-                                    <span className="text-red-600 font-semibold">⬜ Vacant</span>
-                                  ) : (
-                                    <span className={
-                                      tenant === 'Historical Record' ? 'text-gray-500 italic' : 'text-gray-700'
-                                    }>
-                                      {tenant}
+                              return (
+                                <tr key={record.id} className={isVacant ? 'bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50'}>
+                                  <td className="px-3 py-2">
+                                    {MONTHS[record.month - 1]?.name} {record.year}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {isVacant ? (
+                                      <span className="text-red-600 dark:text-red-400 font-semibold">⬜ Vacant</span>
+                                    ) : (
+                                      <span className={
+                                        tenant === 'Historical Record' ? 'text-gray-500 italic' : 'text-gray-700'
+                                      }>
+                                        {tenant}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    ₹{rent.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">{units}</td>
+                                  <td className="px-3 py-2 text-right">
+                                    ₹{electricity.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-semibold">
+                                    ₹{total.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    ₹{paid.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3 py-2 text-center">
+                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                      record.status === 'paid'
+                                        ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300'
+                                        : record.status === 'partial'
+                                        ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300'
+                                        : 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300'
+                                    }`}>
+                                      {record.status || 'unpaid'}
                                     </span>
-                                  )}
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  ₹{rent.toLocaleString('en-IN')}
-                                </td>
-                                <td className="px-3 py-2 text-right">{units}</td>
-                                <td className="px-3 py-2 text-right">
-                                  ₹{electricity.toLocaleString('en-IN')}
-                                </td>
-                                <td className="px-3 py-2 text-right font-semibold">
-                                  ₹{total.toLocaleString('en-IN')}
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  ₹{paid.toLocaleString('en-IN')}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                    record.status === 'paid'
-                                      ? 'bg-green-100 text-green-800'
-                                      : record.status === 'partial'
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : 'bg-red-100 text-red-800'
-                                  }`}>
-                                    {record.status || 'unpaid'}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 );

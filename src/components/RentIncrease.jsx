@@ -142,39 +142,41 @@ const RentIncrease = () => {
           </div>
 
           {result.results && result.results.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Tenant</th>
-                    <th className="px-3 py-2 text-left">Room</th>
-                    <th className="px-3 py-2 text-right">Old Rent</th>
-                    <th className="px-3 py-2 text-right">New Rent</th>
-                    <th className="px-3 py-2 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.results.map((item, idx) => (
-                    <tr key={idx} className="border-b">
-                      <td className="px-3 py-2">{item.tenantName}</td>
-                      <td className="px-3 py-2">{item.roomNumber}</td>
-                      <td className="px-3 py-2 text-right">
-                        {item.oldRent ? `₹${item.oldRent}` : '-'}
-                      </td>
-                      <td className="px-3 py-2 text-right font-semibold">
-                        {item.newRent ? `₹${item.newRent}` : '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        {item.status === 'success' ? (
-                          <span className="text-green-600">✅</span>
-                        ) : (
-                          <span className="text-red-600">❌</span>
-                        )}
-                      </td>
+            <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
+                    <tr>
+                      <th className="px-3 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Tenant</th>
+                      <th className="px-3 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Room</th>
+                      <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Old Rent</th>
+                      <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">New Rent</th>
+                      <th className="px-3 py-2.5 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                    {result.results.map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="px-3 py-2 font-medium text-gray-900 dark:text-slate-100">{item.tenantName}</td>
+                        <td className="px-3 py-2 text-gray-600 dark:text-slate-300">{item.roomNumber}</td>
+                        <td className="px-3 py-2 text-right text-gray-600 dark:text-slate-300">
+                          {item.oldRent ? `₹${item.oldRent.toLocaleString('en-IN')}` : '-'}
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-slate-100">
+                          {item.newRent ? `₹${item.newRent.toLocaleString('en-IN')}` : '-'}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {item.status === 'success' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">✅ Success</span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300">❌ Failed</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -211,56 +213,62 @@ const RentIncrease = () => {
             <p className="text-sm text-gray-500 mt-2">All active tenants are up to date</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-3 py-2 text-left">Tenant</th>
-                  <th className="px-3 py-2 text-left">Room</th>
-                  <th className="px-3 py-2 text-right">Current Rent</th>
-                  <th className="px-3 py-2 text-right">New Rent</th>
-                  <th className="px-3 py-2 text-center">Increase %</th>
-                  <th className="px-3 py-2 text-center">Due Date</th>
-                  <th className="px-3 py-2 text-center">Days Past</th>
-                  <th className="px-3 py-2 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingIncreases.map((tenant) => {
-                  const increasePercentage = tenant.annualIncreasePercentage || 10;
-                  const newRent = Math.round(tenant.currentRent * (1 + increasePercentage / 100));
-                  
-                  return (
-                    <tr key={tenant.id} className="border-b hover:bg-gray-50">
-                      <td className="px-3 py-2">{tenant.name}</td>
-                      <td className="px-3 py-2">{tenant.roomNumber}</td>
-                      <td className="px-3 py-2 text-right">₹{tenant.currentRent}</td>
-                      <td className="px-3 py-2 text-right font-semibold text-green-600">
-                        ₹{newRent}
-                      </td>
-                      <td className="px-3 py-2 text-center">{increasePercentage}%</td>
-                      <td className="px-3 py-2 text-center">
-                        {new Date(tenant.nextIncreaseDate).toLocaleDateString('en-IN')}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <span className={tenant.daysPastDue > 30 ? 'text-red-600 font-semibold' : 'text-gray-600'}>
-                          {tenant.daysPastDue}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <button
-                          onClick={() => handleApplySingle(tenant.id, tenant)}
-                          disabled={processing}
-                          className="text-primary hover:text-secondary font-semibold text-xs"
-                        >
-                          Apply
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
+                  <tr>
+                    <th className="px-3 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Tenant</th>
+                    <th className="px-3 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Room</th>
+                    <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Current Rent</th>
+                    <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">New Rent</th>
+                    <th className="px-3 py-2.5 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Increase %</th>
+                    <th className="px-3 py-2.5 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Due Date</th>
+                    <th className="px-3 py-2.5 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Days Past</th>
+                    <th className="px-3 py-2.5 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                  {pendingIncreases.map((tenant) => {
+                    const increasePercentage = tenant.annualIncreasePercentage || 10;
+                    const newRent = Math.round(tenant.currentRent * (1 + increasePercentage / 100));
+
+                    return (
+                      <tr key={tenant.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 font-medium text-gray-900 dark:text-slate-100">{tenant.name}</td>
+                        <td className="px-3 py-2 text-gray-600 dark:text-slate-300">{tenant.roomNumber}</td>
+                        <td className="px-3 py-2 text-right text-gray-600 dark:text-slate-300">₹{tenant.currentRent.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-green-600 dark:text-green-400">
+                          ₹{newRent.toLocaleString('en-IN')}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">
+                            ▲ {increasePercentage}%
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-center text-gray-600 dark:text-slate-300">
+                          {new Date(tenant.nextIncreaseDate).toLocaleDateString('en-IN')}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={tenant.daysPastDue > 30 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-600 dark:text-slate-300'}>
+                            {tenant.daysPastDue}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            onClick={() => handleApplySingle(tenant.id, tenant)}
+                            disabled={processing}
+                            className="text-primary hover:text-secondary font-semibold text-xs"
+                          >
+                            Apply
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

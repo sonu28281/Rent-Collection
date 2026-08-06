@@ -882,9 +882,10 @@ const Rooms = () => {
           })()}
         </div>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+            <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
               <tr>
                 <th className="px-4 py-3 text-left">
                   <input
@@ -894,16 +895,16 @@ const Rooms = () => {
                     className="w-4 h-4 text-primary rounded"
                   />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tenant / Last Tenant</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Default Rent</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meter No</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Meter</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</th>
+                <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Room</th>
+                <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Status</th>
+                <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Tenant / Last Tenant</th>
+                <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Default Rent</th>
+                <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Meter No</th>
+                <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Last Meter</th>
+                <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Last Updated</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
               {buildDisplayRows(filteredRooms).map(row => {
                 const { key, isMulti, rooms: rowRooms, primaryRoom, currentTenant, lastTenant, meterInfo, displayRent, isVacant, roomLabel, meterLabel, lastUpdated } = row;
                 const rowIds = rowRooms.map(r => r.id);
@@ -912,7 +913,7 @@ const Rooms = () => {
 
                 return (
                   <Fragment key={key}>
-                    <tr className={allSelected ? 'bg-blue-50' : isMulti ? 'bg-indigo-50' : ''}>
+                    <tr className={`${allSelected ? 'bg-blue-50 dark:bg-blue-950/30' : isMulti ? 'bg-indigo-50 dark:bg-indigo-950/20' : ''} hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors`}>
                       <td className="px-4 py-4">
                         <input
                           type="checkbox"
@@ -922,27 +923,29 @@ const Rooms = () => {
                         />
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="text-sm font-bold text-gray-900">{roomLabel}</div>
-                        {isMulti && <div className="text-xs text-indigo-600 font-semibold mt-0.5">🏠 Multi-room</div>}
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center justify-center min-w-[2.25rem] px-2 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100 shadow-sm ring-1 ring-gray-200 dark:ring-slate-600">{roomLabel}</span>
+                          {isMulti && <span className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold">🏠 Multi-room</span>}
+                        </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-4 whitespace-nowrap">
                         <button
                           onClick={() => openStatusModal(primaryRoom)}
                           title={isVacant ? 'Click to mark Occupied' : 'Click to mark Vacant'}
                           className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full cursor-pointer border transition hover:shadow ${
                             isVacant
-                              ? 'bg-gray-100 text-gray-800 border-gray-300 hover:bg-green-50 hover:text-green-800'
-                              : 'bg-green-100 text-green-800 border-green-300 hover:bg-orange-50 hover:text-orange-800'
+                              ? 'bg-gray-100 text-gray-800 border-gray-300 hover:bg-green-50 dark:hover:bg-green-950/40 hover:text-green-800 dark:hover:text-green-400'
+                              : 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 border-green-300 dark:border-green-700 hover:bg-orange-50 dark:hover:bg-orange-950/40 hover:text-orange-800 dark:hover:text-orange-400'
                           }`}
                         >
                           {isVacant ? '⬜ Vacant' : '✅ Occupied'}
                         </button>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
+                      <td className="px-4 py-4 text-sm text-gray-900">
                         {!isVacant && currentTenant
-                          ? <span className="text-green-700 font-medium">👤 {currentTenant.name}{isMulti ? <span className="ml-1 text-xs text-indigo-600">· Multi-room</span> : null}</span>
+                          ? <span className="text-green-700 dark:text-green-400 font-medium">👤 {currentTenant.name}{isMulti ? <span className="ml-1 text-xs text-indigo-600 dark:text-indigo-400">· Multi-room</span> : null}</span>
                           : lastTenant
-                            ? <span className="text-orange-600 text-xs">
+                            ? <span className="text-orange-600 dark:text-orange-400 text-xs">
                                 {lastTenant.name}
                                 {lastTenant.checkOutDate && <><br/><span className="text-gray-400">out: {fmtDate(lastTenant.checkOutDate)}</span></>}
                               </span>
@@ -953,45 +956,45 @@ const Rooms = () => {
                         {isMulti && displayRent && (
                           <button
                             onClick={() => toggleMultiExpand(key)}
-                            className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded hover:bg-indigo-200 font-semibold mt-1"
+                            className="text-xs bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded hover:bg-indigo-200 dark:hover:bg-indigo-900 font-semibold mt-1"
                           >
                             {expanded ? 'Hide ▲' : 'Breakout ▼'}
                           </button>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                         {meterLabel}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {meterInfo?.reading != null ? `${meterInfo.reading}` : '—'}
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {meterInfo?.reading != null ? `${meterInfo.reading} units` : '—'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                         {lastUpdated ? fmtDate(lastUpdated) : 'Never'}
                       </td>
                     </tr>
                     {isMulti && expanded && (
-                      <tr className="bg-indigo-50">
+                      <tr className="bg-indigo-50 dark:bg-indigo-950/20">
                         <td colSpan={8} className="px-8 py-3">
-                          <div className="border border-indigo-200 rounded-lg overflow-hidden">
+                          <div className="border border-indigo-200 dark:border-indigo-800 rounded-lg overflow-hidden">
                             <table className="w-full text-xs">
-                              <thead>
-                                <tr className="bg-indigo-100 text-indigo-800">
-                                  <th className="px-3 py-2 text-left font-semibold">Room</th>
-                                  <th className="px-3 py-2 text-left font-semibold">Meter No</th>
-                                  <th className="px-3 py-2 text-right font-semibold">Rent</th>
+                              <thead className="bg-indigo-100 dark:bg-indigo-900/40">
+                                <tr>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-indigo-800 dark:text-indigo-300">Room</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-indigo-800 dark:text-indigo-300">Meter No</th>
+                                  <th className="px-2 py-1.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-indigo-800 dark:text-indigo-300">Rent</th>
                                 </tr>
                               </thead>
-                              <tbody className="bg-white">
+                              <tbody className="bg-white dark:bg-slate-900/60">
                                 {rowRooms.map(r => (
-                                  <tr key={r.id} className="border-t border-indigo-100">
-                                    <td className="px-3 py-2 font-semibold text-indigo-800">{r.roomNumber}</td>
+                                  <tr key={r.id} className="border-t border-indigo-100 dark:border-indigo-800/60">
+                                    <td className="px-3 py-2 font-semibold text-indigo-800 dark:text-indigo-300">{r.roomNumber}</td>
                                     <td className="px-3 py-2 text-gray-600">{r.electricityMeterNo || '—'}</td>
                                     <td className="px-3 py-2 text-right font-bold text-gray-900">₹{getPerRoomRent(r).toLocaleString('en-IN')}</td>
                                   </tr>
                                 ))}
-                                <tr className="border-t-2 border-indigo-300 bg-indigo-50">
-                                  <td className="px-3 py-2 font-bold text-indigo-700" colSpan={2}>Total</td>
-                                  <td className="px-3 py-2 text-right font-bold text-indigo-900">₹{Number(displayRent || 0).toLocaleString('en-IN')}</td>
+                                <tr className="border-t-2 border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950/30">
+                                  <td className="px-3 py-2 font-bold text-indigo-700 dark:text-indigo-300" colSpan={2}>Total</td>
+                                  <td className="px-3 py-2 text-right font-bold text-indigo-900 dark:text-indigo-200">₹{Number(displayRent || 0).toLocaleString('en-IN')}</td>
                                 </tr>
                               </tbody>
                             </table>
@@ -1004,6 +1007,7 @@ const Rooms = () => {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

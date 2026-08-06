@@ -325,15 +325,15 @@ const VerifyPayments = () => {
     if (!check) return { text: 'Not Checked', className: 'bg-gray-100 text-gray-700' };
 
     const map = {
-      checking: { text: 'Checking...', className: 'bg-blue-100 text-blue-800' },
-      matched: { text: 'UTR + Date Matched ✅', className: 'bg-green-100 text-green-800' },
-      mismatch: { text: 'UTR Mismatch ⚠️', className: 'bg-amber-100 text-amber-800' },
-      date_not_found: { text: 'Date Not Found ⚠️', className: 'bg-orange-100 text-orange-800' },
-      date_mismatch: { text: 'Date Mismatch ⚠️', className: 'bg-amber-100 text-amber-800' },
-      old_screenshot: { text: 'Old Screenshot Date ⚠️', className: 'bg-red-100 text-red-700' },
-      not_found: { text: 'UTR Not Found', className: 'bg-orange-100 text-orange-800' },
-      no_screenshot: { text: 'No Screenshot', className: 'bg-red-100 text-red-700' },
-      error: { text: 'OCR Error', className: 'bg-red-100 text-red-700' }
+      checking: { text: 'Checking...', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300' },
+      matched: { text: 'UTR + Date Matched ✅', className: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' },
+      mismatch: { text: 'UTR Mismatch ⚠️', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300' },
+      date_not_found: { text: 'Date Not Found ⚠️', className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300' },
+      date_mismatch: { text: 'Date Mismatch ⚠️', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300' },
+      old_screenshot: { text: 'Old Screenshot Date ⚠️', className: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' },
+      not_found: { text: 'UTR Not Found', className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300' },
+      no_screenshot: { text: 'No Screenshot', className: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' },
+      error: { text: 'OCR Error', className: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' }
     };
 
     return map[check.status] || { text: 'Not Checked', className: 'bg-gray-100 text-gray-700' };
@@ -699,9 +699,9 @@ const VerifyPayments = () => {
 
   const getStatusBadge = (status) => {
     const badges = {
-      pending: { text: 'Pending', class: 'bg-yellow-100 text-yellow-800' },
-      verified: { text: 'Verified', class: 'bg-green-100 text-green-800' },
-      rejected: { text: 'Rejected', class: 'bg-red-100 text-red-800' }
+      pending: { text: 'Pending', class: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300' },
+      verified: { text: 'Verified', class: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' },
+      rejected: { text: 'Rejected', class: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300' }
     };
     const badge = badges[status] || { text: status, class: 'bg-gray-100 text-gray-800' };
     return <span className={`px-3 py-1 rounded-full text-xs font-semibold ${badge.class}`}>{badge.text}</span>;
@@ -990,44 +990,47 @@ const VerifyPayments = () => {
                       {Array.isArray(submission.roomBreakdown) && submission.roomBreakdown.length > 0 && (
                         <div>
                           <label className="text-xs text-gray-500 font-semibold block mb-2">Room-wise Breakdown</label>
-                          <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                            <table className="w-full text-xs">
-                              <thead className="bg-gray-50">
-                                <tr>
-                                  <th className="px-2 py-1.5 text-left">Room</th>
-                                  <th className="px-2 py-1.5 text-right">Old</th>
-                                  <th className="px-2 py-1.5 text-right">Current</th>
-                                  <th className="px-2 py-1.5 text-right">Units</th>
-                                  <th className="px-2 py-1.5 text-right">Rent</th>
-                                  <th className="px-2 py-1.5 text-right">Elec</th>
-                                  <th className="px-2 py-1.5 text-right">Total</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {submission.roomBreakdown.map((entry, index) => {
-                                  const units = entry.unitsConsumed ?? Math.max(0, Number(entry.currentReading || 0) - Number(entry.previousReading || 0));
-                                  const elecAmount = Number(entry.electricityAmount || 0);
-                                  const rate = units > 0 && elecAmount > 0 ? (elecAmount / units).toFixed(1) : 0;
-                                  
-                                  return (
-                                    <tr key={`${submission.id}_room_${index}`} className="border-t border-gray-100">
-                                      <td className="px-2 py-1.5 font-semibold">{entry.roomNumber}</td>
-                                      <td className="px-2 py-1.5 text-right font-mono">{entry.previousReading}</td>
-                                      <td className="px-2 py-1.5 text-right font-mono">{entry.currentReading}</td>
-                                      <td className="px-2 py-1.5 text-right">{units} Units</td>
-                                      <td className="px-2 py-1.5 text-right">₹{Number(entry.rentAmount || 0).toFixed(0)}</td>
-                                      <td className="px-2 py-1.5 text-right">
-                                        ₹{elecAmount.toFixed(0)}
-                                        {rate > 0 && (
-                                          <div className="text-[9px] text-gray-500">({units}×₹{rate})</div>
-                                        )}
-                                      </td>
-                                      <td className="px-2 py-1.5 text-right font-semibold">₹{Number(entry.totalAmount || (Number(entry.rentAmount || 0) + elecAmount)).toFixed(0)}</td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
+                          <div className="rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
+                                  <tr>
+                                    <th className="px-2 py-1.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Room</th>
+                                    <th className="px-2 py-1.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Old</th>
+                                    <th className="px-2 py-1.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Current</th>
+                                    <th className="px-2 py-1.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Units</th>
+                                    <th className="px-2 py-1.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Rent</th>
+                                    <th className="px-2 py-1.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Elec</th>
+                                    <th className="px-2 py-1.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Total</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                                  {submission.roomBreakdown.map((entry, index) => {
+                                    const units = entry.unitsConsumed ?? Math.max(0, Number(entry.currentReading || 0) - Number(entry.previousReading || 0));
+                                    const elecAmount = Number(entry.electricityAmount || 0);
+                                    const rate = units > 0 && elecAmount > 0 ? (elecAmount / units).toFixed(1) : 0;
+                                    const totalAmount = Number(entry.totalAmount || (Number(entry.rentAmount || 0) + elecAmount));
+
+                                    return (
+                                      <tr key={`${submission.id}_room_${index}`}>
+                                        <td className="px-2 py-1.5 font-semibold">{entry.roomNumber}</td>
+                                        <td className="px-2 py-1.5 text-right font-mono">{entry.previousReading}</td>
+                                        <td className="px-2 py-1.5 text-right font-mono">{entry.currentReading}</td>
+                                        <td className="px-2 py-1.5 text-right">{units} Units</td>
+                                        <td className="px-2 py-1.5 text-right">₹{Number(entry.rentAmount || 0).toLocaleString('en-IN')}</td>
+                                        <td className="px-2 py-1.5 text-right">
+                                          ₹{elecAmount.toLocaleString('en-IN')}
+                                          {rate > 0 && (
+                                            <div className="text-[9px] text-gray-500 dark:text-slate-400">({units}×₹{rate})</div>
+                                          )}
+                                        </td>
+                                        <td className="px-2 py-1.5 text-right font-semibold">₹{totalAmount.toLocaleString('en-IN')}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
                         </div>
                       )}

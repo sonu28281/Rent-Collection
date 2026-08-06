@@ -347,75 +347,77 @@ const VacancyReport = () => {
       {/* Yearly Vacancy Report */}
       <div className="card mb-6">
         <h2 className="text-2xl font-bold text-gray-800 mb-4">📅 Year-wise Vacancy Analysis</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b-2 border-gray-200">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Year</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Months</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">Occupied</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">Vacant</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">Avg Vacant/Month</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">Occupancy %</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">Vacancy %</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {yearlyReport.map(year => (
-                <tr 
-                  key={year.year}
-                  className={`hover:bg-gray-50 transition ${
-                    year.isCoronaPeriod ? 'bg-red-50' : ''
-                  }`}
-                >
-                  <td className="px-4 py-3">
-                    <span className="font-bold text-gray-800">
-                      {year.year}
-                      {year.isCoronaPeriod && <span className="ml-2 text-red-600">🦠</span>}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center text-gray-700">
-                    {year.monthsRecorded}
-                  </td>
-                  <td className="px-4 py-3 text-right text-green-700 font-semibold">
-                    {year.occupiedRoomMonths}
-                  </td>
-                  <td className="px-4 py-3 text-right text-red-700 font-semibold">
-                    {year.vacantRoomMonths}
-                  </td>
-                  <td className="px-4 py-3 text-right text-orange-700 font-semibold">
-                    {year.avgVacantRooms}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <div className="w-24 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-green-500 h-2 rounded-full transition-all"
-                          style={{ width: `${year.occupancyRate}%` }}
-                        ></div>
-                      </div>
-                      <span className="font-semibold text-green-700 w-12 text-right">
-                        {year.occupancyRate}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <div className="w-24 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-red-500 h-2 rounded-full transition-all"
-                          style={{ width: `${year.vacancyRate}%` }}
-                        ></div>
-                      </div>
-                      <span className="font-semibold text-red-700 w-12 text-right">
-                        {year.vacancyRate}%
-                      </span>
-                    </div>
-                  </td>
+        <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
+                <tr>
+                  <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Year</th>
+                  <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Months</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Occupied</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Vacant</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Avg Vacant/Month</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Occupancy %</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Vacancy %</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                {yearlyReport.map(year => (
+                  <tr
+                    key={year.year}
+                    className={`hover:bg-gray-50 dark:hover:bg-slate-800 transition ${
+                      year.isCoronaPeriod ? 'bg-red-50 dark:bg-red-950/30' : ''
+                    }`}
+                  >
+                    <td className="px-4 py-3">
+                      <span className="font-bold text-gray-800">
+                        {year.year}
+                        {year.isCoronaPeriod && <span className="ml-2 text-red-600">🦠</span>}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center text-gray-700">
+                      {year.monthsRecorded}
+                    </td>
+                    <td className="px-4 py-3 text-right text-green-700 dark:text-green-400 font-semibold">
+                      {year.occupiedRoomMonths}
+                    </td>
+                    <td className="px-4 py-3 text-right text-red-700 dark:text-red-400 font-semibold">
+                      {year.vacantRoomMonths}
+                    </td>
+                    <td className="px-4 py-3 text-right text-orange-700 dark:text-orange-400 font-semibold">
+                      {year.avgVacantRooms}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-24 bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-green-500 h-2 rounded-full transition-all"
+                            style={{ width: `${year.occupancyRate}%` }}
+                          ></div>
+                        </div>
+                        <span className="font-bold text-green-600 dark:text-green-400 w-12 text-right">
+                          {year.occupancyRate}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-24 bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-orange-500 h-2 rounded-full transition-all"
+                            style={{ width: `${year.vacancyRate}%` }}
+                          ></div>
+                        </div>
+                        <span className="font-bold text-orange-600 dark:text-orange-400 w-12 text-right">
+                          {year.vacancyRate}%
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -423,88 +425,88 @@ const VacancyReport = () => {
       <div className="card">
         <h2 className="text-2xl font-bold text-gray-800 mb-4">🏠 Room-wise Vacancy Pattern</h2>
         <p className="text-sm text-gray-600 mb-4">Rooms sorted by highest vacancy duration</p>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b-2 border-gray-200">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Room</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">Total Records</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">Occupied Months</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">Vacant Months</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">Vacancy Rate</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Vacant in Years</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {roomVacancy.map(room => {
-                const isHighVacancy = room.vacancyRate > 30;
-                
-                return (
-                  <tr 
-                    key={room.roomNumber}
-                    className={`hover:bg-gray-50 transition ${
-                      isHighVacancy ? 'bg-orange-50' : ''
-                    }`}
-                  >
-                    <td className="px-4 py-3">
-                      <span className={`font-bold text-lg ${
-                        room.roomNumber < 200 ? 'text-green-700' : 'text-purple-700'
-                      }`}>
-                        Room {room.roomNumber}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-700">
-                      {room.totalRecords}
-                    </td>
-                    <td className="px-4 py-3 text-right text-green-700 font-semibold">
-                      {room.occupiedMonths}
-                    </td>
-                    <td className="px-4 py-3 text-right text-red-700 font-semibold">
-                      {room.vacantMonths}
-                      {isHighVacancy && <span className="ml-2">⚠️</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <div className="w-24 bg-gray-200 rounded-full h-2">
-                          <div 
-                            className={`h-2 rounded-full transition-all ${
-                              isHighVacancy ? 'bg-red-500' : 'bg-orange-400'
-                            }`}
-                            style={{ width: `${room.vacancyRate}%` }}
-                          ></div>
-                        </div>
-                        <span className={`font-semibold w-12 text-right ${
-                          isHighVacancy ? 'text-red-700' : 'text-orange-700'
-                        }`}>
-                          {room.vacancyRate}%
+        <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
+                <tr>
+                  <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Room</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Total Records</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Occupied Months</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Vacant Months</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Vacancy Rate</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Vacant in Years</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                {roomVacancy.map(room => {
+                  const isHighVacancy = room.vacancyRate > 30;
+
+                  return (
+                    <tr
+                      key={room.roomNumber}
+                      className={`hover:bg-gray-50 dark:hover:bg-slate-800 transition ${
+                        isHighVacancy ? 'bg-orange-50 dark:bg-orange-950/30' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center justify-center min-w-[2.25rem] px-2 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100 shadow-sm ring-1 ring-gray-200 dark:ring-slate-600">
+                          {room.roomNumber}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {room.vacantYears.length > 0 ? (
-                          room.vacantYears.map(year => (
-                            <span 
-                              key={year}
-                              className={`text-xs px-2 py-1 rounded ${
-                                year >= 2020 && year <= 2021
-                                  ? 'bg-red-100 text-red-700 font-semibold'
-                                  : 'bg-gray-100 text-gray-700'
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700">
+                        {room.totalRecords}
+                      </td>
+                      <td className="px-4 py-3 text-right text-green-700 dark:text-green-400 font-semibold">
+                        {room.occupiedMonths}
+                      </td>
+                      <td className="px-4 py-3 text-right text-red-700 dark:text-red-400 font-semibold">
+                        {room.vacantMonths}
+                        {isHighVacancy && <span className="ml-2">⚠️</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-24 bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full transition-all ${
+                                isHighVacancy ? 'bg-red-500' : 'bg-orange-400'
                               }`}
-                            >
-                              {year}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-green-600">Never vacant</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                              style={{ width: `${room.vacancyRate}%` }}
+                            ></div>
+                          </div>
+                          <span className={`font-bold w-12 text-right ${
+                            isHighVacancy ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'
+                          }`}>
+                            {room.vacancyRate}%
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {room.vacantYears.length > 0 ? (
+                            room.vacantYears.map(year => (
+                              <span
+                                key={year}
+                                className={`text-xs px-2 py-1 rounded ${
+                                  year >= 2020 && year <= 2021
+                                    ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 font-semibold'
+                                    : 'bg-gray-100 text-gray-700'
+                                }`}
+                              >
+                                {year}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-green-600 dark:text-green-400">Never vacant</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

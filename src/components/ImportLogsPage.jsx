@@ -177,85 +177,91 @@ const ImportLogsPage = () => {
             ))}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Date & Time</th>
-                  <th className="px-4 py-3 text-left font-semibold">Type</th>
-                  <th className="px-4 py-3 text-left font-semibold">File Name</th>
-                  <th className="px-4 py-3 text-center font-semibold">Total</th>
-                  <th className="px-4 py-3 text-center font-semibold">Success</th>
-                  <th className="px-4 py-3 text-center font-semibold">Updated</th>
-                  <th className="px-4 py-3 text-center font-semibold">Errors</th>
-                  <th className="px-4 py-3 text-center font-semibold">Warnings</th>
-                  <th className="px-4 py-3 text-center font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-3">{formatDate(log.timestamp)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                        log.type === 'backup_and_reset' ? 'bg-purple-100 text-purple-700' :
-                        'bg-blue-100 text-blue-700'
-                      }`}>
-                        {getLogType(log)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 max-w-xs truncate" title={log.fileName}>
-                      {log.fileName || log.backupCollectionName || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {log.totalRows || log.originalCount || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="text-green-600 font-semibold">
-                        {log.successCount || log.backedUpCount || 0}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="text-blue-600 font-semibold">
-                        {log.updatedCount || 0}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`font-semibold ${
-                        (log.errorCount || 0) > 0 ? 'text-red-600' : 'text-gray-400'
-                      }`}>
-                        {log.errorCount || 0}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`font-semibold ${
-                        (log.warningCount || 0) > 0 ? 'text-yellow-600' : 'text-gray-400'
-                      }`}>
-                        {log.warningCount || 0}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex gap-2 justify-center">
-                        <button
-                          onClick={() => viewDetails(log)}
-                          className="text-xs text-blue-600 hover:underline"
-                        >
-                          📄 Details
-                        </button>
-                        {log.errors && log.errors.length > 0 && (
-                          <button
-                            onClick={() => downloadErrorsCSV(log)}
-                            className="text-xs text-red-600 hover:underline"
-                          >
-                            ⬇️ Errors
-                          </button>
-                        )}
-                      </div>
-                    </td>
+          <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Date & Time</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Type</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">File Name</th>
+                    <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Total</th>
+                    <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Success</th>
+                    <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Updated</th>
+                    <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Errors</th>
+                    <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Warnings</th>
+                    <th className="px-4 py-3 text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                  {logs.map((log) => (
+                    <tr key={log.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">{formatDate(log.timestamp)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                          log.type === 'backup_and_reset' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' :
+                          'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                        }`}>
+                          {log.type === 'backup_and_reset' ? '🔄' : '📥'} {getLogType(log)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 max-w-xs truncate" title={log.fileName}>
+                        {log.fileName || log.backupCollectionName || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {log.totalRows || log.originalCount || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">
+                          {log.successCount || log.backedUpCount || 0}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="text-blue-600 font-semibold">
+                          {log.updatedCount || 0}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          (log.errorCount || 0) > 0
+                            ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
+                            : 'text-gray-400'
+                        }`}>
+                          {log.errorCount || 0}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          (log.warningCount || 0) > 0
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
+                            : 'text-gray-400'
+                        }`}>
+                          {log.warningCount || 0}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex gap-2 justify-center">
+                          <button
+                            onClick={() => viewDetails(log)}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            📄 Details
+                          </button>
+                          {log.errors && log.errors.length > 0 && (
+                            <button
+                              onClick={() => downloadErrorsCSV(log)}
+                              className="text-xs text-red-600 hover:underline"
+                            >
+                              ⬇️ Errors
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

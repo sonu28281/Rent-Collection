@@ -322,40 +322,40 @@ const Electricity = () => {
 
                 {/* Latest Reading */}
                 {latestReading ? (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-4">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <p className="text-xs text-green-600 mb-1">Latest Reading</p>
-                        <p className="text-2xl font-bold text-green-700">
+                        <p className="text-xs text-green-600 dark:text-green-400 mb-1">Latest Reading</p>
+                        <p className="text-2xl font-bold text-green-700 dark:text-green-300">
                           {latestReading.currentReading} kWh
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-green-600">Date</p>
-                        <p className="text-sm font-semibold text-green-700">
+                        <p className="text-xs text-green-600 dark:text-green-400">Date</p>
+                        <p className="text-sm font-semibold text-green-700 dark:text-green-300">
                           {new Date(latestReading.readingDate).toLocaleDateString('en-IN')}
                         </p>
-                        <p className="text-[11px] text-green-700 font-semibold mt-1">{latestReading.monthLabel || getMonthLabelFromDate(latestReading.readingDate)}</p>
+                        <p className="text-[11px] text-green-700 dark:text-green-300 font-semibold mt-1">{latestReading.monthLabel || getMonthLabelFromDate(latestReading.readingDate)}</p>
                         {latestReading.source === 'payments' && (
-                          <p className="text-[11px] text-orange-600 font-semibold mt-1">from payment history</p>
+                          <p className="text-[11px] text-orange-600 dark:text-orange-400 font-semibold mt-1">from payment history</p>
                         )}
                       </div>
                     </div>
                     {Number.isFinite(Number(latestReading.previousReading)) && (
-                      <div className="pt-2 border-t border-green-300 text-xs text-green-700">
+                      <div className="pt-2 border-t border-green-300 dark:border-green-800 text-xs text-green-700 dark:text-green-300">
                         <div className="flex justify-between">
                           <span>Previous: {latestReading.previousReading} kWh</span>
                           <span>Units: {latestReading.unitsConsumed} kWh</span>
                         </div>
                         <div className="mt-1 font-semibold">
-                          Charge: ₹{latestReading.totalCharge.toFixed(2)}
+                          Charge: ₹{latestReading.totalCharge.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                         </div>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-center">
-                    <p className="text-sm text-yellow-700">📊 No readings recorded yet</p>
+                  <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4 text-center">
+                    <p className="text-sm text-yellow-700 dark:text-yellow-400">📊 No readings recorded yet</p>
                   </div>
                 )}
 
@@ -369,34 +369,36 @@ const Electricity = () => {
                   {readingHistory.length === 0 ? (
                     <p className="text-xs text-gray-500">No historical readings available.</p>
                   ) : (
-                    <div className="max-h-56 overflow-y-auto border border-gray-100 rounded-md">
-                      <table className="w-full text-xs">
-                        <thead className="bg-gray-50 sticky top-0">
-                          <tr>
-                            <th className="px-2 py-1 text-left text-gray-600">Month</th>
-                            <th className="px-2 py-1 text-right text-gray-600">Old</th>
-                            <th className="px-2 py-1 text-right text-gray-600">Current</th>
-                            <th className="px-2 py-1 text-right text-gray-600">Units</th>
-                            <th className="px-2 py-1 text-right text-gray-600">Charge</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {readingHistory.map((reading) => (
-                            <tr key={reading.id} className="border-t border-gray-100">
-                              <td className="px-2 py-1.5">
-                                <div className="font-semibold text-gray-800">{reading.monthLabel || getMonthLabelFromDate(reading.readingDate)}</div>
-                                <div className="text-[10px] text-gray-500">
-                                  {reading.source === 'payments' ? 'payment history' : 'meter reading'}
-                                </div>
-                              </td>
-                              <td className="px-2 py-1.5 text-right font-mono">{Number(reading.previousReading || 0).toFixed(0)}</td>
-                              <td className="px-2 py-1.5 text-right font-mono">{Number(reading.currentReading || 0).toFixed(0)}</td>
-                              <td className="px-2 py-1.5 text-right">{Number(reading.unitsConsumed || 0).toFixed(0)}</td>
-                              <td className="px-2 py-1.5 text-right font-semibold">₹{Number(reading.totalCharge || 0).toFixed(0)}</td>
+                    <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                      <div className="max-h-56 overflow-y-auto overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600 sticky top-0">
+                            <tr>
+                              <th className="px-3 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Month</th>
+                              <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Old</th>
+                              <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Current</th>
+                              <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Units</th>
+                              <th className="px-3 py-2.5 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Charge</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                            {readingHistory.map((reading) => (
+                              <tr key={reading.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
+                                <td className="px-3 py-2.5">
+                                  <div className="font-semibold text-gray-800">{reading.monthLabel || getMonthLabelFromDate(reading.readingDate)}</div>
+                                  <div className="text-[10px] text-gray-500">
+                                    {reading.source === 'payments' ? 'payment history' : 'meter reading'}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2.5 text-right font-mono">{Number(reading.previousReading || 0).toFixed(0)}</td>
+                                <td className="px-3 py-2.5 text-right font-mono">{Number(reading.currentReading || 0).toFixed(0)}</td>
+                                <td className="px-3 py-2.5 text-right">{Number(reading.unitsConsumed || 0).toFixed(0)}</td>
+                                <td className="px-3 py-2.5 text-right font-semibold">₹{Number(reading.totalCharge || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>

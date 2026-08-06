@@ -562,64 +562,65 @@ const ImportCSV = () => {
                 </button>
               )}
             </div>
-            <div className="overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded">
-              <table className="w-full text-xs">
-                <thead className="bg-gray-100 sticky top-0">
+            <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                <table className="w-full text-xs">
+                <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600 sticky top-0">
                   <tr>
-                    <th className="px-2 py-1 text-left font-semibold border-b">#</th>
-                    <th className="px-2 py-1 text-left font-semibold border-b">Room</th>
-                    <th className="px-2 py-1 text-left font-semibold border-b">Floor</th>
-                    <th className="px-2 py-1 text-left font-semibold border-b">Tenant</th>
-                    <th className="px-2 py-1 text-left font-semibold border-b">Year</th>
-                    <th className="px-2 py-1 text-left font-semibold border-b">Month</th>
-                    <th className="px-2 py-1 text-left font-semibold border-b">Date</th>
-                    <th className="px-2 py-1 text-right font-semibold border-b">Rent</th>
-                    <th className="px-2 py-1 text-right font-semibold border-b">Old</th>
-                    <th className="px-2 py-1 text-right font-semibold border-b">Curr</th>
-                    <th className="px-2 py-1 text-right font-semibold border-b">Units</th>
-                    <th className="px-2 py-1 text-right font-semibold border-b">Rate</th>
-                    <th className="px-2 py-1 text-right font-semibold border-b">Elec</th>
-                    <th className="px-2 py-1 text-right font-semibold border-b">Total</th>
-                    <th className="px-2 py-1 text-right font-semibold border-b">Paid</th>
-                    <th className="px-2 py-1 text-right font-semibold border-b">Balance</th>
-                    <th className="px-2 py-1 text-center font-semibold border-b">Bal Type</th>
-                    <th className="px-2 py-1 text-left font-semibold border-b">D/C</th>
-                    <th className="px-2 py-1 text-left font-semibold border-b">Remark</th>
-                    <th className="px-2 py-1 text-center font-semibold border-b">Status</th>
-                    <th className="px-2 py-1 text-left font-semibold border-b">⚠️</th>
+                    <th className="px-2.5 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">#</th>
+                    <th className="px-2.5 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Room</th>
+                    <th className="px-2.5 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Floor</th>
+                    <th className="px-2.5 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Tenant</th>
+                    <th className="px-2.5 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Year</th>
+                    <th className="px-2.5 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Month</th>
+                    <th className="px-2.5 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Date</th>
+                    <th className="px-2.5 py-2.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Rent</th>
+                    <th className="px-2.5 py-2.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Old</th>
+                    <th className="px-2.5 py-2.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Curr</th>
+                    <th className="px-2.5 py-2.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Units</th>
+                    <th className="px-2.5 py-2.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Rate</th>
+                    <th className="px-2.5 py-2.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Elec</th>
+                    <th className="px-2.5 py-2.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Total</th>
+                    <th className="px-2.5 py-2.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Paid</th>
+                    <th className="px-2.5 py-2.5 text-right text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Balance</th>
+                    <th className="px-2.5 py-2.5 text-center text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Bal Type</th>
+                    <th className="px-2.5 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">D/C</th>
+                    <th className="px-2.5 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Remark</th>
+                    <th className="px-2.5 py-2.5 text-center text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Status</th>
+                    <th className="px-2.5 py-2.5 text-left text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">⚠️</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                   {(showFullPreview ? parsedData : previewData).map((row) => (
-                    <tr key={row.rowNumber} className="border-b hover:bg-gray-50">
+                    <tr key={row.rowNumber} className="hover:bg-gray-50">
                       <td className="px-2 py-1">{row.rowNumber}</td>
                       <td className="px-2 py-1">{row.roomNumber}</td>
                       <td className="px-2 py-1">{row.floor}</td>
                       <td className="px-2 py-1 max-w-[150px] truncate">{row.tenantName}</td>
                       <td className="px-2 py-1">{row.year}</td>
-                      <td className={`px-2 py-1 ${row.month > 12 || row.month < 1 ? 'bg-red-100' : ''}`}>
+                      <td className={`px-2 py-1 ${row.month > 12 || row.month < 1 ? 'bg-red-100 dark:bg-red-950/20' : ''}`}>
                         {row.month}
                       </td>
-                      <td className={`px-2 py-1 ${!row.date ? 'bg-yellow-100' : ''}`}>
+                      <td className={`px-2 py-1 ${!row.date ? 'bg-yellow-100 dark:bg-yellow-950/20' : ''}`}>
                         {row.date || 'N/A'}
                       </td>
-                      <td className={`px-2 py-1 text-right ${row.rent === 0 ? 'bg-yellow-100' : ''}`}>
-                        {row.rent}
+                      <td className={`px-2 py-1 text-right ${row.rent === 0 ? 'bg-yellow-100 dark:bg-yellow-950/20' : ''}`}>
+                        {row.rent === 0 ? '₹0' : `₹${row.rent.toLocaleString('en-IN')}`}
                       </td>
-                      <td className={`px-2 py-1 text-right ${row.oldReading === 0 ? 'bg-yellow-100' : ''}`}>
+                      <td className={`px-2 py-1 text-right ${row.oldReading === 0 ? 'bg-yellow-100 dark:bg-yellow-950/20' : ''}`}>
                         {row.oldReading}
                       </td>
-                      <td className={`px-2 py-1 text-right ${row.currentReading === 0 ? 'bg-yellow-100' : ''}`}>
+                      <td className={`px-2 py-1 text-right ${row.currentReading === 0 ? 'bg-yellow-100 dark:bg-yellow-950/20' : ''}`}>
                         {row.currentReading}
                       </td>
-                      <td className={`px-2 py-1 text-right font-semibold ${row.units < 0 ? 'bg-red-100' : ''}`}>
+                      <td className={`px-2 py-1 text-right font-semibold ${row.units < 0 ? 'bg-red-100 dark:bg-red-950/20' : ''}`}>
                         {row.units}
                       </td>
-                      <td className={`px-2 py-1 text-right ${row.ratePerUnit === 0 ? 'bg-yellow-100' : ''}`}>
+                      <td className={`px-2 py-1 text-right ${row.ratePerUnit === 0 ? 'bg-yellow-100 dark:bg-yellow-950/20' : ''}`}>
                         {row.ratePerUnit}
                       </td>
                       <td className="px-2 py-1 text-right font-semibold">
-                        {row.electricity.toFixed(2)}
+                        ₹{row.electricity.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-2 py-1 text-right font-bold">
                         {row.total.toFixed(2)}
@@ -628,17 +629,17 @@ const ImportCSV = () => {
                         {row.paidAmount}
                       </td>
                       <td className={`px-2 py-1 text-right font-semibold ${
-                        row.balanceType === 'due' ? 'text-red-600' :
-                        row.balanceType === 'advance' ? 'text-green-600' :
-                        'text-gray-600'
+                        row.balanceType === 'due' ? 'text-red-600 dark:text-red-400' :
+                        row.balanceType === 'advance' ? 'text-green-600 dark:text-green-400' :
+                        'text-gray-600 dark:text-slate-400'
                       }`}>
                         {row.balance > 0 ? '+' : ''}{row.balance.toFixed(2)}
                       </td>
                       <td className="px-2 py-1 text-center">
                         <span className={`px-1 py-0.5 rounded text-xs font-semibold ${
-                          row.balanceType === 'due' ? 'bg-red-100 text-red-700' :
-                          row.balanceType === 'advance' ? 'bg-green-100 text-green-700' :
-                          'bg-gray-100 text-gray-700'
+                          row.balanceType === 'due' ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300' :
+                          row.balanceType === 'advance' ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300' :
+                          'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
                         }`}>
                           {row.balanceType}
                         </span>
@@ -651,17 +652,17 @@ const ImportCSV = () => {
                       </td>
                       <td className="px-2 py-1 text-center">
                         <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                          row.status === 'paid' ? 'bg-green-100 text-green-700' :
-                          row.status === 'advance' ? 'bg-blue-100 text-blue-700' :
-                          row.status === 'partial' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'
+                          row.status === 'paid' ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300' :
+                          row.status === 'advance' ? 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300' :
+                          row.status === 'partial' ? 'bg-yellow-100 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-300' :
+                          'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300'
                         }`}>
                           {row.status}
                         </span>
                       </td>
                       <td className="px-2 py-1">
                         {row.rowWarnings && row.rowWarnings.length > 0 && (
-                          <span className="text-yellow-600" title={row.rowWarnings.join(', ')}>
+                          <span className="text-yellow-600 dark:text-yellow-400" title={row.rowWarnings.join(', ')}>
                             ⚠️
                           </span>
                         )}
@@ -670,12 +671,13 @@ const ImportCSV = () => {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
-            
+
             <div className="mt-3 p-3 bg-gray-50 rounded text-xs">
               <strong>Legend:</strong>
-              <span className="ml-3 inline-block bg-yellow-100 px-2 py-1 rounded">Yellow = Missing/Zero</span>
-              <span className="ml-2 inline-block bg-red-100 px-2 py-1 rounded">Red = Invalid/Error</span>
+              <span className="ml-3 inline-block bg-yellow-100 dark:bg-yellow-950/40 dark:text-yellow-300 px-2 py-1 rounded">Yellow = Missing/Zero</span>
+              <span className="ml-2 inline-block bg-red-100 dark:bg-red-950/40 dark:text-red-300 px-2 py-1 rounded">Red = Invalid/Error</span>
             </div>
           </div>
         )}
