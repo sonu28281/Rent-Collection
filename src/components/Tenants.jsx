@@ -686,6 +686,159 @@ const Tenants = () => {
     return (a.name || '').localeCompare(b.name || '');
   });
 
+  // Table view: split into floor groups (same room-range rule used by the floor filter/stats above).
+  const isRoomInRange = (tenant, min, max) =>
+    getAssignedRooms(tenant).some((room) => {
+      const n = Number.parseInt(room, 10);
+      return Number.isFinite(n) && n >= min && n <= max;
+    });
+  const floor1TableTenants = sortedTenants.filter((t) => isRoomInRange(t, 101, 106));
+  const floor2TableTenants = sortedTenants.filter((t) => isRoomInRange(t, 201, 206));
+  const otherFloorTableTenants = sortedTenants.filter(
+    (t) => !floor1TableTenants.includes(t) && !floor2TableTenants.includes(t)
+  );
+
+  const calculateTenantDuration = (tenant) => {
+    if (!tenant.checkInDate) return '-';
+    try {
+      const checkIn = new Date(tenant.checkInDate);
+      const now = new Date();
+      let years = now.getFullYear() - checkIn.getFullYear();
+      let months = now.getMonth() - checkIn.getMonth();
+      if (months < 0) {
+        years--;
+        months += 12;
+      }
+      if (years === 0 && months === 0) return 'New';
+      if (years === 0) return `${months}m`;
+      if (months === 0) return `${years}y`;
+      return `${years}y ${months}m`;
+    } catch (e) {
+      return '-';
+    }
+  };
+
+  const renderTenantTableRow = (tenant) => {
+    const isKycVerified = tenant?.kyc?.verified === true && tenant?.kyc?.verifiedBy === 'DigiLocker';
+    return (
+      <tr key={tenant.id} className={tenant.isActive ? 'bg-green-50 dark:bg-green-950/25' : 'bg-gray-50 dark:bg-slate-800/40'}>
+        <td className="px-4 py-3 whitespace-nowrap">
+          <div className="text-sm font-bold text-gray-900">{tenant.name}</div>
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap">
+          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300">
+            🏠 {getAssignedRooms(tenant).join(', ') || tenant.roomNumber || '-'}
+          </span>
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+          {tenant.phone || '-'}
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900">
+          {tenant.currentRent ? `₹${tenant.currentRent.toLocaleString('en-IN')}` : '-'}
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+          {tenant.checkInDate ? new Date(tenant.checkInDate).toLocaleDateString('en-IN') : '-'}
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap">
+          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300">
+            🕐 {calculateTenantDuration(tenant)}
+          </span>
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap">
+          <code className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 px-2 py-1 rounded font-mono">
+            {tenant.username || getAssignedRooms(tenant)[0] || tenant.roomNumber}
+          </code>
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap">
+          <code className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 px-2 py-1 rounded font-mono">
+            {tenant.password || 'password'}
+          </code>
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap">
+          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+            tenant.isActive ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300' : 'bg-gray-100 dark:bg-slate-600 text-gray-800 dark:text-slate-200'
+          }`}>
+            {tenant.isActive ? '✅ Active' : '📋 Past'}
+          </span>
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap">
+          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+            isKycVerified ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300'
+          }`}>
+            {isKycVerified ? '✅ Verified' : '⚠️ Not Verified'}
+          </span>
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap text-sm">
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleViewHistory(tenant)}
+              className="text-purple-600 hover:text-purple-900 dark:hover:text-purple-400 font-medium"
+              title="View History"
+            >
+              📊
+            </button>
+            <button
+              onClick={() => handleEditTenant(tenant)}
+              className="text-blue-600 hover:text-blue-900 dark:hover:text-blue-400 font-medium"
+              title="Edit"
+            >
+              ✏️
+            </button>
+            {isKycVerified && (
+              <button
+                onClick={() => handleResetKyc(tenant)}
+                className="text-orange-600 hover:text-orange-900 dark:hover:text-orange-400 font-medium"
+                title="Reset KYC"
+              >
+                🔄
+              </button>
+            )}
+            <button
+              onClick={() => handleDeleteTenant(tenant)}
+              className="text-red-600 hover:text-red-900 dark:hover:text-red-400 font-medium"
+              title="Delete"
+            >
+              🗑️
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderTenantTable = (tenantsForGroup) => (
+    <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-full">
+          <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
+            <tr>
+              <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Tenant</th>
+              <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Room</th>
+              <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Phone</th>
+              <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Rent</th>
+              <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Check-In</th>
+              <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Duration</th>
+              <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Username</th>
+              <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Password</th>
+              <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Status</th>
+              <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">KYC</th>
+              <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+            {tenantsForGroup.map(renderTenantTableRow)}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const FLOOR_TABLE_GROUPS = [
+    { key: 'floor1', label: 'Floor 1 · Ground Floor', icon: '🏠', grad: 'from-indigo-500 to-blue-500', tenants: floor1TableTenants },
+    { key: 'floor2', label: 'Floor 2 · First Floor', icon: '🏢', grad: 'from-fuchsia-500 to-purple-500', tenants: floor2TableTenants },
+    { key: 'other', label: 'Other / Unassigned', icon: '❓', grad: 'from-gray-500 to-slate-500', tenants: otherFloorTableTenants },
+  ].filter((g) => g.tenants.length > 0);
+
   const stats = {
     total: tenants.length,
     active: tenants.filter(t => t.isActive).length,
@@ -974,134 +1127,19 @@ const Tenants = () => {
           ))}
         </div>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tenant</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rent</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-In</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Password</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">KYC</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200 dark:divide-slate-700">
-              {sortedTenants.map(tenant => {
-                const isKycVerified = tenant?.kyc?.verified === true && tenant?.kyc?.verifiedBy === 'DigiLocker';
-                // Calculate duration
-                const calculateDuration = () => {
-                  if (!tenant.checkInDate) return '-';
-                  try {
-                    const checkIn = new Date(tenant.checkInDate);
-                    const now = new Date();
-                    let years = now.getFullYear() - checkIn.getFullYear();
-                    let months = now.getMonth() - checkIn.getMonth();
-                    if (months < 0) {
-                      years--;
-                      months += 12;
-                    }
-                    if (years === 0 && months === 0) return 'New';
-                    if (years === 0) return `${months}m`;
-                    if (months === 0) return `${years}y`;
-                    return `${years}y ${months}m`;
-                  } catch (e) {
-                    return '-';
-                  }
-                };
-
-                return (
-                  <tr key={tenant.id} className={tenant.isActive ? 'bg-green-50 dark:bg-green-950/25' : 'bg-gray-50 dark:bg-slate-800/40'}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-gray-900">{tenant.name}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                        🏠 {getAssignedRooms(tenant).join(', ') || tenant.roomNumber || '-'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {tenant.phone || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                      {tenant.currentRent ? `₹${tenant.currentRent.toLocaleString('en-IN')}` : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {tenant.checkInDate ? new Date(tenant.checkInDate).toLocaleDateString('en-IN') : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
-                        🕐 {calculateDuration()}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <code className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">
-                        {tenant.username || getAssignedRooms(tenant)[0] || tenant.roomNumber}
-                      </code>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <code className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">
-                        {tenant.password || 'password'}
-                      </code>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        tenant.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {tenant.isActive ? '✅ Active' : '📋 Past'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        isKycVerified ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        {isKycVerified ? '✅ Verified' : '⚠️ Not Verified'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => handleViewHistory(tenant)}
-                          className="text-purple-600 hover:text-purple-900 font-medium"
-                          title="View History"
-                        >
-                          📊
-                        </button>
-                        <button 
-                          onClick={() => handleEditTenant(tenant)}
-                          className="text-blue-600 hover:text-blue-900 font-medium"
-                          title="Edit"
-                        >
-                          ✏️
-                        </button>
-                        {isKycVerified && (
-                          <button 
-                            onClick={() => handleResetKyc(tenant)}
-                            className="text-orange-600 hover:text-orange-900 font-medium"
-                            title="Reset KYC"
-                          >
-                            🔄
-                          </button>
-                        )}
-                        <button 
-                          onClick={() => handleDeleteTenant(tenant)}
-                          className="text-red-600 hover:text-red-900 font-medium"
-                          title="Delete"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="space-y-5">
+          {FLOOR_TABLE_GROUPS.map((g) => (
+            <div key={g.key}>
+              <div className={`mb-3 flex items-center gap-3 rounded-xl bg-gradient-to-r ${g.grad} px-4 py-2.5 text-white shadow-sm`}>
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20 text-xl">{g.icon}</span>
+                <div className="min-w-0">
+                  <p className="font-bold leading-tight">{g.label}</p>
+                  <p className="text-[11px] text-white/85">{g.tenants.length} tenant{g.tenants.length !== 1 ? 's' : ''}</p>
+                </div>
+              </div>
+              {renderTenantTable(g.tenants)}
+            </div>
+          ))}
         </div>
       )}
       </> 
