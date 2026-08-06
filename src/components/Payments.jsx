@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, addDoc, query, where, updateDoc, doc, getDoc, setDoc } from '../utils/firestoreCounted';
+import { collection, getDocs, addDoc, query, where, updateDoc, doc, getDoc } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import ViewModeToggle from './ui/ViewModeToggle';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
@@ -17,8 +17,6 @@ const Payments = () => {
   const [floorFilter, setFloorFilter] = useState('all');
   const [sortBy, setSortBy] = useState('room');
   const [sortOrder, setSortOrder] = useState('asc');
-  const [tenantDirectPayEnabled, setTenantDirectPayEnabled] = useState(false);
-  const [savingDirectPaySetting, setSavingDirectPaySetting] = useState(false);
   const [historyMonthFilter, setHistoryMonthFilter] = useState('all');
   const [cleanupMonths, setCleanupMonths] = useState(6);
   const [cleaningScreenshots, setCleaningScreenshots] = useState(false);
@@ -71,17 +69,6 @@ const Payments = () => {
       allPaymentsSnapshot.forEach((doc) => {
         allPaymentsData.push({ id: doc.id, ...doc.data() });
       });
-
-      const settingsDocRef = doc(db, 'settings', 'global');
-      const settingsDocSnap = await getDoc(settingsDocRef);
-      if (settingsDocSnap.exists()) {
-        const settingsData = settingsDocSnap.data();
-        const directPayFlag = settingsData?.tenantDirectPayEnabled;
-        const fallbackFromMode = String(settingsData?.paymentMode || '').toLowerCase() === 'automatic';
-        setTenantDirectPayEnabled(typeof directPayFlag === 'boolean' ? directPayFlag : fallbackFromMode);
-      } else {
-        setTenantDirectPayEnabled(false);
-      }
 
       setTenants(tenantsData);
       setPayments(paymentsData);
@@ -306,23 +293,6 @@ const Payments = () => {
         return b.month - a.month;
       });
     return tenantPayments[0] || null;
-  };
-
-  const handleToggleTenantDirectPay = async () => {
-    const nextValue = !tenantDirectPayEnabled;
-    try {
-      setSavingDirectPaySetting(true);
-      await setDoc(doc(db, 'settings', 'global'), {
-        tenantDirectPayEnabled: nextValue,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-      setTenantDirectPayEnabled(nextValue);
-    } catch (toggleError) {
-      console.error('Error updating tenant direct pay setting:', toggleError);
-      alert('Failed to update setting. Please try again.');
-    } finally {
-      setSavingDirectPaySetting(false);
-    }
   };
 
   const getPaymentScreenshot = (payment) => payment?.screenshot || payment?.paymentScreenshot || payment?.proofScreenshot || payment?.proofImageUrl || '';
@@ -598,43 +568,27 @@ const Payments = () => {
       <div className="mb-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-2">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900">💳 Payments</h2>
-          <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="inline-flex items-center bg-gray-100 dark:bg-slate-700 rounded-full p-1 gap-0.5 w-full md:w-auto">
             <button
               onClick={handlePreviousMonth}
-              className="px-2.5 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold text-sm md:text-base"
+              title="Previous month"
+              className="flex items-center justify-center h-8 w-8 rounded-full text-gray-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 hover:shadow-sm transition"
             >
-              ← Prev
+              ‹
             </button>
-            <div className="flex-1 md:flex-none text-center px-3 py-2 bg-primary text-white rounded-lg font-bold text-sm md:text-lg whitespace-nowrap">
+            <div className="flex-1 md:flex-none text-center px-4 py-1.5 bg-primary text-white rounded-full font-semibold text-sm whitespace-nowrap shadow-sm">
               {monthNames[selectedMonth - 1]} {selectedYear}
             </div>
             <button
               onClick={handleNextMonth}
-              className="px-2.5 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold text-sm md:text-base"
+              title="Next month"
+              className="flex items-center justify-center h-8 w-8 rounded-full text-gray-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 hover:shadow-sm transition"
             >
-              Next →
+              ›
             </button>
           </div>
         </div>
         <p className="text-gray-600">Record rent payments for active tenants</p>
-        <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3">
-          <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
-          <div className="inline-flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-            <span className="text-sm font-semibold text-gray-700">Tenant Make Payment</span>
-            <button
-              type="button"
-              onClick={handleToggleTenantDirectPay}
-              disabled={savingDirectPaySetting}
-              className={`px-3 py-1 rounded-md text-xs font-bold transition ${
-                tenantDirectPayEnabled
-                  ? 'bg-green-600 text-white hover:bg-green-700'
-                  : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
-              } disabled:opacity-60 disabled:cursor-not-allowed`}
-            >
-              {savingDirectPaySetting ? 'Saving...' : tenantDirectPayEnabled ? 'Enabled' : 'Disabled'}
-            </button>
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -680,80 +634,83 @@ const Payments = () => {
         </div>
       </div>
 
-      <div className="card mb-6 md:sticky md:top-2 z-20 bg-white/95 backdrop-blur">
-        <div className="flex flex-wrap gap-2 items-center">
+      <div className="card mb-6 md:sticky md:top-2 z-20 bg-white/95 dark:bg-slate-800/95 backdrop-blur !p-3">
+        <div className="flex flex-wrap gap-1.5 items-center">
           <button
             onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
               filter === 'all'
                 ? 'bg-primary text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-300 dark:hover:bg-slate-600'
             }`}
           >
             All ({visibleTenants.length})
           </button>
           <button
             onClick={() => setFilter('paid')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
               filter === 'paid'
                 ? 'bg-green-500 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-300 dark:hover:bg-slate-600'
             }`}
           >
             Paid ({paidCount})
           </button>
           <button
             onClick={() => setFilter('pending')}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
               filter === 'pending'
                 ? 'bg-orange-500 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-300 dark:hover:bg-slate-600'
             }`}
           >
             Pending ({pendingCount})
           </button>
 
-          <div className="hidden md:block h-6 w-px bg-gray-300 mx-1"></div>
+          <div className="hidden md:block h-5 w-px bg-gray-300 dark:bg-slate-600 mx-1"></div>
 
-          <div className="hidden md:flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-1.5">
             <button
               onClick={() => setFloorFilter('all')}
-              className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
                 floorFilter === 'all'
                   ? 'bg-slate-700 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-300 dark:hover:bg-slate-600'
               }`}
             >
               All Floors
             </button>
             <button
               onClick={() => setFloorFilter('1')}
-              className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
                 floorFilter === '1'
                   ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-300 dark:hover:bg-slate-600'
               }`}
             >
               Floor 1
             </button>
             <button
               onClick={() => setFloorFilter('2')}
-              className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
                 floorFilter === '2'
                   ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-300 dark:hover:bg-slate-600'
               }`}
             >
               Floor 2
             </button>
           </div>
 
-          <button
-            onClick={() => handleSortChange('room')}
-            className="ml-auto px-3 py-2 rounded-lg text-sm font-semibold bg-gray-100 text-gray-800 hover:bg-gray-200"
-          >
-            Sort: {sortBy === 'date' ? 'Date' : 'Room'} {sortOrder === 'asc' ? 'Asc ↑' : 'Desc ↓'}
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => handleSortChange('room')}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-600"
+            >
+              Sort: {sortBy === 'date' ? 'Date' : 'Room'} {sortOrder === 'asc' ? 'Asc ↑' : 'Desc ↓'}
+            </button>
+            <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
+          </div>
         </div>
       </div>
 
