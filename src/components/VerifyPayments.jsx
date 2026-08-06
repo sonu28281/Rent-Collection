@@ -1159,7 +1159,7 @@ const VerifyPayments = () => {
       {/* Edit Modal */}
       {editingSubmission && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="bg-blue-600 text-white px-6 py-4 rounded-t-lg">
               <h3 className="text-xl font-bold">✏️ Edit Submission</h3>
               <p className="text-sm text-white text-opacity-90">Room {editingSubmission.roomNumber} - {editingSubmission.tenantName}</p>
@@ -1168,76 +1168,76 @@ const VerifyPayments = () => {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Date</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2">Payment Date</label>
                   <input
                     type="date"
                     value={editingSubmission.paidDate}
                     onChange={(e) => setEditingSubmission({ ...editingSubmission, paidDate: e.target.value })}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 [color-scheme:light] dark:[color-scheme:dark]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Previous Reading</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2">Previous Reading</label>
                   <input
                     type="number"
                     value={editingSubmission.previousReading || 0}
                     onChange={(e) => setEditingSubmission({ ...editingSubmission, previousReading: e.target.value })}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Current Meter Reading</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2">Current Meter Reading</label>
                   <input
                     type="number"
                     value={editingSubmission.meterReading}
                     onChange={(e) => setEditingSubmission({ ...editingSubmission, meterReading: e.target.value })}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Rent Amount</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2">Rent Amount</label>
                   <input
                     type="number"
                     value={editingSubmission.rentAmount}
                     onChange={(e) => setEditingSubmission({ ...editingSubmission, rentAmount: e.target.value })}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Electricity Amount</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2">Electricity Amount</label>
                   <input
                     type="number"
                     value={editingSubmission.electricityAmount}
                     onChange={(e) => setEditingSubmission({ ...editingSubmission, electricityAmount: e.target.value })}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Total Paid</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2">Total Paid</label>
                   <input
                     type="number"
                     value={editingSubmission.paidAmount}
                     onChange={(e) => setEditingSubmission({ ...editingSubmission, paidAmount: e.target.value })}
-                    className="w-full px-3 py-2 border-2 border-green-300 rounded-lg font-bold"
+                    className="w-full px-3 py-2 border-2 border-green-300 dark:border-green-700 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">UTR Number</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2">UTR Number</label>
                   <input
                     type="text"
                     value={editingSubmission.utr}
                     onChange={(e) => setEditingSubmission({ ...editingSubmission, utr: e.target.value })}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg font-mono"
+                    className="w-full px-3 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2">Notes</label>
                 <textarea
                   value={editingSubmission.notes}
                   onChange={(e) => setEditingSubmission({ ...editingSubmission, notes: e.target.value })}
-                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg resize-none"
+                  className="w-full px-3 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 resize-none"
                   rows="3"
                 />
               </div>
@@ -1245,7 +1245,7 @@ const VerifyPayments = () => {
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => setEditingSubmission(null)}
-                  className="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50"
+                  className="flex-1 px-4 py-2 border-2 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700"
                 >
                   Cancel
                 </button>
