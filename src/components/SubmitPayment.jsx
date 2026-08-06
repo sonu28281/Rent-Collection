@@ -357,59 +357,59 @@ const SubmitPayment = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-5 py-4 rounded-t-2xl sticky top-0 shadow-sm">
+        <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2.5 rounded-t-2xl sticky top-0 shadow-sm">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold flex items-center gap-2">📝 {t('Submit Payment', 'पेमेंट सबमिट')}</h3>
-            <button onClick={onClose} className="text-white hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center transition">
+            <h3 className="text-base font-bold flex items-center gap-1.5">📝 {t('Submit Payment', 'पेमेंट सबमिट')}</h3>
+            <button onClick={onClose} className="text-white hover:bg-white/20 rounded-full w-7 h-7 flex items-center justify-center transition">
               ✕
             </button>
           </div>
-          <p className="text-sm text-white/90 mt-1 flex items-center gap-1.5">
-            <span className="bg-white/20 rounded-full px-2 py-0.5 text-xs font-semibold">
+          <p className="text-xs text-white/90 mt-0.5 flex items-center gap-1.5">
+            <span className="bg-white/20 rounded-full px-2 py-0.5 text-[11px] font-semibold">
               Room{effectiveRooms.length > 1 ? 's' : ''} {effectiveRooms.map((entry) => entry.roomNumber).join(', ') || tenant?.roomNumber}
             </span>
             {tenant?.name}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 space-y-2.5">
           {error && (
-            <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-3">
-              <p className="text-red-700 dark:text-red-300 text-sm font-medium">⚠️ {error}</p>
+            <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-2">
+              <p className="text-red-700 dark:text-red-300 text-xs font-medium">⚠️ {error}</p>
             </div>
           )}
 
           <div>
-            <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">{t('Payable Summary', 'देय भुगतान सारांश')}</p>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-2.5 ring-1 ring-blue-200 dark:ring-blue-800 text-center">
-                <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase">{t('Rent', 'किराया')}</p>
-                <p className="text-sm font-bold text-blue-700 dark:text-blue-300">₹{(isMultiRoom ? getBreakdownTotals().rentAmount : (parseFloat(formData.rentAmount) || 0)).toLocaleString('en-IN')}</p>
+            <p className="text-[10px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">{t('Payable Summary', 'देय भुगतान सारांश')}</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-1.5 ring-1 ring-blue-200 dark:ring-blue-800 text-center">
+                <p className="text-[9px] font-semibold text-blue-600 dark:text-blue-400 uppercase">{t('Rent', 'किराया')}</p>
+                <p className="text-xs font-bold text-blue-700 dark:text-blue-300">₹{(isMultiRoom ? getBreakdownTotals().rentAmount : (parseFloat(formData.rentAmount) || 0)).toLocaleString('en-IN')}</p>
               </div>
-              <div className="bg-purple-50 dark:bg-purple-950/30 rounded-xl p-2.5 ring-1 ring-purple-200 dark:ring-purple-800 text-center">
-                <p className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 uppercase">{t('Electricity', 'बिजली')}</p>
-                <p className="text-sm font-bold text-purple-700 dark:text-purple-300">₹{(isMultiRoom ? getBreakdownTotals().electricityAmount : Number(calculateElectricity())).toFixed(2)}</p>
+              <div className="bg-purple-50 dark:bg-purple-950/30 rounded-lg p-1.5 ring-1 ring-purple-200 dark:ring-purple-800 text-center">
+                <p className="text-[9px] font-semibold text-purple-600 dark:text-purple-400 uppercase">{t('Electricity', 'बिजली')}</p>
+                <p className="text-xs font-bold text-purple-700 dark:text-purple-300">₹{(isMultiRoom ? getBreakdownTotals().electricityAmount : Number(calculateElectricity())).toFixed(2)}</p>
               </div>
-              <div className="bg-green-50 dark:bg-green-950/30 rounded-xl p-2.5 ring-1 ring-green-200 dark:ring-green-800 text-center">
-                <p className="text-[10px] font-semibold text-green-600 dark:text-green-400 uppercase">{t('Total', 'कुल')}</p>
-                <p className="text-sm font-bold text-green-700 dark:text-green-300">₹{expectedTotal.toFixed(2)}</p>
+              <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-1.5 ring-1 ring-green-200 dark:ring-green-800 text-center">
+                <p className="text-[9px] font-semibold text-green-600 dark:text-green-400 uppercase">{t('Total', 'कुल')}</p>
+                <p className="text-xs font-bold text-green-700 dark:text-green-300">₹{expectedTotal.toFixed(2)}</p>
               </div>
             </div>
           </div>
 
           {/* Meter Readings */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2">
+            <label className="block text-xs font-semibold text-gray-700 dark:text-slate-200 mb-1">
               ⚡ {t('Meter Readings', 'मीटर रीडिंग')} <span className="text-red-500">*</span>
             </label>
 
             {isMultiRoom ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {formData.roomBreakdown.map((entry, index) => {
                   const electricityInfo = calculateRoomElectricity(entry);
                   return (
-                    <div key={entry.roomNumber} className="border border-gray-200 dark:border-slate-700 rounded-xl p-3 bg-gray-50 dark:bg-slate-700/50">
-                      <span className="inline-flex items-center justify-center min-w-[2.25rem] px-2 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100 shadow-sm ring-1 ring-gray-200 dark:ring-slate-600 mb-2">
+                    <div key={entry.roomNumber} className="border border-gray-200 dark:border-slate-700 rounded-lg p-2 bg-gray-50 dark:bg-slate-700/50">
+                      <span className="inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100 shadow-sm ring-1 ring-gray-200 dark:ring-slate-600 mb-1.5">
                         Room {entry.roomNumber}
                       </span>
                       <div className="grid grid-cols-2 gap-2">
@@ -417,7 +417,7 @@ const SubmitPayment = ({
                           type="number"
                           value={entry.previousReading}
                           min="0"
-                          className="w-full px-4 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 cursor-not-allowed"
+                          className="w-full px-3 py-1.5 text-sm border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 cursor-not-allowed"
                           placeholder={t('Previous Reading', 'पुरानी रीडिंग')}
                           readOnly
                           required
@@ -438,12 +438,12 @@ const SubmitPayment = ({
                             });
                           }}
                           min={Number(entry.previousReading) || 0}
-                          className="w-full px-4 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          className="w-full px-3 py-1.5 text-sm border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500"
                           placeholder={t('Current Reading', 'नई रीडिंग')}
                           required
                         />
                       </div>
-                      <p className="text-xs text-gray-600 dark:text-slate-400 mt-2">
+                      <p className="text-[11px] text-gray-600 dark:text-slate-400 mt-1.5">
                         {t('Units', 'यूनिट')}: <span className="font-semibold text-blue-600 dark:text-blue-400">{electricityInfo.units}</span> · {t('Rate', 'रेट')}: ₹{electricityRate}/unit · {t('Electricity', 'बिजली')}: <span className="font-semibold">₹{electricityInfo.electricityAmount.toFixed(2)}</span>
                       </p>
                     </div>
@@ -457,7 +457,7 @@ const SubmitPayment = ({
                     type="number"
                     value={formData.previousReading}
                     min="0"
-                    className="w-full px-4 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 cursor-not-allowed"
+                    className="w-full px-3 py-1.5 text-sm border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 cursor-not-allowed"
                     placeholder={t('Previous Reading', 'पुरानी रीडिंग')}
                     readOnly
                     required
@@ -472,12 +472,12 @@ const SubmitPayment = ({
                       });
                     }}
                     min={parseFloat(formData.previousReading) || 0}
-                    className="w-full px-4 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full px-3 py-1.5 text-sm border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder={t('Current Reading', 'नई रीडिंग')}
                     required
                   />
                 </div>
-                <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
+                <p className="text-[11px] text-gray-600 dark:text-slate-400 mt-1">
                   {t('Previous reading is auto-filled from room data (tenant cannot edit)', 'पुरानी रीडिंग ऑटो-फिल है (टेनेंट एडिट नहीं कर सकता)')} · {t('Units', 'यूनिट')}: <span className="font-semibold text-blue-600 dark:text-blue-400">{Math.max(0, (parseFloat(formData.currentReading) || 0) - (parseFloat(formData.previousReading) || 0))}</span> · {t('Rate', 'रेट')}: ₹{electricityRate}/unit · {t('Auto-calculated', 'ऑटो-गणना')}: ₹{calculateElectricity()}
                 </p>
               </>
@@ -486,24 +486,24 @@ const SubmitPayment = ({
 
           {/* Total Amount Paid */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2">
+            <label className="block text-xs font-semibold text-gray-700 dark:text-slate-200 mb-1">
               💰 {t('Amount You Paid', 'आपने कितना भुगतान किया')} <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
               value={formData.paidAmount}
               onChange={(e) => setFormData({ ...formData, paidAmount: e.target.value })}
-              className="w-full px-4 py-2 border-2 border-green-300 dark:border-green-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-lg"
+              className="w-full px-3 py-1.5 border-2 border-green-300 dark:border-green-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 font-bold text-base"
               min="0"
               step="0.01"
               placeholder={calculateTotal().toString()}
               required
             />
-            <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
+            <p className="text-[11px] text-gray-600 dark:text-slate-400 mt-1">
               {t('Suggested', 'सुझाव')}: ₹{expectedTotal.toFixed(2)} ({t('Rent + Electricity', 'किराया + बिजली')})
             </p>
             {paidAmountValue > 0 && (
-              <div className={`mt-2 rounded-xl border p-2.5 text-sm ${isPartialPayment ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-300' : 'bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-800 text-green-900 dark:text-green-300'}`}>
+              <div className={`mt-1.5 rounded-lg border p-2 text-xs ${isPartialPayment ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-300' : 'bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-800 text-green-900 dark:text-green-300'}`}>
                 {isPartialPayment ? (
                   <>
                     <p className="font-semibold">⚠️ {t('Partial Payment', 'आंशिक भुगतान')}</p>
@@ -518,14 +518,14 @@ const SubmitPayment = ({
 
           {/* UTR Number */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2">
+            <label className="block text-xs font-semibold text-gray-700 dark:text-slate-200 mb-1">
               🔢 {t('UTR / Transaction ID', 'UTR / ट्रांजैक्शन ID')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={formData.utr}
               onChange={(e) => setFormData({ ...formData, utr: e.target.value })}
-              className="w-full px-4 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
+              className="w-full px-3 py-1.5 text-sm border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
               placeholder={t('Enter UTR/Txn ID (10-30 letters/numbers)', 'UTR/Txn ID दर्ज करें (10-30 अक्षर/अंक)')}
               minLength={10}
               maxLength={30}
@@ -535,34 +535,34 @@ const SubmitPayment = ({
 
           {/* Screenshot Proof */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-2">
+            <label className="block text-xs font-semibold text-gray-700 dark:text-slate-200 mb-1">
               📸 {t('Payment Screenshot (Required)', 'पेमेंट स्क्रीनशॉट (जरूरी)')} <span className="text-red-500">*</span>
             </label>
             <input
               type="file"
               accept="image/*"
               onChange={handleScreenshotFileChange}
-              className="w-full px-4 py-2 border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-green-100 dark:file:bg-green-900/50 file:text-green-700 dark:file:text-green-300 file:font-semibold file:text-sm"
+              className="w-full px-2 py-1.5 text-sm border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:bg-green-100 dark:file:bg-green-900/50 file:text-green-700 dark:file:text-green-300 file:font-semibold file:text-xs"
               required
             />
             {formData.screenshot && (
-              <div className="mt-3">
+              <div className="mt-2">
                 <img
                   src={formData.screenshot}
                   alt="Payment proof preview"
-                  className="max-h-56 w-auto rounded-xl border border-gray-300 dark:border-slate-600 shadow-sm"
+                  className="max-h-36 w-auto rounded-lg border border-gray-300 dark:border-slate-600 shadow-sm"
                 />
               </div>
             )}
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+            <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">
               💡 {t('Please upload the payment confirmation screenshot from your phone gallery', 'फोन गैलरी से payment confirmation screenshot upload करें')}
             </p>
           </div>
 
           {/* Info Box */}
-          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3">
-            <p className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">ℹ️ {t('What happens next?', 'आगे क्या होगा?')}</p>
-            <ul className="text-xs text-blue-800 dark:text-blue-400 space-y-1">
+          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-2.5">
+            <p className="text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1">ℹ️ {t('What happens next?', 'आगे क्या होगा?')}</p>
+            <ul className="text-[11px] text-blue-800 dark:text-blue-400 space-y-0.5">
               <li>✓ {t('Your payment will be reviewed by admin', 'आपकी पेमेंट admin verify करेंगे')}</li>
               <li>✓ {t('Verification usually takes less than 24 hours', 'वेरिफिकेशन आमतौर पर 24 घंटे से कम में हो जाता है')}</li>
               <li>✓ {t('Duplicate UTR submissions are automatically blocked', 'duplicate UTR अपने-आप block हो जाता है')}</li>
@@ -570,18 +570,18 @@ const SubmitPayment = ({
           </div>
 
           {/* Submit Button */}
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-6 py-3 border-2 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition"
+              className="flex-1 px-4 py-2 text-sm border-2 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition"
             >
               {t('Cancel', 'रद्द करें')}
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold rounded-xl shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 text-sm bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold rounded-xl shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? `⏳ ${t('Submitting...', 'सबमिट हो रहा है...')}` : `✅ ${t('Submit Payment', 'पेमेंट सबमिट करें')}`}
             </button>
