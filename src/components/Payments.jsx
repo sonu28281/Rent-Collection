@@ -766,7 +766,7 @@ const Payments = () => {
             <p>No tenants found</p>
           </div>
         ) : isCardView ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {filteredTenants.map((tenant) => {
               const paymentSummary = getTenantPaymentSummary(tenant);
               const isPaid = paymentSummary.isPaid;
@@ -774,18 +774,21 @@ const Payments = () => {
               return (
                 <div
                   key={tenant.id}
-                  className={`rounded-lg border p-4 ${isPaid ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'}`}
+                  className={`rounded-xl border border-l-4 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 p-3 shadow-sm hover:shadow-md transition-all duration-200 ${isPaid ? 'border-l-green-500' : 'border-l-orange-500'}`}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase">Room</p>
-                      <p className="text-lg font-bold text-gray-900">{tenant.roomNumber}</p>
-                      <p className="text-sm font-semibold text-gray-900 mt-1">{tenant.name}</p>
-                      <p className="text-sm text-gray-600">{tenant.phone || '-'}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center min-w-[2.25rem] px-2 py-1 rounded-lg text-xs font-bold bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-100">
+                          {tenant.roomNumber}
+                        </span>
+                        <p className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate">{tenant.name}</p>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{tenant.phone || '-'}</p>
                       {isPaid && (
-                        <div className="mt-1 space-y-1">
-                          <p className="text-xs text-gray-700">
-                            UTR: <span className="font-mono font-semibold">{paymentSummary.utrDisplay}</span>
+                        <div className="mt-1.5 space-y-1">
+                          <p className="text-[11px] text-gray-500 dark:text-slate-400">
+                            UTR: <span className="font-mono font-semibold text-gray-700 dark:text-slate-200">{paymentSummary.utrDisplay}</span>
                           </p>
                           {(() => {
                             const monthPayments = getTenantMonthPayments(tenant);
@@ -796,14 +799,14 @@ const Payments = () => {
                                 <button
                                   type="button"
                                   onClick={() => openProof(latestPayment, `${tenant.name} • Room ${tenant.roomNumber}`)}
-                                  className="text-[11px] font-semibold text-blue-700 hover:underline"
+                                  className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 hover:underline"
                                 >
                                   📸 View Proof
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleDownloadScreenshot(latestPayment)}
-                                  className="text-[11px] font-semibold text-indigo-700 hover:underline"
+                                  className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-400 hover:underline"
                                 >
                                   ⬇️ Download
                                 </button>
@@ -813,25 +816,25 @@ const Payments = () => {
                         </div>
                       )}
                     </div>
-                    <p className="text-lg font-bold text-gray-900">
+                    <p className="text-base font-bold text-gray-900 dark:text-slate-100 whitespace-nowrap">
                       ₹{(isPaid ? paymentSummary.totalPaid : (tenant.currentRent || 0)).toLocaleString('en-IN')}
                     </p>
                   </div>
 
-                  <div className="mt-3 flex items-center justify-between">
+                  <div className="mt-2 pt-2 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between">
                     {isPaid ? (
-                      <div className="flex flex-col">
-                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-200 text-green-900 w-fit">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300">
                           ✅ Paid
                         </span>
                         {paymentSummary.latestPaidDate && (
-                          <span className="text-xs text-gray-600 mt-1">
+                          <span className="text-[11px] text-gray-500 dark:text-slate-400">
                             {new Date(paymentSummary.latestPaidDate).toLocaleDateString('en-IN')}
                           </span>
                         )}
                       </div>
                     ) : (
-                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-200 text-orange-900">
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300">
                         ⏳ Pending
                       </span>
                     )}
@@ -839,7 +842,7 @@ const Payments = () => {
                     {!isPaid && (
                       <button
                         onClick={() => handleRecordPayment(tenant)}
-                        className="px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition text-xs font-semibold"
+                        className="px-2.5 py-1 bg-primary text-white rounded-lg hover:bg-blue-700 transition text-xs font-semibold"
                       >
                         💰 Record
                       </button>
