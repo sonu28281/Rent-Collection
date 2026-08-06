@@ -772,27 +772,28 @@ const VerifyPayments = () => {
             </button>
           )}
         </div>
-        <div className="flex flex-col sm:items-end gap-2 shrink-0">
-          <label className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-500 dark:text-slate-400 whitespace-nowrap">📅 Month</span>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-700 border-2 border-gray-200 dark:border-slate-600 rounded-xl pl-3 pr-2 py-1.5 shadow-sm focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/40 transition">
+            <span className="text-base">📅</span>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-3 py-1.5 text-sm border-2 border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              aria-label="Filter by month"
+              className="bg-transparent text-sm font-semibold text-gray-900 dark:text-slate-100 focus:outline-none cursor-pointer"
             >
               <option value="all">All Months</option>
               {monthOptions.map((opt) => (
                 <option key={opt.key} value={opt.key}>{opt.label}</option>
               ))}
             </select>
-          </label>
+          </div>
           <button
             type="button"
             onClick={runBulkOcrCheck}
             disabled={ocrRunningBulk}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+            className="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm hover:shadow-md transition disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
           >
-            {ocrRunningBulk ? 'Running OCR Check...' : '🔍 Run OCR UTR + Date Check (Pending)'}
+            {ocrRunningBulk ? '⏳ Running OCR Check...' : '🔍 Run OCR UTR + Date Check (Pending)'}
           </button>
         </div>
       </div>
