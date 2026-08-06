@@ -887,7 +887,19 @@ const Dashboard = () => {
                                             )}
                                           </td>
                                           <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-300">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
-                                          <td className="px-4 py-3 text-right text-blue-700 dark:text-blue-400">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</td>
+                                          <td className="px-4 py-3 text-right text-blue-700 dark:text-blue-400">
+                                            ₹{tenant.expectedElectricity.toLocaleString('en-IN')}
+                                            {(() => {
+                                              const totalUnits = (tenant.meterReadings || []).reduce((sum, r) => sum + (Number(r.unitsConsumed) || 0), 0);
+                                              if (totalUnits <= 0) return null;
+                                              const rate = tenant.expectedElectricity / totalUnits;
+                                              return (
+                                                <div className="text-[10px] font-normal text-gray-400 dark:text-slate-500 whitespace-nowrap">
+                                                  {totalUnits} units @ ₹{rate.toFixed(2)}
+                                                </div>
+                                              );
+                                            })()}
+                                          </td>
                                           <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-slate-100">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
                                           <td className={`px-4 py-3 text-right font-bold ${isPaid ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
                                             ₹{tenant.collectedAmount.toLocaleString('en-IN')}
@@ -1103,7 +1115,19 @@ const Dashboard = () => {
                                             )}
                                           </td>
                                           <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-300">₹{tenant.expectedRent.toLocaleString('en-IN')}</td>
-                                          <td className="px-4 py-3 text-right text-blue-700 dark:text-blue-400">₹{tenant.expectedElectricity.toLocaleString('en-IN')}</td>
+                                          <td className="px-4 py-3 text-right text-blue-700 dark:text-blue-400">
+                                            ₹{tenant.expectedElectricity.toLocaleString('en-IN')}
+                                            {(() => {
+                                              const totalUnits = (tenant.meterReadings || []).reduce((sum, r) => sum + (Number(r.unitsConsumed) || 0), 0);
+                                              if (totalUnits <= 0) return null;
+                                              const rate = tenant.expectedElectricity / totalUnits;
+                                              return (
+                                                <div className="text-[10px] font-normal text-gray-400 dark:text-slate-500 whitespace-nowrap">
+                                                  {totalUnits} units @ ₹{rate.toFixed(2)}
+                                                </div>
+                                              );
+                                            })()}
+                                          </td>
                                           <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-slate-100">₹{tenant.expectedTotal.toLocaleString('en-IN')}</td>
                                           <td className={`px-4 py-3 text-right font-bold ${isPaid ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
                                             ₹{tenant.collectedAmount.toLocaleString('en-IN')}
