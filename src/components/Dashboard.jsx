@@ -1223,10 +1223,18 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Year-wise trend chart + Yearly Summary — side by side on wide screens
-              (chart shrinks to fit its column), stacked on mobile. */}
+          {/* Charts + Yearly Summary — side by side on wide screens (both charts
+              stacked in the left column, so the monthly chart shrinks to fit
+              too), stacked full-width on mobile. */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 items-start">
-            {!loading && yearlyData.length >= 2 && <YearlyTrendChart data={yearlyData} />}
+            {!loading && yearlyData.length >= 2 && (
+              <div className="space-y-4">
+                <YearlyTrendChart data={yearlyData} />
+                {selectedYear && monthlyData.length > 0 && (
+                  <MonthlyTrendChart data={monthlyData} year={selectedYear} />
+                )}
+              </div>
+            )}
             <div className={!loading && yearlyData.length >= 2 ? '' : 'lg:col-span-2'}>
             {loading ? (
               <p className="text-gray-500 text-sm">Loading...</p>
@@ -1304,14 +1312,6 @@ const Dashboard = () => {
             )}
             </div>
           </div>
-
-          {/* Month-wise trend for the selected year — updates when a row is
-              clicked in the yearly table/cards above. */}
-          {selectedYear && monthlyData.length > 0 && (
-            <div className="mb-6">
-              <MonthlyTrendChart data={monthlyData} year={selectedYear} />
-            </div>
-          )}
 
           {/* Monthly Breakdown (collapsible) */}
           {selectedYear && monthlyData.length > 0 && (
