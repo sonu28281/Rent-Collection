@@ -1241,7 +1241,7 @@ const Dashboard = () => {
             ) : yearlyData.length === 0 ? (
               <p className="text-gray-500 text-sm">No payment data yet. Import historical data or record new payments.</p>
             ) : isCardView ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="max-h-[420px] overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 gap-3 content-start">
                 {yearlyData.map((year) => (
                   <button
                     key={year.year}
@@ -1269,9 +1269,9 @@ const Dashboard = () => {
               </div>
             ) : (
               <div className="rounded-2xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+                <div className="max-h-[420px] overflow-y-auto overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
+                    <thead className="sticky top-0 z-10 bg-slate-200 dark:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600">
                       <tr>
                         <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('yearly', 'year')}>Year{getSortIndicator('yearly', 'year')}</th>
                         <th className="px-4 py-3 text-right text-[11px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200 cursor-pointer select-none hover:text-indigo-700 dark:hover:text-indigo-300 transition" onClick={() => handleTableSort('yearly', 'rentIncome')}>Rent Income{getSortIndicator('yearly', 'rentIncome')}</th>
