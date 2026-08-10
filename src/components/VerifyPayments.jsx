@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, deleteDoc } from '../utils/firestoreCounted';
+import { collection, query, where, getDocs, getDoc, doc, updateDoc, addDoc, deleteDoc } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { useDialog } from './ui/DialogProvider';
+import { getPriorPendingMonths, allocateMultiMonthPayment } from '../utils/financial';
 import Tesseract from 'tesseract.js';
 
 const VerifyPayments = () => {
@@ -504,11 +505,12 @@ const VerifyPayments = () => {
         });
 
         const sanitized = cleanPayload(roomPayload);
+        const statusToSet = roomPayload.status || 'paid';
 
         if (existingRecord) {
           await updateDoc(doc(db, 'payments', existingRecord.id), {
             ...sanitized,
-            status: 'paid',
+            status: statusToSet,
             verifiedBy: currentUser?.email || 'admin',
             verifiedAt: nowIso,
             updatedAt: nowIso,
@@ -518,7 +520,7 @@ const VerifyPayments = () => {
         } else {
           await addDoc(collection(db, 'payments'), {
             ...sanitized,
-            status: 'paid',
+            status: statusToSet,
             sourceSubmissionId: submission.id,
             submissionGroupId,
             createdAt: nowIso,
@@ -580,26 +582,86 @@ const VerifyPayments = () => {
           }
         }
       } else {
-        await upsertPaymentForRoom({
-          tenantId: submission.tenantId,
-          tenantNameSnapshot: submission.tenantName,
-          roomNumber: submission.roomNumber,
-          year: submissionYear,
-          month: submissionMonth,
-          rent: submission.rentAmount,
-          electricity: submission.electricityAmount,
-          paidAmount: submission.paidAmount,
-          oldReading: previousReading,
-          currentReading,
-          previousReading,
-          meterReading: currentReading,
-          units: unitsConsumed,
-          unitsConsumed,
-          paidDate: submission.paidDate,
-          paymentMethod: 'UPI',
-          utr: normalizedUtr || getSubmissionUtr(submission) || '',
-          notes: submission.notes
-        });
+        // A tenant sometimes clears a backlog by paying several months in one
+        // go. If this payment is bigger than just the submitted month's own
+        // dues, check whether the tenant actually has unpaid earlier months —
+        // if so, split the amount across those months (oldest first) instead
+        // of recording it all against this one month, so each month gets its
+        // own 'paid' record and stops showing as pending.
+        const targetRent = Number(submission.rentAmount) || 0;
+        const targetElectricity = Number(submission.electricityAmount) || 0;
+        const paidAmount = Number(submission.paidAmount) || 0;
+
+        let priorMonths = [];
+        if (submission.tenantId && paidAmount > targetRent + targetElectricity + 1) {
+          const tenantSnap = await getDoc(doc(db, 'tenants', submission.tenantId));
+          if (tenantSnap.exists()) {
+            const tenantData = { id: tenantSnap.id, ...tenantSnap.data() };
+            const tenantPaymentsSnap = await getDocs(query(collection(db, 'payments'), where('tenantId', '==', submission.tenantId)));
+            const tenantAllPayments = tenantPaymentsSnap.docs.map((paymentDoc) => paymentDoc.data());
+            priorMonths = getPriorPendingMonths(tenantData, tenantAllPayments, submissionYear, submissionMonth);
+          }
+        }
+
+        if (priorMonths.length > 0) {
+          const allocations = allocateMultiMonthPayment(
+            priorMonths,
+            { year: submissionYear, month: submissionMonth, rent: targetRent, electricity: targetElectricity },
+            paidAmount
+          );
+
+          for (const allocation of allocations) {
+            if (allocation.paidAmount <= 0) continue;
+            const isTargetMonth = allocation.year === submissionYear && allocation.month === submissionMonth;
+            await upsertPaymentForRoom({
+              tenantId: submission.tenantId,
+              tenantNameSnapshot: submission.tenantName,
+              roomNumber: submission.roomNumber,
+              year: allocation.year,
+              month: allocation.month,
+              rent: allocation.rent,
+              electricity: allocation.electricity,
+              paidAmount: allocation.paidAmount,
+              status: allocation.status,
+              ...(isTargetMonth ? {
+                oldReading: previousReading,
+                currentReading,
+                previousReading,
+                meterReading: currentReading,
+                units: unitsConsumed,
+                unitsConsumed
+              } : {}),
+              paidDate: submission.paidDate,
+              paymentMethod: 'UPI',
+              utr: normalizedUtr || getSubmissionUtr(submission) || '',
+              notes: submission.notes,
+              isMultiMonthSplit: true,
+              splitFromSubmissionId: submission.id,
+              splitTotalAmount: paidAmount
+            });
+          }
+        } else {
+          await upsertPaymentForRoom({
+            tenantId: submission.tenantId,
+            tenantNameSnapshot: submission.tenantName,
+            roomNumber: submission.roomNumber,
+            year: submissionYear,
+            month: submissionMonth,
+            rent: submission.rentAmount,
+            electricity: submission.electricityAmount,
+            paidAmount: submission.paidAmount,
+            oldReading: previousReading,
+            currentReading,
+            previousReading,
+            meterReading: currentReading,
+            units: unitsConsumed,
+            unitsConsumed,
+            paidDate: submission.paidDate,
+            paymentMethod: 'UPI',
+            utr: normalizedUtr || getSubmissionUtr(submission) || '',
+            notes: submission.notes
+          });
+        }
 
         // Update room meter reading if provided
         if (submission.meterReading && submission.meterReading > 0) {

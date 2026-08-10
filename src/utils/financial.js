@@ -329,6 +329,81 @@ export const getTodaysCollection = async () => {
 };
 
 /**
+ * List the fully-unrecorded months (oldest first) between a tenant's most
+ * recent payment record and the given year/month. The gap is anchored to
+ * their last recorded payment — NOT their check-in date — because payment
+ * history often doesn't extend back that far (e.g. records only go back to
+ * whenever the app started tracking data, or a bulk CSV import's start
+ * date). Anchoring to check-in would wrongly treat that whole untracked
+ * history as backlog. The gap is also capped at maxLookback months so an
+ * unusually large, ambiguous gap is left for admin to resolve manually
+ * (via the explicit multi-month picker in the Record Payment form) instead
+ * of silently auto-generating many months of records.
+ */
+export const getPriorPendingMonths = (tenant, allPayments, beforeYear, beforeMonth, { maxLookback = 6 } = {}) => {
+  const beforeIdx = beforeYear * 12 + (beforeMonth - 1);
+
+  let lastRecordedIdx = null;
+  (allPayments || []).forEach((payment) => {
+    if (!payment.year || !payment.month) return;
+    const idx = Number(payment.year) * 12 + (Number(payment.month) - 1);
+    if (idx < beforeIdx && (lastRecordedIdx === null || idx > lastRecordedIdx)) lastRecordedIdx = idx;
+  });
+
+  const checkIn = tenant?.checkInDate ? new Date(tenant.checkInDate) : null;
+  const checkInIdx = checkIn && !isNaN(checkIn.getTime())
+    ? checkIn.getFullYear() * 12 + checkIn.getMonth()
+    : beforeIdx;
+  // No earlier record at all -> anchor one month before check-in, so the gap
+  // (if any) starts right at check-in.
+  const anchorIdx = lastRecordedIdx !== null ? lastRecordedIdx : checkInIdx - 1;
+  const startIdx = Math.max(anchorIdx + 1, beforeIdx - maxLookback);
+
+  const months = [];
+  for (let idx = startIdx; idx < beforeIdx; idx++) {
+    months.push({ year: Math.floor(idx / 12), month: (idx % 12) + 1 });
+  }
+  return months;
+};
+
+/**
+ * Split one lump-sum payment across a tenant's oldest unpaid months plus the
+ * month it was actually submitted for — instead of recording the whole
+ * amount against a single month (which leaves earlier months with no record
+ * at all, so they keep showing as pending even though they were paid).
+ *
+ * Older backlog months are settled at plain rent, oldest first — there's no
+ * meter reading for a month nobody logged, so electricity for those months
+ * is left at 0 rather than guessed. The submitted month absorbs its own
+ * rent + electricity (the only period with a real reading) plus any
+ * leftover. Each allocation is flagged 'paid' if it covers that month's full
+ * expected amount, else 'partial'.
+ */
+export const allocateMultiMonthPayment = (priorMonths, targetMonth, totalPaidAmount) => {
+  let remaining = Number(totalPaidAmount) || 0;
+  const targetRent = Number(targetMonth.rent) || 0;
+  const targetElectricity = Number(targetMonth.electricity) || 0;
+
+  const allocations = priorMonths.map(({ year, month }) => {
+    const amount = Math.min(remaining, targetRent);
+    remaining -= amount;
+    return { year, month, rent: targetRent, electricity: 0, paidAmount: amount, status: amount >= targetRent ? 'paid' : 'partial' };
+  });
+
+  const targetExpected = targetRent + targetElectricity;
+  allocations.push({
+    year: targetMonth.year,
+    month: targetMonth.month,
+    rent: targetRent,
+    electricity: targetElectricity,
+    paidAmount: remaining,
+    status: remaining >= targetExpected ? 'paid' : 'partial'
+  });
+
+  return allocations;
+};
+
+/**
  * Get month detailed summary with tenant information
  * @param {number} month - Optional month (1-12), defaults to current month
  * @param {number} year - Optional year, defaults to current year
