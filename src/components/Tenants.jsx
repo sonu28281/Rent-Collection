@@ -3,6 +3,7 @@ import { collection, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, 
 import { db } from '../firebase';
 import TenantForm from './TenantForm';
 import AdminCheckoutPanel from './AdminCheckoutPanel';
+import CheckoutTenantModal from './CheckoutTenantModal';
 import { useDialog } from './ui/DialogProvider';
 import useResponsiveViewMode from '../utils/useResponsiveViewMode';
 
@@ -35,6 +36,7 @@ const Tenants = () => {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingTenant, setEditingTenant] = useState(null);
+  const [checkoutModalTenant, setCheckoutModalTenant] = useState(null); // tenant being checked out directly (no portal request needed)
   const [filter, setFilter] = useState('active'); // active only (past tenants are on TenantHistory page)
   const [kycFilter, setKycFilter] = useState('all'); // all, verified, not_verified
   const [floorFilter, setFloorFilter] = useState('all'); // all, floor1, floor2
@@ -143,6 +145,16 @@ const Tenants = () => {
   const handleEditTenant = (tenant) => {
     setEditingTenant(tenant);
     setShowForm(true);
+  };
+
+  const handleOpenCheckout = (tenant) => {
+    const roomNumbers = getAssignedRooms(tenant);
+    const room = rooms.find((r) => roomNumbers.includes(String(r.roomNumber)));
+    if (!room) {
+      showAlert('Could not find this tenant\'s room — cannot start checkout.', { title: 'Room Not Found', intent: 'error' });
+      return;
+    }
+    setCheckoutModalTenant({ tenant, room });
   };
 
   const handleFormClose = () => {
@@ -793,6 +805,15 @@ const Tenants = () => {
                 🔄
               </button>
             )}
+            {tenant.isActive && (
+              <button
+                onClick={() => handleOpenCheckout(tenant)}
+                className="text-amber-600 hover:text-amber-900 dark:hover:text-amber-400 font-medium"
+                title="Checkout Tenant"
+              >
+                🚪
+              </button>
+            )}
             <button
               onClick={() => handleDeleteTenant(tenant)}
               className="text-red-600 hover:text-red-900 dark:hover:text-red-400 font-medium"
@@ -1123,6 +1144,7 @@ const Tenants = () => {
               onDelete={() => handleDeleteTenant(tenant)}
               onViewHistory={() => handleViewHistory(tenant)}
               onResetKyc={() => handleResetKyc(tenant)}
+              onCheckout={() => handleOpenCheckout(tenant)}
             />
           ))}
         </div>
@@ -1325,6 +1347,15 @@ const Tenants = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {checkoutModalTenant && (
+        <CheckoutTenantModal
+          tenant={checkoutModalTenant.tenant}
+          room={checkoutModalTenant.room}
+          onClose={() => setCheckoutModalTenant(null)}
+          onSuccess={fetchData}
+        />
       )}
     </div>
   );
@@ -1815,7 +1846,7 @@ export const PaymentHistoryModal = ({ tenant, payments, electricityReadings = []
   );
 };
 
-const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc }) => {
+const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc, onCheckout }) => {
   const { showAlert, showPrompt } = useDialog();
   const isActive = tenant.isActive;
   const isKycVerified = tenant?.kyc?.verified === true && tenant?.kyc?.verifiedBy === 'DigiLocker';
@@ -1949,6 +1980,9 @@ const TenantCard = ({ tenant, onEdit, onDelete, onViewHistory, onResetKyc }) => 
         <button onClick={onEdit} title="Edit Tenant" className="flex-1 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-1.5 rounded-lg font-semibold transition text-xs">✏️ Edit</button>
         {isKycVerified && (
           <button onClick={onResetKyc} title="Reset KYC" className="flex-1 bg-orange-50 dark:bg-orange-950/40 hover:bg-orange-100 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 px-2 py-1.5 rounded-lg font-semibold transition text-xs">🔄 KYC</button>
+        )}
+        {isActive && (
+          <button onClick={onCheckout} title="Checkout Tenant" className="flex-1 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 px-2 py-1.5 rounded-lg font-semibold transition text-xs">🚪 Checkout</button>
         )}
         <button onClick={onDelete} title="Delete Tenant" className="flex-1 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 px-2 py-1.5 rounded-lg font-semibold transition text-xs">🗑️ Delete</button>
       </div>

@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, doc, getDoc, setDoc, writeBatch, serverTimestamp } from '../utils/firestoreCounted';
+import { collection, getDocs, query, where, doc, getDoc, setDoc, serverTimestamp } from '../utils/firestoreCounted';
 import { db } from '../firebase';
 import { useDialog } from './ui/DialogProvider';
+import CheckoutTenantModal from './CheckoutTenantModal';
 
 const AdminCheckoutPanel = () => {
   const { showConfirm, showAlert } = useDialog();
   const [checkoutRequests, setCheckoutRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(null);
+  const [checkoutModalRequest, setCheckoutModalRequest] = useState(null);
 
   useEffect(() => {
     fetchCheckoutRequests();
@@ -81,6 +83,9 @@ const AdminCheckoutPanel = () => {
     }
   };
 
+  // Approving now opens the settlement modal (final meter reading + bill)
+  // instead of blindly flipping tenant/room status with no reading or
+  // payment record captured.
   const handleApprove = async (request) => {
     const tenant = request.tenant;
     if (!tenant) {
@@ -88,51 +93,21 @@ const AdminCheckoutPanel = () => {
       return;
     }
 
-    const confirmed = await showConfirm(
-      `${request.tenantName} (Room ${request.roomNumber}) ka checkout approve karna hai?\n\nYe hoga:\n• Tenant past tenant ho jayega\n• Room vacant ho jayega\n\nKya sab pending payments clear ho gayi hain?`,
-      { title: 'Approve Checkout', confirmLabel: 'Approve Checkout', intent: 'warning' }
-    );
-    if (!confirmed) return;
-
     try {
       setProcessing(request.id);
-      const batch = writeBatch(db);
-
-      // 1. Tenant inactive
-      const tenantRef = doc(db, 'tenants', tenant.id);
-      batch.set(tenantRef, {
-        status: 'inactive',
-        isActive: false,
-        checkOutDate: request.proposedCheckoutDate,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      // 2. Room vacant
-      const roomsSnapshot = await getDocs(query(collection(db, 'rooms'), where('roomNumber', '==', request.roomNumber)));
-      if (!roomsSnapshot.empty) {
-        const roomRef = doc(db, 'rooms', roomsSnapshot.docs[0].id);
-        batch.set(roomRef, {
-          status: 'vacant',
-          currentTenantId: null,
-          lastStatusUpdatedAt: serverTimestamp()
-        }, { merge: true });
+      // roomNumber's stored type is inconsistent across rooms (string vs
+      // number), so match by string value instead of a strict equality query.
+      const roomsSnapshot = await getDocs(collection(db, 'rooms'));
+      const roomDoc = roomsSnapshot.docs.find((d) => String(d.data().roomNumber) === String(request.roomNumber));
+      if (!roomDoc) {
+        showAlert('Room not found for this request', { intent: 'error' });
+        return;
       }
-
-      // 3. Checkout request completed
-      const requestRef = doc(db, 'checkoutRequests', request.id);
-      batch.set(requestRef, {
-        status: 'completed',
-        completedAt: serverTimestamp(),
-        completedBy: 'admin'
-      }, { merge: true });
-
-      await batch.commit();
-
-      await showAlert(`✅ ${request.tenantName} (Room ${request.roomNumber}) checkout complete!\nTenant inactive, Room vacant.`, { intent: 'success' });
-      fetchCheckoutRequests();
+      const room = { id: roomDoc.id, ...roomDoc.data() };
+      setCheckoutModalRequest({ request, tenant, room });
     } catch (error) {
-      console.error('Error approving checkout:', error);
-      showAlert('Failed to approve checkout. Please try again.', { intent: 'error' });
+      console.error('Error preparing checkout:', error);
+      showAlert('Failed to load room data. Please try again.', { intent: 'error' });
     } finally {
       setProcessing(null);
     }
@@ -225,6 +200,17 @@ const AdminCheckoutPanel = () => {
             </div>
           ))}
         </div>
+      )}
+
+      {checkoutModalRequest && (
+        <CheckoutTenantModal
+          tenant={checkoutModalRequest.tenant}
+          room={checkoutModalRequest.room}
+          checkoutRequestId={checkoutModalRequest.request.id}
+          defaultCheckoutDate={checkoutModalRequest.request.proposedCheckoutDate}
+          onClose={() => setCheckoutModalRequest(null)}
+          onSuccess={fetchCheckoutRequests}
+        />
       )}
     </div>
   );
